@@ -136,7 +136,7 @@ class SearchAgent:
         specs = {spec.name: spec for spec in tools.specs}
         trace.event(
             "run.start",
-            model=self.profile.model,
+            model=self.profile.repo,
             question=question,
             system_prompt=system,
             budget={"searches": cfg.max_searches, "fetches": cfg.max_fetches},
@@ -195,7 +195,7 @@ class SearchAgent:
         self, messages: list[dict[str, Any]], tools: list[ToolSpec], result: RunResult
     ) -> Any:
         request: dict[str, Any] = {
-            "model": self.profile.model,
+            "model": self.profile.repo,
             "messages": messages,
             "max_tokens": self.config.max_tokens,
             **self.profile.sampling,
@@ -254,7 +254,7 @@ class SearchAgent:
         """
         try:
             response = await self._client.chat.completions.create(
-                model=self.profile.model,
+                model=self.profile.repo,
                 messages=[{"role": "user", "content": _REFINE_PROMPT.format(url=url, page=page)}],
                 max_tokens=self.config.refine_max_tokens,
                 temperature=0.0,

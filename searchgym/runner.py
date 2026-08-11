@@ -174,7 +174,7 @@ class Runner:
         stage: str = "",
     ) -> Record:
         key = digest(
-            "agent/1", self.profile.model, _agent_fingerprint(self.agent.config),
+            "agent/1", self.profile.repo, _agent_fingerprint(self.agent.config),
             system_prompt, benchmark.build_prompt(item),
         )
         # 같은 키가 이미 돌고 있으면 끝날 때까지 기다렸다가 캐시에서 집는다.

@@ -57,11 +57,12 @@ class ServeProfile:
         return (self.local_dir / "config.json").exists()
 
     @property
-    def model(self) -> str:
-        """vLLM에 넘길 경로. 로컬 clone이 있으면 그쪽을 쓴다.
+    def launch_path(self) -> str:
+        """`vllm serve`에 넘길 값. 로컬 clone이 있으면 그 경로를 쓴다.
 
-        `--served-model-name`으로 이름을 repo ID에 고정하므로, 클라이언트가 부르는
-        모델 이름은 로컬이든 원격이든 동일하다.
+        **클라이언트가 보내는 모델 이름은 이게 아니라 `repo`다.** serve_command가
+        --served-model-name을 repo로 고정하므로, 가중치가 로컬에 있든 없든 API가
+        아는 이름은 항상 repo 하나다. 둘을 섞으면 404가 난다.
         """
         return str(self.local_dir) if self.is_local else self.repo
 
@@ -71,7 +72,7 @@ class ServeProfile:
     def serve_command(self, max_model_len: int | None = None, gpu_util: float = 0.90) -> str:
         parts = [
             "vllm serve",
-            self.model,
+            self.launch_path,
             f"--served-model-name {self.repo}",
             f"--max-model-len {max_model_len or self.max_model_len}",
             f"--gpu-memory-utilization {gpu_util}",

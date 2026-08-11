@@ -174,7 +174,7 @@ def _check_benchmark(name: str) -> None:
 
 
 def _check_model(name: str) -> None:
-    if name not in PROFILES and name not in {p.model for p in PROFILES.values()}:
+    if name not in PROFILES and name not in {p.repo for p in PROFILES.values()}:
         raise ValueError(f"알 수 없는 모델 '{name}'. 사용 가능: {', '.join(PROFILES)}")
 
 
