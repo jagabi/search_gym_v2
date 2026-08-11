@@ -38,6 +38,8 @@ class ServeProfile:
     sampling: dict[str, Any] = field(default_factory=dict)
     # chat template를 따로 줘야 하는 모델만 채운다(vLLM 저장소 기준 상대 경로).
     chat_template: str = ""
+    # 이 모델만 붙는 추가 플래그.
+    extra_flags: list[str] = field(default_factory=list)
     # 이 모델만의 주의사항. serve 명령과 함께 출력된다.
     notes: str = ""
     max_model_len: int = 128000
@@ -79,7 +81,7 @@ class ServeProfile:
         ]
         if self.chat_template:
             parts.append(f"--chat-template {self.chat_template}")
-        parts += ["--host 127.0.0.1", "--port 8000"]
+        parts += [*self.extra_flags, "--host 127.0.0.1", "--port 8000"]
         return " \\\n  ".join(parts)
 
 
@@ -89,11 +91,32 @@ PROFILES: dict[str, ServeProfile] = {
         repo="google/gemma-4-12B-it",
         tool_call_parser="gemma4",
         reasoning_parser="gemma4",
-        chat_template="examples/tool_chat_template_gemma4.jinja",
+        # 비워 둔다. 모델에 딸려 온 chat template이 도구를 지원하므로 대개 필요 없고,
+        # vLLM 저장소의 examples/ 경로를 그대로 주면 pip 설치본에는 그 파일이 없어
+        # 기동 전에 죽는다. 내장 템플릿으로 툴콜이 안 되면 그때만 파일을 받아
+        # 절대 경로로 지정한다:
+        #   curl -sL -o /workspace/gemma4.jinja https://raw.githubusercontent.com/\
+        #     vllm-project/vllm/main/examples/tool_chat_template_gemma4.jinja
+        chat_template="",
         sampling={"temperature": 1.0, "top_p": 0.95},
+        # 우리 워크로드는 텍스트 전용이다. 비전·오디오 프로파일링을 끄면 기동이
+        # 빨라지고 그만큼 KV에 쓸 메모리가 남는다(vLLM 레시피 권장).
+        extra_flags=["--limit-mm-per-prompt '{\"image\": 0, \"audio\": 0}'", "--async-scheduling"],
         notes=(
-            "encoder-free 12B Unified 지원이 아직 stable 릴리스에 없다. 핀된 도커 이미지"
-            " vllm/vllm-openai:gemma4-unified 또는 nightly wheel이 필요하다.\n"
+            "**transformers를 5.14.x로 내려야 뜬다 (실측: vLLM 0.27.1 + transformers 5.14.1).**\n"
+            "vLLM은 이 아키텍처를 지원한다 — Gemma4UnifiedForConditionalGeneration이 supported\n"
+            "archs에 있다. 문제는 transformers 5.15부터 config.head_dim 접근이 막히는 것이다:\n"
+            "  AmbiguousGlobalPerLayerAttributeError: 'head_dim' is a per-layer attribute\n"
+            "레이어마다 head_dim이 다른데(sliding 256 / global 512) vLLM의 get_head_size()가\n"
+            "전역 값 하나를 읽기 때문이다. vLLM이 transformers 상한을 안 걸어 둬서(>=5.5.3)\n"
+            "최신이 그냥 깔린다. 서버 환경에서만 내리면 된다:\n"
+            "  uv pip install 'transformers==5.14.*'\n"
+            "확인: AutoConfig.from_pretrained(경로).head_dim 이 256을 돌려주면 OK.\n"
+            "너무 내리면 반대로 config 자체를 못 읽는다(Gemma4Unified가 신규 아키텍처).\n"
+            "에러가 안내하는 allow_global_per_layer_attribute_access는 쓰지 말 것 —\n"
+            "transformers 다운그레이드가 같은 효과를 내면서 훨씬 명시적이다.\n"
+            "chat template은 모델 내장본이 tools를 지원하므로 --chat-template이 필요 없다\n"
+            "(vLLM 저장소의 examples/ 경로를 주면 pip 설치본에는 그 파일이 없어 죽는다).\n"
             "셋 중 VRAM이 제일 빡빡하다. global 레이어 head_dim이 512라 KV가 비싸서"
             " 128K에서 KV ~16GB + 가중치 24GB = ~40GB다(A6000 48GB에 시리얼로 들어간다).\n"
             "전제는 슬라이딩 윈도우 하이브리드 KV가 제대로 잡히는 것이다. 안 잡히면 KV가"

@@ -15,7 +15,11 @@ from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import get_default_environment, stdio_client
-from mcp.client.streamable_http import streamablehttp_client
+
+try:  # mcp>=1.20에서 이름이 바뀌었다
+    from mcp.client.streamable_http import streamable_http_client
+except ImportError:  # pragma: no cover - 구버전 SDK
+    from mcp.client.streamable_http import streamablehttp_client as streamable_http_client
 
 from ..paths import PROJECT_ROOT, load_env
 
@@ -68,9 +72,11 @@ class WebTools:
                 headers = {}
                 if token := os.getenv("MCP_AUTH_TOKEN"):
                     headers["Authorization"] = f"Bearer {token}"
-                read, write, _ = await self._stack.enter_async_context(
-                    streamablehttp_client(self._url, headers=headers or None)
+                # SDK 버전에 따라 2-튜플이거나 (get_session_id를 포함한) 3-튜플이다.
+                transport = await self._stack.enter_async_context(
+                    streamable_http_client(self._url, headers=headers or None)
                 )
+                read, write = transport[0], transport[1]
             else:
                 # env를 지정하면 SDK가 기본 환경을 통째로 대체하므로 위에 덮어쓴다.
                 keys = {
