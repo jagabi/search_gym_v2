@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from dataclasses import asdict
 import sys
 from pathlib import Path
 
@@ -84,8 +85,8 @@ async def main_async(argv: list[str] | None = None) -> int:
         {
             "source": config.source,
             "model": profile.repo,
-            "agent": vars(config.agent),
-            "judge": vars(config.judge),
+            "agent": asdict(config.agent),
+            "judge": asdict(config.judge),
             "prompt_source": config.prompt_path,
             "prompt_chars": len(system_prompt),
             "datasets": [d.name for d in datasets],

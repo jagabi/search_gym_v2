@@ -20,7 +20,15 @@ import os
 from typing import Any
 
 from anyio import to_thread
-from mcp.server.fastmcp import FastMCP
+
+# FastMCP는 SDK 버전마다 위치가 다르다. 이름이 옮겨 다녀도 서버가 뜨게 둔다.
+try:
+    from mcp.server.fastmcp import FastMCP
+except ImportError:  # pragma: no cover
+    try:
+        from mcp.server import FastMCP
+    except ImportError:
+        from fastmcp import FastMCP  # 별도 패키지로 분리된 버전
 
 from ..paths import load_env, require_env
 

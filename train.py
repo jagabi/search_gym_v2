@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import asdict
 from typing import Any
 
 import dspy
@@ -91,11 +92,11 @@ def main(argv: list[str] | None = None) -> int:
         {
             "source": config.source,
             "model": profile.repo,
-            "agent": vars(config.agent),
-            "teacher": {**vars(config.teacher)},
-            "judge": vars(config.judge),
-            "gepa": vars(config.gepa),
-            "data": vars(config.data),
+            "agent": asdict(config.agent),
+            "teacher": asdict(config.teacher),
+            "judge": asdict(config.judge),
+            "gepa": asdict(config.gepa),
+            "data": asdict(config.data),
             "seed": config.run.seed,
         },
     )

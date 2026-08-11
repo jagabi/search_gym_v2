@@ -12,7 +12,15 @@ openai>=1.60.0
 google-genai>=1.0.0
 
 # 도구 계층 (Serper 검색 + Jina 페이지 읽기)
+# 클라이언트는 mcp SDK로 붙고, 서버는 FastMCP로 띄운다.
+# mcp 2.0부터 FastMCP가 SDK에서 빠져 별도 패키지가 됐다. searchgym/tools/server.py는
+# mcp.server.fastmcp / mcp.server / fastmcp 세 위치를 순서대로 시도하므로 구버전
+# mcp(1.x)만 있어도 동작한다.
+# server extra가 있어야 FastMCP가 딸려 온다(없으면 import 시점에 안내 메시지만 뜬다).
+# 시스템 cryptography 때문에 설치가 막히면:
+#   pip install "fastmcp-slim[server]" --ignore-installed cryptography
 mcp>=1.9.0
+fastmcp-slim[server]>=2.0.0
 anyio>=4.0.0
 
 pyyaml>=6.0
