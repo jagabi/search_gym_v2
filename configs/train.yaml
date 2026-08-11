@@ -1,0 +1,212 @@
+# GEPA 학습 설정 — 이 파일만 바꿔 가며 실험한다.
+#   python train.py --config configs/train.yaml --tag seed0
+#
+# 산출물: runs/train/{날짜}_{모델}_{벤치}_{태그}/prompt.txt
+
+# ---------------------------------------------------------------------------
+# 최적화 대상 모델. serving.py의 프로파일 키를 쓴다 (qwen | gemma | gpt-oss).
+# 가중치가 models/ 아래 clone돼 있으면 자동으로 로컬 경로를 쓴다.
+#   python scripts/serve.py qwen     # 띄울 명령 확인
+# ---------------------------------------------------------------------------
+model: qwen
+
+agent:
+  base_url: http://127.0.0.1:8000/v1
+  # 한 턴의 **출력** 상한이다. 컨텍스트 길이(128K)와는 다른 축이며, thinking이
+  # 켜진 모델은 사고 토큰이 여기서 나가므로 너무 낮으면 생각하다 잘린다.
+  max_tokens: 8192
+
+  # 검색 예산. **이 실험의 핵심 손잡이다.**
+  # 이전 실험에서 상한 없이 두었더니 한 문항에 검색 141회가 나왔고, 80회 이상 쓴
+  # 문항의 정답률이 0.06이었다(20회 미만은 0.62). 많이 검색할수록 더 틀린다.
+  # 예산이 떨어지면 도구 목록을 회수하고 "이제 답하라"고 알린다.
+  max_searches: 20
+  max_fetches: 10
+  max_turns: 40
+
+  # 페치한 원문을 같은 모델로 한 번 압축해서 넣는다(Search-o1 Reason-in-Documents).
+  # 원문이 메인 컨텍스트를 통과하지 않으므로 긴 페이지가 대화를 오염시키지 않는다.
+  refine_fetched: true
+  refine_max_tokens: 1024
+
+  # 비워 두면 모델 프로파일의 기본값을 쓴다 — gpt-oss는 medium으로 고정돼 있고
+  # (serving.py), 나머지 모델은 이 값을 쓰지 않는다. 덮어쓸 때만 채운다.
+  reasoning_effort: ""
+  timeout_s: 600
+
+# ---------------------------------------------------------------------------
+# 학생의 시작 시스템 프롬프트.
+#
+# 일부러 아무 내용도 담지 않는다. 검색 정책은 GEPA가 트레이스를 보고 채워 나간다.
+# 출발점에 정책을 심어 두면 "왜 하필 그 프롬프트로 시작했나"를 변호해야 하지만,
+# 비워 두면 "교사에게 규칙이 아니라 트레이스만 줬다"만 말하면 된다.
+# ---------------------------------------------------------------------------
+initial_prompt: |
+  You are a helpful assistant. Answer the user's question.
+
+data:
+  benchmark: deepsearchqa
+  trainset: data/deepsearchqa/train.json
+  valset: data/deepsearchqa/validation.json
+
+# ---------------------------------------------------------------------------
+# 교사: GEPA가 프롬프트를 고쳐 쓸 때 쓰는 reflection LM.
+# dspy.LM(litellm)로 넘어가므로 "<provider>/<model>" 형식으로 적는다.
+# ---------------------------------------------------------------------------
+teacher:
+  model: anthropic/claude-opus-5
+  # 추론 토큰까지 포함한 출력 상한. 모자라면 제안이 ``` 펜스를 못 닫고 잘려
+  # 그 라운드가 통째로 버려진다.
+  max_tokens: 32768
+  extra:
+    reasoning_effort: high
+
+  # 학생 프롬프트의 토큰 상한(tiktoken o200k_base). reflection_prompt의 <budget>이
+  # "현재 N토큰 / 상한 1024토큰"으로 치환된다. 위 max_tokens와는 다른 축이다 —
+  # 그건 교사의 출력 상한, 이건 학생 프롬프트 길이.
+  prompt_token_budget: 1024
+
+  # 교사에게 "어떻게 고쳐 쓸지"를 지시하는 메타 프롬프트. 비우면 GEPA 기본값이
+  # 쓰이는데, 그 기본값은 "과제의 niche·domain specific 사실을 지시문에 넣어라"고
+  # 시킨다 — 사실을 찾아오는 것이 일인 검색 에이전트에는 정반대로 작용한다.
+  #
+  # <curr_param> 현재 프롬프트 · <side_info> 문항·응답·피드백  (둘 다 필수)
+  reflection_prompt: |
+    You are improving the SYSTEM PROMPT of an autonomous web-search agent. It answers
+    research questions with two tools: `web_search` (keyword query -> results) and
+    `web_fetch` (URL -> page text). Its whole behaviour comes from this prompt.
+
+    Current system prompt:
+    ```
+    <curr_param>
+    ```
+
+    Questions it was given, the answers it produced, and feedback on what went right or
+    wrong — including the queries it issued and the pages it opened:
+    ```
+    <side_info>
+    ```
+
+    ## What good search looks like
+
+    Judge the traces against this, and teach only what they justify.
+
+    - **Search the page, not the question.** Use words that would appear in the title of
+      the page holding the answer. A year range, region, threshold or candidate list is
+      something to CHECK ON THE PAGE — never a term to put in the query.
+    - **Calibrate the opening query to what you already know.** Unfamiliar domain: open
+      with the 2-3 plainest words naming the thing, let the results teach you the
+      vocabulary, widen one step at a time. Familiar domain: a specific query is fine
+      immediately — you can already predict the page's wording. The costly default is
+      the opposite: the question quoted back with source, region, years and every
+      candidate in one long string. It returns hits, which is why the agent keeps doing
+      it, but the wrong ones — no page is titled that.
+    - **Change something when a query fails.** A near-duplicate of a query that just
+      failed is a wasted turn; harvest better terms from what you saw.
+    - **Open pages.** Snippets identify candidates; they rarely contain the exact date,
+      title or amount asked for. When a title or snippet says the answer is on a page,
+      fetch it. One authoritative page beats five that merely mention the topic.
+    - **The search budget is finite.** Running out of searches before answering is a
+      failure. Spend them on distinct sub-questions, not on re-phrasings.
+    - **Decide.** Reason to a conclusion from the information you gathered. "I could not
+      find it" scores zero. So do "none qualify" and "no such case exists" — these are
+      refusals in disguise. If one criterion cannot be checked, name what the rest of
+      the evidence best supports.
+
+    ## How to revise
+
+    - **This is not your only chance.** More rounds follow. Do not write a finished
+      manual — find the single most damaging failure here, fix that one, stop. One or
+      two changes; the rules above enter only as the traces call for them.
+    - **Your reader is an LLM, and piling on instructions is not how you get
+      compliance.** If a rule is already there and did not land, repeating it in a new
+      sentence only dilutes it. Rewrite the existing one — different words, different
+      sentence structure, imperative instead of explanation, or move it earlier. Add a
+      new rule only for a failure no existing rule covers.
+    - **Shorter wins.** The agent follows a short prompt more reliably; past a thousand
+      tokens it degrades. Make room by merging and compressing, never by appending.
+    - The agent will face fields you never see. Carry no fact, figure, name, site or
+      topic from the examples, and cut any sentence useless in an unrelated field.
+    - The judge reads for meaning, so spend nothing on output formatting, and never
+      write a rule that makes the agent hedge, refuse, or drop a candidate.
+    - <budget>
+
+    Write it as light markdown — short `##` headings, bullets, bold where earned — so a
+    later round can sharpen one rule without disturbing the others. Provide the complete
+    new system prompt within ``` blocks.
+
+# ---------------------------------------------------------------------------
+# 교사에게 줄 피드백 문구. GEPA는 여기 적힌 텍스트만 보고 프롬프트를 고친다.
+#
+# 치환자
+#   문항/판정  {question} {gold_answer} {answer} {score} {precision} {recall} {f1}
+#              {verdict} {failure_mode} {missed_parts} {excessive_answers}
+#   탐색 행동  {searches} {fetches} {queries} {urls} {trajectory}
+#   실행       {stop_reason} {turns} {latency_s} {error}
+#
+# 주의: str.format으로 채워진다. 중괄호를 글자 그대로 쓰려면 {{ }} 로.
+# ---------------------------------------------------------------------------
+feedback:
+  score: f1
+  max_answer_chars: 4000
+  max_trajectory_chars: 4000
+  template: |
+    A web-search agent answered the question below. Its only tools were web search and
+    page fetch, and its entire behaviour came from the system prompt you are optimizing.
+    Read the trace as evidence about that prompt.
+
+    ## Question
+    {question}
+
+    ## Correct answer
+    {gold_answer}
+
+    ## The agent's answer
+    {answer}
+
+    ## Grade: {score:.2f}
+    {failure_mode}
+
+    {verdict}
+
+    Expected answer parts it missed:
+    {missed_parts}
+
+    ## What the agent actually did
+    - searches: {searches}, pages opened: {fetches}, turns: {turns}
+    - how it ended: {stop_reason}
+    - run error: {error}
+
+    ===
+    {trajectory}
+    ===
+
+# ---------------------------------------------------------------------------
+# GEPA 예산
+# ---------------------------------------------------------------------------
+gepa:
+  auto: light                    # light | medium | heavy (null이면 extra로 직접 지정)
+  # 미니배치 점수 합이 부모보다 커야 후보가 통과한다(동점은 기각). 작을수록 한
+  # 문항의 지분이 커져 운으로 갈린다. 단일 정답 벤치마크는 점수가 0/1로만 움직여
+  # 더 거칠어지므로 넉넉히 잡는다.
+  reflection_minibatch_size: 7
+  # dspy가 metric을 부르는 스레드 수. metric 하나가 에이전트 하나를 돌리므로
+  # 이 값이 곧 동시 실행 수다. run.workers와 함께 1로 두어야 진짜 시리얼이다.
+  num_threads: 1
+  track_stats: true
+  failure_score: 0.0
+  extra: {}                      # dspy.GEPA에 그대로 전달 (max_metric_calls 등)
+
+judge:
+  model: gemini-3.6-flash
+  thinking_level: low
+
+run:
+  tag: ""                        # 비우면 seed{N}
+  output_dir: runs
+  seed: 0
+  cache: true                    # 같은 (프롬프트, 문항) 재실행을 디스크 캐시로 건너뛴다
+  # 동시에 실행할 문항 수. 1 = 시리얼.
+  # 로컬 GPU에서 올리면 Serper 요금은 그대로고(총 검색 횟수에만 붙는다) 벽시계만
+  # 줄지만, vLLM의 --max-num-seqs를 같이 올려야 실제 동시성이 난다.
+  workers: 1

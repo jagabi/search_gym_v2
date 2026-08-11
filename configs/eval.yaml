@@ -1,0 +1,65 @@
+# 평가 설정 — 학습과 완전히 분리돼 있다.
+#   python eval.py --config configs/eval.yaml --tag baseline
+#   python eval.py --prompt runs/train/.../prompt.txt --tag optimized
+#   python eval.py --benchmark evobrowsecomp --limit 20     # 소규모 확인
+#
+# 산출물: runs/eval/{날짜}_{모델}_{벤치}_{태그}/summary.json
+
+# ---------------------------------------------------------------------------
+# 평가 대상 모델과 에이전트 설정.
+# **학습 때와 같은 값이어야 비교가 성립한다.** 특히 검색 예산이 다르면 다른 조건의
+# 실험을 비교하게 된다.
+# ---------------------------------------------------------------------------
+model: qwen
+
+agent:
+  base_url: http://127.0.0.1:8000/v1
+  max_tokens: 8192              # 한 턴의 출력 상한. 사고 토큰이 여기서 나간다
+  max_searches: 20
+  max_fetches: 10
+  max_turns: 40
+  refine_fetched: true
+  refine_max_tokens: 1024
+  reasoning_effort: ""          # 비우면 프로파일 기본값 (gpt-oss = medium)
+  timeout_s: 600
+
+# ---------------------------------------------------------------------------
+# 평가할 시스템 프롬프트.
+#   prompt_path  파일에서 읽는다 (train.py가 남긴 prompt.txt)
+#   prompt_text  YAML에 직접 적는다 (prompt_path보다 우선)
+#   둘 다 비우면 시스템 프롬프트 없이 도는 대조군이 된다.
+# ---------------------------------------------------------------------------
+prompt_path: ""
+prompt_text: ""
+
+# ---------------------------------------------------------------------------
+# 평가 대상. 이름은 benchmarks 레지스트리에 있는 것만 쓸 수 있다.
+#   path를 비우면 data/<이름>/test.json
+#   limit: 0 이면 건너뛴다, null이면 전부
+#
+# 학습은 deepsearchqa에서만 하고 나머지는 OOD 일반화 확인용이다.
+# ---------------------------------------------------------------------------
+datasets:
+  - name: deepsearchqa
+    path: data/deepsearchqa/test.json
+    limit: null
+  - name: evobrowsecomp
+    path: data/evobrowsecomp/test.json
+    limit: null
+  - name: browsecomp
+    path: data/browsecomp/test.json
+    limit: 0
+  - name: kbrowsecomp
+    path: data/kbrowsecomp/test.json
+    limit: 0
+
+judge:
+  model: gemini-3.6-flash
+  thinking_level: low
+
+run:
+  tag: ""
+  output_dir: runs
+  seed: 0
+  cache: true
+  workers: 1                    # 1 = 시리얼. vLLM --max-num-seqs와 맞춘다
