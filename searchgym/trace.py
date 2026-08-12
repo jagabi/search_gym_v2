@@ -56,6 +56,8 @@ class ToolCall:
     is_error: bool = False
     # 예산 초과로 실행하지 않고 안내만 돌려준 호출.
     refused: bool = False
+    # 문항 원문이 실려 있어 걷어낸 검색 결과 수(벤치마크 유출).
+    leaked: int = 0
     duration_ms: float = 0.0
 
     @property
@@ -73,6 +75,7 @@ class ToolCall:
             "result_chars": self.result_chars,
             "is_error": self.is_error,
             "refused": self.refused,
+            "leaked": self.leaked,
             "duration_ms": round(self.duration_ms, 1),
         }
         return {**slim, "result": self.result} if full else slim

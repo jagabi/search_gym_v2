@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -59,6 +60,10 @@ class AgentConfig:
     refine_max_document_tokens: int = 50_000
     # 비우면 모델 프로파일의 기본값을 쓴다(gpt-oss는 medium). 덮어쓸 때만 채운다.
     reasoning_effort: str = ""
+    # 확장 사고. 모델마다 기본값이 반대라 명시하지 않으면 비교가 안 된다 —
+    # gemma-4는 기본 OFF, qwen3.5는 기본 ON이다. None이면 서버 기본값에 맡긴다.
+    # 정제 호출에는 적용하지 않는다(추출 작업이라 사고가 낭비다).
+    enable_thinking: bool | None = None
     timeout_s: float = 600.0
 
 
@@ -223,7 +228,7 @@ class SearchAgent:
 
                 messages.append(_assistant_message(message, calls))
                 for call in calls:
-                    output = await self._run_tool(call, tools, result, step, trace)
+                    output = await self._run_tool(call, tools, result, step, trace, question)
                     messages.append(
                         {"role": "tool", "tool_call_id": call.id, "content": output}
                     )
@@ -251,6 +256,7 @@ class SearchAgent:
             "tools": [t.as_openai() for t in tools],
             "tool_choice": "auto",
             **self.profile.sampling,
+            **_thinking(self.config.enable_thinking),
         }
         response = await self._client.chat.completions.create(**request)
         if usage := response.usage:
@@ -266,7 +272,13 @@ class SearchAgent:
         return response.choices[0].message
 
     async def _run_tool(
-        self, call: Any, tools: WebTools, result: RunResult, step: Step, trace: Trace
+        self,
+        call: Any,
+        tools: WebTools,
+        result: RunResult,
+        step: Step,
+        trace: Trace,
+        question: str,
     ) -> str:
         cfg = self.config
         name = call.function.name
@@ -298,11 +310,20 @@ class SearchAgent:
         record.duration_ms = outcome.duration_ms
         text = outcome.text
 
-        # 2) 페치 원문은 메인 대화에 넣지 않는다. 정제한 것만 넣는다.
+        # 2) 벤치마크 유출 제거. 도구 서버는 이름으로만 막을 수 있지만(BLOCKED_TERMS),
+        #    미러는 이름이 무관한 경우가 많다. 문제 원문이 스니펫에 그대로 실려 있으면
+        #    그것이 곧 유출이므로 여기서 걷어낸다 — 질문을 아는 쪽은 에이전트뿐이다.
+        if name == "web_search" and not outcome.is_error:
+            text, leaked = _strip_leaks(text, question)
+            if leaked:
+                record.leaked = leaked
+                trace.event("contamination.filtered", turn=step.turn, removed=leaked)
+
+        # 3) 페치 원문은 메인 대화에 넣지 않는다. 정제한 것만 넣는다.
         if name == "web_fetch" and not outcome.is_error and cfg.refine_fetched:
             text = await self._refine(arguments.get("url", ""), text, result, step)
 
-        # 3) 컨텍스트 상한 — 남은 만큼만 넣고 답을 강제한다.
+        # 4) 컨텍스트 상한 — 남은 만큼만 넣고 답을 강제한다.
         text, truncated = await self._fit(text, result)
         if truncated:
             trace.event(
@@ -392,6 +413,8 @@ class SearchAgent:
                 model=self.profile.repo,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=self.config.refine_max_tokens,
+                # 정제는 추출이라 사고가 낭비다. 모델이 이 스위치를 아는 경우에만 끈다.
+                **_thinking(False if self.config.enable_thinking is not None else None),
             )
         except Exception as exc:
             error = repr(exc)
@@ -477,6 +500,58 @@ def _parse_arguments(raw: str | None) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {"_raw": raw}
     return parsed if isinstance(parsed, dict) else {"_value": parsed}
+
+
+_LEAK_NOTICE = (
+    "{n} result(s) removed: they reproduce the question itself, so they are the "
+    "evaluation set leaking rather than a source. Search for the underlying facts."
+)
+
+
+def _ngrams(text: str, n: int = 8) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    return {" ".join(words[i : i + n]) for i in range(max(0, len(words) - n + 1))}
+
+
+def _strip_leaks(raw: str, question: str) -> tuple[str, int]:
+    """문제 원문을 그대로 싣고 있는 검색 결과를 지운다.
+
+    벤치마크 미러는 이름이 무관해도(예: 어떤 사용자의 데이터셋 사본) 스니펫에 문항이
+    통째로 들어 있다. 8-gram이 하나라도 겹치면 유출로 본다 — 자연스러운 우연으로
+    연속 8단어가 일치하기는 어렵다.
+    """
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return raw, 0
+    if not isinstance(data, dict) or "organic" not in data:
+        return raw, 0
+
+    marks = _ngrams(question)
+    if not marks:
+        return raw, 0
+
+    kept, removed = [], 0
+    for item in data.get("organic") or []:
+        blob = f"{item.get('title', '')} {item.get('snippet', '')}"
+        if marks & _ngrams(blob):
+            removed += 1
+            continue
+        kept.append(item)
+    if not removed:
+        return raw, 0
+
+    data["organic"] = kept
+    note = _LEAK_NOTICE.format(n=removed)
+    data["filtered_results"] = f"{data['filtered_results']} {note}" if data.get("filtered_results") else note
+    return json.dumps(data, ensure_ascii=False), removed
+
+
+def _thinking(enabled: bool | None) -> dict[str, Any]:
+    """확장 사고 스위치. vLLM이 chat template로 넘긴다(gemma-4·qwen3 공통 키)."""
+    if enabled is None:
+        return {}
+    return {"extra_body": {"chat_template_kwargs": {"enable_thinking": enabled}}}
 
 
 def _estimate_tokens(text: str) -> int:
