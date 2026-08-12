@@ -42,12 +42,20 @@ class Usage:
 
 @dataclass(slots=True)
 class ToolCall:
-    """모델이 실행한 도구 호출 한 건. 벤더와 무관하게 같은 형태다."""
+    """모델이 실행한 도구 호출 한 건. 벤더와 무관하게 같은 형태다.
+
+    `result`에는 모델이 **실제로 본 것**이 들어간다.
+        web_search  파싱된 검색 결과(title/link/snippet)
+        web_fetch   Search-o1 정제 결과 (jina 원문이 아니다 — 그건 search_o1.json)
+    """
 
     name: str
     arguments: dict[str, Any] = field(default_factory=dict)
+    result: Any = None
     result_chars: int = 0
     is_error: bool = False
+    # 예산 초과로 실행하지 않고 안내만 돌려준 호출.
+    refused: bool = False
     duration_ms: float = 0.0
 
     @property
@@ -58,14 +66,16 @@ class ToolCall:
     def url(self) -> str:
         return str(self.arguments.get("url") or "")
 
-    def as_dict(self) -> dict[str, Any]:
-        return {
+    def as_dict(self, full: bool = True) -> dict[str, Any]:
+        slim = {
             "name": self.name,
             "arguments": self.arguments,
             "result_chars": self.result_chars,
             "is_error": self.is_error,
+            "refused": self.refused,
             "duration_ms": round(self.duration_ms, 1),
         }
+        return {**slim, "result": self.result} if full else slim
 
 
 class Trace:

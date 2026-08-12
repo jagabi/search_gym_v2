@@ -24,7 +24,7 @@ from typing import Any, Iterable
 from .agent import AgentConfig, RunResult, SearchAgent
 from .benchmarks import Benchmark, Item
 from .judge import Judge
-from .paths import resolve, slug
+from .paths import resolve
 from .scoring import Judgement, from_dict
 from .serving import ServeProfile
 from .trace import Trace
@@ -42,7 +42,7 @@ class Record:
     judgement: Judgement
     result: RunResult
     cached: bool = False
-    trace: str = ""
+    dir: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         metrics = self.judgement.metrics()
@@ -64,7 +64,7 @@ class Record:
             "reasoning_tokens": self.result.usage.reasoning_tokens,
             "error": self.result.error,
             "cached": self.cached,
-            "trace": self.trace,
+            "dir": self.dir,
         }
 
 
@@ -180,7 +180,7 @@ class Runner:
         # 같은 키가 이미 돌고 있으면 끝날 때까지 기다렸다가 캐시에서 집는다.
         lock = self._locks.setdefault(key, asyncio.Lock())
         async with lock:
-            result, cached, trace_path = await self._execute(
+            result, cached, qdir = await self._execute(
                 benchmark, item, system_prompt, tools, key, stage
             )
 
@@ -194,7 +194,7 @@ class Runner:
             judgement=judgement,
             result=result,
             cached=cached,
-            trace=trace_path,
+            dir=qdir,
         )
         self._append(record)
         return record
@@ -214,19 +214,38 @@ class Runner:
     ) -> tuple[RunResult, bool, str]:
         # 빈 응답은 캐시에서 꺼내 쓰지 않는다. 대개 일시적 실패라 다시 돌리면 살아난다.
         if (payload := self._agent_cache.get(key)) and (payload.get("answer") or "").strip():
-            return _result_from(payload), True, payload.get("trace", "")
+            return _result_from(payload), True, payload.get("dir", "")
 
-        trace_dir = self.run_dir / "traces" / (stage or "run")
-        trace_path = trace_dir / f"q{item.index:05d}_{slug(item.question[:40])}.jsonl"
-        trace = Trace(trace_path, run_id=f"{stage or 'run'}-q{item.index}")
+        # 문항 하나 = 디렉터리 하나. 이름은 번호만 쓴다.
+        #   qs/q00022/ trace.jsonl · response.json · search_o1.json
+        qdir = self.run_dir / (stage or "run") / f"q{item.index:05d}"
+        qdir.mkdir(parents=True, exist_ok=True)
+        trace = Trace(qdir / "trace.jsonl", run_id=f"{stage or 'run'}-q{item.index}")
 
         result = await self.agent.run(
             benchmark.build_prompt(item), system_prompt or None, tools, trace
         )
-        relative = str(trace_path.relative_to(self.run_dir))
+
+        _write(
+            qdir / "response.json",
+            {
+                "index": item.index,
+                "question": item.question,
+                "gold_answer": item.answer,
+                "category": item.category,
+                "model": self.profile.repo,
+                "system_prompt": system_prompt,
+                **result.as_response(),
+            },
+        )
+        # 정제는 요청(직전 추론·검색어·jina 원문)과 결과를 통째로 따로 남긴다.
+        if result.refinements:
+            _write(qdir / "search_o1.json", result.refinements)
+
+        relative = str(qdir.relative_to(self.run_dir))
         # 실패한 실행과 빈 응답은 캐시하지 않는다.
         if result.error is None and result.answer.strip():
-            self._agent_cache.put(key, {**result.as_dict(), "trace": relative})
+            self._agent_cache.put(key, {**result.as_dict(), "dir": relative})
         return result, False, relative
 
     def _grade(self, benchmark: Benchmark, item: Item, answer: str) -> Judgement:
@@ -259,26 +278,41 @@ def _agent_fingerprint(config: AgentConfig) -> str:
     )
 
 
+def _write(path: Path, payload: Any) -> None:
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8"
+    )
+
+
 def _result_from(payload: dict[str, Any]) -> RunResult:
+    """캐시에 담긴 슬림 결과를 되살린다(도구 결과 본문과 정제 원문은 없다)."""
+    from .agent import Step
     from .trace import ToolCall, Usage
 
-    usage = Usage(**{k: v for k, v in (payload.get("usage") or {}).items()})
-    result = RunResult(
+    return RunResult(
         answer=payload.get("answer", ""),
-        reasoning=payload.get("reasoning", ""),
-        tool_calls=[
-            ToolCall(
-                name=c["name"],
-                arguments=c.get("arguments") or {},
-                result_chars=c.get("result_chars", 0),
-                is_error=c.get("is_error", False),
-                duration_ms=c.get("duration_ms", 0.0),
+        steps=[
+            Step(
+                turn=s.get("turn", 0),
+                reasoning=s.get("reasoning", ""),
+                text=s.get("text", ""),
+                tool_calls=[
+                    ToolCall(
+                        name=c["name"],
+                        arguments=c.get("arguments") or {},
+                        result_chars=c.get("result_chars", 0),
+                        is_error=c.get("is_error", False),
+                        refused=c.get("refused", False),
+                        duration_ms=c.get("duration_ms", 0.0),
+                    )
+                    for c in s.get("tool_calls") or []
+                ],
             )
-            for c in payload.get("tool_calls") or []
+            for s in payload.get("steps") or []
         ],
-        usage=usage,
+        usage=Usage(**{k: v for k, v in (payload.get("usage") or {}).items()}),
         turns=payload.get("turns", 0),
         stop_reason=payload.get("stop_reason", ""),
         latency_ms=payload.get("latency_ms", 0.0),
+        context_tokens=payload.get("context_tokens", 0),
     )
-    return result

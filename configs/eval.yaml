@@ -16,10 +16,18 @@ agent:
   base_url: http://127.0.0.1:8000/v1
   max_tokens: 8192              # 한 턴의 출력 상한. 사고 토큰이 여기서 나간다
   max_searches: 20
-  max_fetches: 10
+  # 0 = 무제한. 페치는 Search-o1 정제를 거쳐 짧게 들어가므로 막지 않는다.
+  max_fetches: 0
   max_turns: 40
+  # 대화 컨텍스트 상한. 서버의 --max-model-len에서 답변 여유를 뺀 값이다
+  # (128000 - 8000). 도구 결과가 이 선을 넘기면 남은 만큼만 잘라 넣고 답을 강제한다.
+  context_limit: 120000
   refine_fetched: true
-  refine_max_tokens: 1024
+  # 정제기의 출력 상한. 상한이지 목표가 아니다 — 대부분의 정제는 한참 못 미친다.
+  refine_max_tokens: 32768
+  # 정제기에 넣을 원문의 **토큰** 상한. 도구 서버는 모델을 모르니 자 단위로만
+  # 자르고(.env의 FETCH_MAX_CHARS), 토큰 절단은 모델을 아는 에이전트가 한다.
+  refine_max_document_tokens: 50000
   reasoning_effort: ""          # 비우면 프로파일 기본값 (gpt-oss = medium)
   timeout_s: 600
 

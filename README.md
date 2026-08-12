@@ -108,7 +108,10 @@ runs/train/20260811-2104_qwen3.5-9b_deepsearchqa_seed0/
   candidates.json     GEPA가 만든 후보 전부
   summary.json        점수 · 검색 예산 사용량 · 캐시 통계
   records.jsonl       문항별 한 줄 요약
-  traces/<stage>/     문항별 JSONL (llm.request / tool.call / budget.exhausted / run.end)
+  <stage>/q00022/     문항 하나 = 디렉터리 하나
+    trace.jsonl         이벤트 로그 (llm.request / tool.call / budget.* / run.end)
+    response.json       추론 · 응답 · 도구 호출 · 도구 결과 (턴별)
+    search_o1.json      페치 정제: 직전 추론 + 검색어 + jina 원문 -> 정제 결과
 ```
 
 ## 검색 예산이 핵심 손잡이다
@@ -122,7 +125,7 @@ runs/train/20260811-2104_qwen3.5-9b_deepsearchqa_seed0/
 | 40–59 | 0.13 |
 | 80+ | 0.06 |
 
-더 검색할수록 더 틀린다. 예산이 떨어지면 도구를 목록에서 회수하고 "이제 답하라"고 알린다. `summary.json`의 `by_search_count`가 매 실행마다 이 표를 다시 그려 준다.
+더 검색할수록 더 틀린다. 상한을 넘으면 도구를 뺏는 대신 "한도 초과, 이제 답하라"를 도구 결과로 돌려준다 — 모델이 스스로 마무리하게 두는 쪽이 안전하다. `agent.context_limit`은 별개 안전장치로, 대화 토큰이 그 선에 닿으면 도구 결과를 남은 만큼만 잘라 넣는다. `summary.json`의 `by_search_count`가 매 실행마다 이 표를 다시 그려 준다.
 
 ## 캐시
 
