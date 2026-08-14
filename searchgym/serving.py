@@ -34,8 +34,10 @@ class ServeProfile:
     repo: str  # HuggingFace 저장소 ID
     tool_call_parser: str
     reasoning_parser: str
-    # 권장 샘플링. 모델카드 값을 그대로 쓴다.
+    # 권장 샘플링. 모델카드 값을 그대로 쓴다(OpenAI 표준 파라미터만).
     sampling: dict[str, Any] = field(default_factory=dict)
+    # OpenAI 표준이 아닌 샘플링(repetition_penalty, top_k 등)은 extra_body로 나간다.
+    sampling_extra: dict[str, Any] = field(default_factory=dict)
     # chat template를 따로 줘야 하는 모델만 채운다(vLLM 저장소 기준 상대 경로).
     chat_template: str = ""
     # 이 모델만 붙는 추가 플래그.
@@ -46,6 +48,8 @@ class ServeProfile:
     # 시스템 프롬프트에 "Reasoning: <값>" 한 줄로 추론 강도를 주는 모델(gpt-oss)만
     # 채운다. AgentConfig.reasoning_effort가 비어 있으면 이 값이 쓰인다.
     reasoning_effort: str = ""
+    # serve 명령 앞에 붙일 환경 변수.
+    env: dict[str, str] = field(default_factory=dict)
 
     @property
     def local_dir(self) -> Path:
@@ -69,21 +73,31 @@ class ServeProfile:
     def clone_command(self) -> str:
         return f"git clone https://huggingface.co/{self.repo} {self.local_dir}"
 
-    def serve_command(self, max_model_len: int | None = None, gpu_util: float = 0.90) -> str:
+    def serve_command(
+        self,
+        max_model_len: int | None = None,
+        gpu_util: float = 0.90,
+        max_num_seqs: int = 1,
+        port: int = 8000,
+        oneline: bool = False,
+    ) -> str:
+        """`vllm serve` 명령 한 벌. oneline이면 셸에 그대로 넘길 수 있는 한 줄."""
+        prefix = " ".join(f"{k}={v}" for k, v in self.env.items())
         parts = [
-            "vllm serve",
+            f"{prefix} vllm serve".strip(),
             self.launch_path,
             f"--served-model-name {self.repo}",
             f"--max-model-len {max_model_len or self.max_model_len}",
             f"--gpu-memory-utilization {gpu_util}",
+            f"--max-num-seqs {max_num_seqs}",
             "--enable-auto-tool-choice",
             f"--tool-call-parser {self.tool_call_parser}",
             f"--reasoning-parser {self.reasoning_parser}",
         ]
         if self.chat_template:
             parts.append(f"--chat-template {self.chat_template}")
-        parts += [*self.extra_flags, "--host 127.0.0.1", "--port 8000"]
-        return " \\\n  ".join(parts)
+        parts += [*self.extra_flags, "--host 127.0.0.1", f"--port {port}"]
+        return " ".join(parts) if oneline else " \\\n  ".join(parts)
 
 
 PROFILES: dict[str, ServeProfile] = {
@@ -92,17 +106,15 @@ PROFILES: dict[str, ServeProfile] = {
         repo="google/gemma-4-12B-it",
         tool_call_parser="gemma4",
         reasoning_parser="gemma4",
-        # 비워 둔다. 모델에 딸려 온 chat template이 도구를 지원하므로 대개 필요 없고,
-        # vLLM 저장소의 examples/ 경로를 그대로 주면 pip 설치본에는 그 파일이 없어
-        # 기동 전에 죽는다. 내장 템플릿으로 툴콜이 안 되면 그때만 파일을 받아
-        # 절대 경로로 지정한다:
-        #   curl -sL -o /workspace/gemma4.jinja https://raw.githubusercontent.com/\
-        #     vllm-project/vllm/main/examples/tool_chat_template_gemma4.jinja
+        # 툴콜만 쓸 거면 모델 내장 템플릿으로 충분하다. 확장 사고를 켤 때만 파일이
+        # 필요하다 — 아래 notes의 "확장 사고" 절 참고.
         chat_template="",
         sampling={"temperature": 1.0, "top_p": 0.95},
-        # 우리 워크로드는 텍스트 전용이다. 비전·오디오 프로파일링을 끄면 기동이
-        # 빨라지고 그만큼 KV에 쓸 메모리가 남는다(vLLM 레시피 권장).
-        extra_flags=["--limit-mm-per-prompt '{\"image\": 0, \"audio\": 0}'", "--async-scheduling"],
+        # 텍스트 전용 워크로드라 비전·오디오 프로파일링을 끈다(vLLM 레시피 권장).
+        extra_flags=[
+            "--limit-mm-per-prompt '{\"image\": 0, \"audio\": 0}'",
+            "--async-scheduling",
+        ],
         notes=(
             "**transformers를 5.14.x로 내려야 뜬다 (실측: vLLM 0.27.1 + transformers 5.14.1).**\n"
             "vLLM은 이 아키텍처를 지원한다 — Gemma4UnifiedForConditionalGeneration이 supported\n"
@@ -116,13 +128,21 @@ PROFILES: dict[str, ServeProfile] = {
             "너무 내리면 반대로 config 자체를 못 읽는다(Gemma4Unified가 신규 아키텍처).\n"
             "에러가 안내하는 allow_global_per_layer_attribute_access는 쓰지 말 것 —\n"
             "transformers 다운그레이드가 같은 효과를 내면서 훨씬 명시적이다.\n"
-            "chat template은 모델 내장본이 tools를 지원하므로 --chat-template이 필요 없다\n"
-            "(vLLM 저장소의 examples/ 경로를 주면 pip 설치본에는 그 파일이 없어 죽는다).\n"
+            "툴콜만 쓸 거면 chat template은 모델 내장본으로 충분하다.\n"
             "셋 중 VRAM이 제일 빡빡하다. global 레이어 head_dim이 512라 KV가 비싸서"
-            " 128K에서 KV ~16GB + 가중치 24GB = ~40GB다(A6000 48GB에 시리얼로 들어간다).\n"
-            "전제는 슬라이딩 윈도우 하이브리드 KV가 제대로 잡히는 것이다. 안 잡히면 KV가"
-            " 65GB로 뛰어 못 올라간다 — 기동 로그의 KV 블록 수로 반드시 확인할 것.\n"
-            "빠듯하면 --kv-cache-dtype fp8로 KV를 절반(~8GB)으로 내린다."
+            " 128K에서 KV ~16GB + 가중치 23GB = ~40GB다(A6000 48GB에 들어간다).\n"
+            "빠듯하면 --kv-cache-dtype fp8로 KV를 절반으로 내린다.\n"
+            "\n"
+            "**확장 사고(enable_thinking)를 켤 거면 세 가지가 다 필요하다 — 전부 실측이다.**\n"
+            "  1) env={'VLLM_USE_V2_MODEL_RUNNER': '0'}\n"
+            "     V2 러너는 gemma-4의 thinking_token_budget을 지원하지 않아 사고가 통째로\n"
+            "     죽는다 — reasoning_content가 늘 비고 사고가 content로 섞여 나온다.\n"
+            "     기동 로그의 'does not yet support the thinking_token_budget'이 그 신호다.\n"
+            "     이때 --async-scheduling은 빼야 할 수 있다.\n"
+            "  2) chat_template — vLLM 저장소의 tool_chat_template_gemma4.jinja를 받아\n"
+            "     절대 경로로 준다(pip 설치본에는 그 파일이 없다).\n"
+            "  3) sampling_extra={'repetition_penalty': 1.05}\n"
+            "     없으면 사고 중에 같은 문단을 수십 번 되풀이하다 max_tokens에 걸린다."
         ),
     ),
     "qwen": ServeProfile(
@@ -130,7 +150,8 @@ PROFILES: dict[str, ServeProfile] = {
         repo="Qwen/Qwen3.5-9B",
         tool_call_parser="qwen3_coder",
         reasoning_parser="qwen3",
-        sampling={"temperature": 1.0, "top_p": 0.95, "top_k": 20, "presence_penalty": 1.5},
+        sampling={"temperature": 1.0, "top_p": 0.95, "presence_penalty": 1.5},
+        sampling_extra={"top_k": 20},
         notes=(
             "thinking이 기본으로 켜져 있다. 끄려면 요청에"
             ' chat_template_kwargs={"enable_thinking": false}를 넘긴다.\n'

@@ -10,10 +10,10 @@ import json
 import statistics as st
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
-from .runner import Record
-from .scoring import aggregate
+if TYPE_CHECKING:  # 서빙 환경에는 runner의 의존성(openai 등)이 없다. 타입에만 쓴다.
+    from .runner import Record
 
 __all__ = ["behaviour", "enable_utf8", "table", "write_json"]
 
@@ -44,7 +44,7 @@ def write_json(path: Path, payload: Any) -> Path:
     return path
 
 
-def behaviour(records: Iterable[Record]) -> dict[str, Any]:
+def behaviour(records: Iterable["Record"]) -> dict[str, Any]:
     """검색 행동 요약. 정확도만큼 중요한 축이라 항상 같이 낸다."""
     items = list(records)
     if not items:
@@ -68,15 +68,17 @@ def behaviour(records: Iterable[Record]) -> dict[str, Any]:
     }
 
 
-def summarize(records: Iterable[Record]) -> dict[str, Any]:
+def summarize(records: Iterable["Record"]) -> dict[str, Any]:
     """집계 + 행동 + 검색 예산 구간별 정확도."""
+    from .scoring import aggregate  # 지연 import (서빙 환경에서 report만 쓸 수 있게)
+
     items = list(records)
     summary = {**aggregate(r.judgement for r in items), **behaviour(items)}
     summary["by_search_count"] = _by_search_count(items)
     return summary
 
 
-def _by_search_count(records: list[Record]) -> dict[str, Any]:
+def _by_search_count(records: list["Record"]) -> dict[str, Any]:
     """검색을 많이 할수록 정확한가. 실측상 반대인 경우가 많아 항상 본다."""
     buckets = [(0, 0), (1, 4), (5, 9), (10, 14), (15, 19), (20, 10_000)]
     out: dict[str, Any] = {}

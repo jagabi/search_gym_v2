@@ -97,7 +97,12 @@ python scripts/smoke.py              # 도구와 판정까지 실제로 한 번�
 python train.py --config configs/train.yaml --tag seed0
 python eval.py  --prompt runs/train/<런>/prompt.txt --tag optimized
 python eval.py  --tag baseline                        # 프롬프트 없이 대조군
+python eval.py  --tag baseline --resume               # 멈춘 실행을 이어서
 ```
+
+`--resume`은 새 디렉터리를 만들지 않고 같은 조건의 **가장 최근 실행에 이어 붙인다**
+(디렉터리를 직접 줄 수도 있다). 끝난 문항은 캐시에서 집으므로 모델도 판정도 다시
+부르지 않는다 — 300문항을 반씩 이틀에 나눠 돌려도 결과 디렉터리는 하나다.
 
 산출물은 실행 디렉터리 하나다. 이름만 보고 무엇을 돌린 것인지 알 수 있다.
 
@@ -108,7 +113,7 @@ runs/train/20260811-2104_qwen3.5-9b_deepsearchqa_seed0/
   candidates.json     GEPA가 만든 후보 전부
   summary.json        점수 · 검색 예산 사용량 · 캐시 통계
   records.jsonl       문항별 한 줄 요약
-  <stage>/q00022/     문항 하나 = 디렉터리 하나
+  <벤치|국면>/q00022/  문항 하나 = 디렉터리 하나
     trace.jsonl         이벤트 로그 (llm.request / tool.call / budget.* / run.end)
     response.json       추론 · 응답 · 도구 호출 · 도구 결과 (턴별)
     search_o1.json      페치 정제: 직전 추론 + 검색어 + jina 원문 -> 정제 결과

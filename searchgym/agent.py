@@ -208,7 +208,7 @@ class SearchAgent:
                 result.steps.append(step)
 
                 trace.event("llm.request", turn=turn, context_tokens=result.context_tokens)
-                message = await self._complete(messages, specs, result)
+                message, finish = await self._complete(messages, specs, result)
 
                 step.reasoning = str(getattr(message, "reasoning_content", "") or "")
                 step.text = str(message.content or "")
@@ -219,11 +219,16 @@ class SearchAgent:
                     reasoning_chars=len(step.reasoning),
                     text=step.text[:2000],
                     tool_calls=[c.function.name for c in calls],
+                    finish_reason=finish,
                 )
 
                 if not calls:
                     result.answer = step.text.strip()
-                    result.stop_reason = "answered"
+                    # max_tokens에 걸려 끊긴 것은 답변이 아니다. 그대로 "answered"로
+                    # 두면 반복 루프에 빠져 잘린 출력이 정상 점수를 받는다.
+                    result.stop_reason = "truncated" if finish == "length" else "answered"
+                    if finish == "length":
+                        trace.event("run.truncated", reason="max_tokens", turn=turn)
                     break
 
                 messages.append(_assistant_message(message, calls))
@@ -248,7 +253,7 @@ class SearchAgent:
 
     async def _complete(
         self, messages: list[dict[str, Any]], tools: list[ToolSpec], result: RunResult
-    ) -> Any:
+    ) -> tuple[Any, str]:
         request: dict[str, Any] = {
             "model": self.profile.repo,
             "messages": messages,
@@ -256,9 +261,13 @@ class SearchAgent:
             "tools": [t.as_openai() for t in tools],
             "tool_choice": "auto",
             **self.profile.sampling,
-            **_thinking(self.config.enable_thinking),
         }
+        # extra_body는 한 번에 합쳐 넣는다(두 곳에서 따로 주면 서로 덮어쓴다).
+        extra = {**self.profile.sampling_extra, **_chat_kwargs(self.config.enable_thinking)}
+        if extra:
+            request["extra_body"] = extra
         response = await self._client.chat.completions.create(**request)
+        choice = response.choices[0]
         if usage := response.usage:
             details = getattr(usage, "completion_tokens_details", None)
             result.usage.add(
@@ -269,7 +278,7 @@ class SearchAgent:
             # 서버가 센 값이 가장 정확하다. 다음 턴의 컨텍스트 크기는 이번 프롬프트
             # 더하기 이번 출력이다.
             result.context_tokens = (usage.prompt_tokens or 0) + (usage.completion_tokens or 0)
-        return response.choices[0].message
+        return choice.message, str(getattr(choice, "finish_reason", "") or "")
 
     async def _run_tool(
         self,
@@ -414,7 +423,12 @@ class SearchAgent:
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=self.config.refine_max_tokens,
                 # 정제는 추출이라 사고가 낭비다. 모델이 이 스위치를 아는 경우에만 끈다.
-                **_thinking(False if self.config.enable_thinking is not None else None),
+                extra_body={
+                    **self.profile.sampling_extra,
+                    **_chat_kwargs(False if self.config.enable_thinking is not None else None),
+                }
+                or None,
+                **self.profile.sampling,
             )
         except Exception as exc:
             error = repr(exc)
@@ -547,11 +561,11 @@ def _strip_leaks(raw: str, question: str) -> tuple[str, int]:
     return json.dumps(data, ensure_ascii=False), removed
 
 
-def _thinking(enabled: bool | None) -> dict[str, Any]:
+def _chat_kwargs(enabled: bool | None) -> dict[str, Any]:
     """확장 사고 스위치. vLLM이 chat template로 넘긴다(gemma-4·qwen3 공통 키)."""
     if enabled is None:
         return {}
-    return {"extra_body": {"chat_template_kwargs": {"enable_thinking": enabled}}}
+    return {"chat_template_kwargs": {"enable_thinking": enabled}}
 
 
 def _estimate_tokens(text: str) -> int:

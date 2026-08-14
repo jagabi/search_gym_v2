@@ -16,7 +16,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-__all__ = ["PROJECT_ROOT", "load_env", "resolve", "run_dir", "slug"]
+__all__ = ["PROJECT_ROOT", "find_run", "load_env", "resolve", "run_dir", "slug"]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -66,6 +66,32 @@ def run_dir(stage: str, model: str, benchmark: str, tag: str = "", root: str | P
         counter += 1
     path.mkdir(parents=True)
     return path
+
+
+def find_run(
+    stage: str, model: str, benchmark: str, tag: str = "", root: str | Path = "runs"
+) -> Path | None:
+    """같은 조건으로 돌린 **가장 최근** 실행 디렉터리. 이어서 돌릴 때 쓴다.
+
+    이름이 `{날짜}_{나머지}`라 앞의 타임스탬프만 떼면 조건이 남는다. 사전순 최대가
+    곧 최신이다(날짜 형식이 고정 폭이라 그렇다).
+    """
+    parts = [slug(model), slug(benchmark)]
+    if tag:
+        parts.append(slug(tag))
+    want = "_".join(parts)
+
+    base = resolve(root) / stage
+    if not base.is_dir():
+        return None
+    matches = [
+        path
+        for path in base.iterdir()
+        if path.is_dir()
+        # 이름이 겹쳐 뒤에 -2, -3이 붙은 것도 같은 조건이다.
+        and ((rest := path.name.partition("_")[2]) == want or rest.startswith(f"{want}-"))
+    ]
+    return max(matches, key=lambda path: path.name) if matches else None
 
 
 def env(*names: str) -> str | None:

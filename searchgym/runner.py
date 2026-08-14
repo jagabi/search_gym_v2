@@ -92,6 +92,10 @@ class Cache:
         self.hits += 1
         return payload if isinstance(payload, dict) else None
 
+    def has(self, key: str) -> bool:
+        """통계를 건드리지 않는 조회. 돌리기 전에 남은 문항을 세는 데 쓴다."""
+        return self.enabled and self._path(key).exists()
+
     def put(self, key: str, payload: dict[str, Any]) -> None:
         if not self.enabled:
             return
@@ -173,10 +177,7 @@ class Runner:
         score_field: str = "f1",
         stage: str = "",
     ) -> Record:
-        key = digest(
-            "agent/1", self.profile.repo, _agent_fingerprint(self.agent.config),
-            system_prompt, benchmark.build_prompt(item),
-        )
+        key = self.cache_key(benchmark, item, system_prompt)
         # 같은 키가 이미 돌고 있으면 끝날 때까지 기다렸다가 캐시에서 집는다.
         lock = self._locks.setdefault(key, asyncio.Lock())
         async with lock:
@@ -199,6 +200,23 @@ class Runner:
         self._append(record)
         return record
 
+    def cache_key(self, benchmark: Benchmark, item: Item, system_prompt: str) -> str:
+        """캐시 키. **실행 디렉터리와 무관하다** — 그래서 이어 돌리기가 성립한다."""
+        return digest(
+            "agent/1", self.profile.repo, _agent_fingerprint(self.agent.config),
+            system_prompt, benchmark.build_prompt(item),
+        )
+
+    def pending(
+        self, benchmark: Benchmark, items: Iterable[Item], system_prompt: str
+    ) -> list[Item]:
+        """아직 캐시에 없는 문항들. 실제로 모델을 태울 것만 남는다."""
+        return [
+            item
+            for item in items
+            if not self._agent_cache.has(self.cache_key(benchmark, item, system_prompt))
+        ]
+
     def cache_stats(self) -> dict[str, int]:
         return {
             "agent_hits": self._agent_cache.hits,
@@ -217,8 +235,10 @@ class Runner:
             return _result_from(payload), True, payload.get("dir", "")
 
         # 문항 하나 = 디렉터리 하나. 이름은 번호만 쓴다.
-        #   qs/q00022/ trace.jsonl · response.json · search_o1.json
-        qdir = self.run_dir / (stage or "run") / f"q{item.index:05d}"
+        #   <stage>/q00022/ trace.jsonl · response.json · search_o1.json
+        # stage는 한 실행 안에서 국면이 나뉠 때만 쓴다(train의 optimize 등).
+        # eval은 이미 벤치마크별로 run_dir이 갈려 있어 비워 둔다.
+        qdir = (self.run_dir / stage if stage else self.run_dir) / f"q{item.index:05d}"
         qdir.mkdir(parents=True, exist_ok=True)
         trace = Trace(qdir / "trace.jsonl", run_id=f"{stage or 'run'}-q{item.index}")
 

@@ -69,7 +69,9 @@ def main(argv: list[str] | None = None) -> int:
             "endpoint": config.agent.base_url,
             "benchmark": config.data.benchmark,
             "train / val": f"{len(trainset)} / {len(valset)}",
-            "budget": f"search {config.agent.max_searches} / fetch {config.agent.max_fetches}",
+            "budget": f"search {config.agent.max_searches} / fetch "
+                      f"{config.agent.max_fetches or '무제한'} / "
+                      f"context {config.agent.context_limit:,}",
             "refine": config.agent.refine_fetched,
             "teacher": config.teacher.model,
             "judge": config.judge.model,
