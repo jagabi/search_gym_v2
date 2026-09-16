@@ -1,14 +1,19 @@
 """GEPA 연결부 — dspy 메트릭과 instruction proposer.
 
-**메트릭**은 점수와 함께 교사가 읽을 피드백 문자열을 돌려준다. 점수만 주면 교사는
-무엇을 고쳐야 할지 추측하지만, 실제로 던진 질의와 연 URL을 같이 주면 검색 행동
-자체를 고칠 수 있다.
+최적화 대상이 둘이다.
 
-**proposer**는 GEPA 기본 메타 프롬프트를 갈아끼운다. 기본값에는 이런 문장이 있다 —
+    agent      메인 추론 모델의 시스템 프롬프트  (검색 정책)
+    explorer   explorer 의 시스템 프롬프트       (추출 + 확장 정책)
+
+GEPA 는 모듈을 라운드로빈으로 고르고(논문 Alg.1 line 8), 어느 모듈을 고쳤는지
+`pred_name` 으로 알려 준다. 그래서 **피드백도 컴포넌트별로 다르게** 준다 — 최종
+f1 만 주면 explorer 프롬프트는 신호가 너무 멀어 거의 랜덤워크가 된다.
+
+**proposer** 는 GEPA 기본 메타 프롬프트를 갈아끼운다. 기본값에는 이런 문장이 있다 —
 "Identify all niche and domain specific factual information about the task and include
 it in the instruction." 수학처럼 사실이 전이되는 과제를 겨냥한 설계라, 사실을
-찾아오는 것이 일인 검색 에이전트에서는 교사가 학습 문항의 **정답을 시스템 프롬프트에
-그대로 써 넣는다**(미니배치 점수만 1.0이 되고 valset은 떨어진다).
+찾아오는 것이 일인 검색 에이전트에서는 교사가 학습 문항의 **정답을 프롬프트에
+그대로 써 넣는다**(미니배치만 1.0 이 되고 valset 은 떨어진다).
 """
 
 from __future__ import annotations
@@ -32,20 +37,31 @@ _NONE = "(none)"
 
 
 class SearchProgram(dspy.Module):
-    """최적화 대상은 시스템 프롬프트 하나뿐이다.
+    """최적화 단위를 담는 그릇.
 
-    dspy는 `predictor.signature.instructions`를 최적화 단위로 본다. 실제 실행은
-    metric이 담당하므로 이 모듈은 프롬프트를 담는 그릇 역할만 한다.
+    dspy 는 `predictor.signature.instructions` 를 최적화 대상으로 본다. 실제 실행은
+    metric 이 담당하므로 이 모듈은 프롬프트 두 개를 들고 있기만 한다. 속성 이름이
+    곧 컴포넌트 이름이다("agent", "explorer").
     """
 
-    def __init__(self, instructions: str) -> None:
+    def __init__(self, agent_prompt: str, explorer_prompt: str = "") -> None:
         super().__init__()
-        signature = dspy.Signature("question -> answer").with_instructions(instructions)
-        self.search = dspy.Predict(signature)
+        self.agent = dspy.Predict(
+            dspy.Signature("question -> answer").with_instructions(agent_prompt)
+        )
+        if explorer_prompt:
+            self.explorer = dspy.Predict(
+                dspy.Signature("documents -> information").with_instructions(explorer_prompt)
+            )
 
     @property
-    def prompt(self) -> str:
-        return self.search.signature.instructions
+    def agent_prompt(self) -> str:
+        return self.agent.signature.instructions
+
+    @property
+    def explorer_prompt(self) -> str:
+        predictor = getattr(self, "explorer", None)
+        return predictor.signature.instructions if predictor is not None else ""
 
     def forward(self, question: str, **_: Any) -> dspy.Prediction:  # pragma: no cover
         return dspy.Prediction(answer="")
@@ -60,11 +76,13 @@ class SearchMetric:
         benchmark: Benchmark,
         items: dict[int, Item],
         feedback: FeedbackConfig,
+        seed_prompts: dict[str, str],
     ) -> None:
         self.runner = runner
         self.benchmark = benchmark
         self.items = items
         self.feedback = feedback
+        self.seed_prompts = seed_prompts
         self.records: list[Record] = []
         self._lock = threading.Lock()
         self._stage = "eval"
@@ -82,26 +100,38 @@ class SearchMetric:
         pred_trace: Any = None,
     ) -> dspy.Prediction:
         item = self.items[example.index]
-        prompt = _instructions(prediction) or example.get("system_prompt", "")
+        prompts = _prompts(prediction, self.seed_prompts)
 
         record = _run_sync(
             self.runner.run_all(
-                self.benchmark, [item], prompt, self.feedback.score, self._stage
+                self.benchmark,
+                [item],
+                prompts["agent"],
+                explorer_prompt=prompts.get("explorer") or None,
+                score_field=self.feedback.score,
+                stage=self._stage,
             )
         )[0]
         with self._lock:
             self.records.append(record)
 
         return dspy.Prediction(
-            score=record.score, feedback=self._render(item, record)
+            score=record.score,
+            feedback=self._render(item, record, str(pred_name or "agent")),
         )
 
-    def _render(self, item: Item, record: Record) -> str:
+    def _render(self, item: Item, record: Record, component: str) -> str:
+        """컴포넌트별 피드백. 교사는 여기 적힌 텍스트만 보고 프롬프트를 고친다."""
         result, judgement = record.result, record.judgement
         metrics = judgement.metrics()
         missed = [text for text, ok in judgement.parts if not ok]
 
-        return self.feedback.template.format(
+        template = (
+            self.feedback.explorer_template
+            if component == "explorer" and self.feedback.explorer_template.strip()
+            else self.feedback.template
+        )
+        return template.format(
             question=item.question.strip(),
             gold_answer=item.answer.strip(),
             answer=_clip(result.answer, self.feedback.max_answer_chars) or _NONE,
@@ -122,19 +152,26 @@ class SearchMetric:
             turns=result.turns,
             latency_s=round(result.latency_ms / 1000, 1),
             error=result.error or "none",
+            expansion_nodes=result.expansion_nodes,
+            max_depth_reached=result.max_depth_reached,
+            explorer_calls=result.explorer_calls,
+            dead_dives=result.dead_dives,
+            budget_exhausted="yes" if result.budget_exhausted else "no",
+            context_exhausted="yes" if result.context_exhausted else "no",
+            explorer_log=result.render_explorer_log(self.feedback.max_trajectory_chars),
         )
 
 
 class PolicyProposer:
-    """주어진 메타 프롬프트로 새 시스템 프롬프트를 제안한다.
+    """컴포넌트별 메타 프롬프트로 새 시스템 프롬프트를 제안한다.
 
-    dspy의 ProposalFn 규약: (candidate, reflective_dataset, components_to_update)를
+    dspy 의 ProposalFn 규약: (candidate, reflective_dataset, components_to_update)를
     받아 {컴포넌트 이름: 새 텍스트}를 돌려준다. 호출 시점에 dspy 컨텍스트의 LM이
     교사로 설정되어 있다.
     """
 
-    def __init__(self, template: str, token_budget: int = 0) -> None:
-        self.template = template
+    def __init__(self, templates: dict[str, str], token_budget: int = 0) -> None:
+        self.templates = templates
         self.token_budget = token_budget
         self._truncated = False
 
@@ -149,19 +186,26 @@ class PolicyProposer:
         out: dict[str, str] = {}
         for name in components_to_update:
             current = candidate[name]
+            template = self.templates.get(name, "")
+            if not template.strip():
+                out[name] = current  # 메타 프롬프트가 없으면 손대지 않는다
+                continue
+
+            self._truncated = False
             raw = InstructionProposalSignature.run(
                 lm=self._call,
                 input_dict={
                     "current_instruction_doc": current,
                     "dataset_with_feedback": reflective_dataset[name],
-                    "prompt_template": self._render(current),
+                    "prompt_template": self._render(template, current),
                 },
             )
             # 출력이 잘렸으면 반쪽짜리 프롬프트가 후보로 들어간다. 그건 개선이
             # 아니라 손상이므로 현재 프롬프트를 그대로 둔다(= 이번엔 제안 없음).
             if self._truncated:
                 print(
-                    "[warn] 교사 출력이 잘렸습니다(teacher.max_tokens). 이번 제안은 버립니다.",
+                    f"[warn] 교사 출력이 잘렸습니다({name}, teacher.max_tokens). "
+                    "이번 제안은 버립니다.",
                     file=sys.stderr,
                 )
                 out[name] = current
@@ -169,23 +213,23 @@ class PolicyProposer:
                 out[name] = raw["new_instruction"]
         return out
 
-    def _render(self, current: str) -> str:
+    def _render(self, template: str, current: str) -> str:
         """<budget> 자리를 현재 토큰 수와 상한으로 바꾼다.
 
         "같은 길이로 유지하라"는 정성적 지시는 잘 무시된다. 지금 몇 토큰인지와
         상한을 숫자로 알려줘야 규칙을 덧붙이는 대신 갈아 끼운다.
         """
-        if BUDGET not in self.template:
-            return self.template
+        if BUDGET not in template:
+            return template
         if self.token_budget <= 0:
-            return self.template.replace(BUDGET, "")
+            return template.replace(BUDGET, "")
 
         now = _count_tokens(current)
         budget = self.token_budget
         if now > budget:
             line = (
                 f"**The current prompt is {now:,} tokens, over the {budget:,} token limit — "
-                f"past the length where the agent starts following rules less reliably.** "
+                f"past the length where the model starts following rules less reliably.** "
                 f"Append nothing. Merge overlapping rules, cut the ones the feedback does "
                 f"not support, and compress until it fits in {budget:,} tokens."
             )
@@ -196,7 +240,7 @@ class PolicyProposer:
                 f"now — shorter still wins. Make room by merging and compressing rather "
                 f"than appending. Emit a complete prompt, never one cut off mid-sentence."
             )
-        return self.template.replace(BUDGET, line)
+        return template.replace(BUDGET, line)
 
     def _call(self, prompt: str | list[dict[str, Any]]) -> str:
         lm = dspy.settings.lm
@@ -215,14 +259,18 @@ class PolicyProposer:
 # --- 렌더 도우미 -------------------------------------------------------------
 
 
-def _instructions(prediction: Any) -> str:
-    """GEPA가 넘긴 후보 프로그램에서 시스템 프롬프트를 꺼낸다."""
+def _prompts(prediction: Any, fallback: dict[str, str]) -> dict[str, str]:
+    """GEPA 가 넘긴 후보 프로그램에서 컴포넌트별 프롬프트를 꺼낸다."""
+    out = dict(fallback)
     for holder in (prediction, getattr(prediction, "program", None)):
-        search = getattr(holder, "search", None)
-        signature = getattr(search, "signature", None)
-        if signature is not None and getattr(signature, "instructions", None):
-            return str(signature.instructions)
-    return ""
+        if holder is None:
+            continue
+        for name in ("agent", "explorer"):
+            predictor = getattr(holder, name, None)
+            signature = getattr(predictor, "signature", None)
+            if signature is not None and getattr(signature, "instructions", None):
+                out[name] = str(signature.instructions)
+    return out
 
 
 def _verdict(judgement: Judgement) -> str:
@@ -277,7 +325,7 @@ def _clip(text: str, limit: int) -> str:
     text = text.strip()
     if limit <= 0 or len(text) <= limit:
         return text
-    return text[:limit] + f"\n... (잘림, 총 {len(text):,}자)"
+    return text[:limit] + f"\n... (truncated, {len(text):,} chars total)"
 
 
 def _count_tokens(text: str) -> int:

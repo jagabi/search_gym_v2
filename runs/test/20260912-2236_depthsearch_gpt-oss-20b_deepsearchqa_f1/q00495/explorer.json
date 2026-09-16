@@ -1,0 +1,437 @@
+[
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "Our World in Data mean income per day 2022",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart&stackMode=absolute&region=World&time=2022"
+    ],
+    "turns": 2,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 6,
+    "error": null,
+    "latency_ms": 112380.6,
+    "opened": [
+      {
+        "depth": 2,
+        "parent_reasoning": "We have page with GDP per capita list showing top 10: US, Germany, UK, South Korea, Japan, Russia, China, Brazil, India, Ethiopia? Wait top10 at selection list: shows US, Germany, UK, South Korea, Japan, Russia, China, Brazil, India, Ethiopia. That's ranking; but we need top10 for GDP per capita 2022.\n\nWe also need Human Development Index (HDI) top10 2022 and Mean income or consumption per day top10 2022. We need intersection of those three lists.\n\nWe have GDP per capita data with top10 list visible in page.\n\nNow we need HDI page. Let's open link for Human Development Index chart: within page link #59 image or chart. But easier open new page: https://ourworldindata.org/grapher/human-development-index\n\nLet's request fetch.",
+        "query": "Our World in Data mean income per day 2022",
+        "urls": [
+          "https://ourworldindata.org/grapher/human-development-index"
+        ],
+        "turns": 2,
+        "status": "not_found",
+        "information": "",
+        "information_chars": 0,
+        "nodes": 2,
+        "error": null,
+        "latency_ms": 52234.4,
+        "opened": [
+          {
+            "depth": 3,
+            "parent_reasoning": "We have GDP per capita page, but didn't actually open. Need to get top10 list. The GDP per capita page likely similar to the human dev page, shows list sorted by 2023 or 2022. We need 2022 data. We need list of top10 in 2022.\n\nLet's fetch the GDP per capita data CSV: https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?v=1&csvType=full&useColumnShortNames=false maybe. But better to open with specific year filtering.\n\nHowever, easier: open the grapher page with time 2022. The URL: https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart&stackMode=absolute&region=World&time=2022\n\nIt might display the chart. The page likely has a list sorted by 2023 default. But we could fetch the CSV with `filter` parameter? There's option: `?download-file-name`? Not sure.\n\nAlternatively, we could scrape the table via the page.\n\nBut maybe easier to use the API: The API endpoint for data \"https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?download-file-name=...\". But we need specific year 2022. The CSV includes all years. So we can find top 10 for 2022 by reading the CSV.\n\nLet's fetch.\n\n",
+            "query": "Our World in Data mean income per day 2022",
+            "urls": [
+              "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?v=1&csvType=full&useColumnShortNames=false"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 15495.5,
+            "opened": []
+          },
+          {
+            "depth": 3,
+            "parent_reasoning": "The fetch failed (maybe block). We might need to use correct url: The chart is gdp-per-capita-worldbank. The CSV endpoint likely: https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?download&format=csv or something. Let's see the page content; maybe GPD per capita chart uses gdp-per-capita. But our earlier page maybe had \"gdp-per-capita-worldbank\". Let's try fetch.\n\n",
+            "query": "Our World in Data mean income per day 2022",
+            "urls": [
+              "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 8128.1,
+            "opened": []
+          }
+        ]
+      },
+      {
+        "depth": 2,
+        "parent_reasoning": "The fetch didn't pull the human development index page. We need to find human development index dataset. The earlier text indicated the chart 59: \"Human Development Index vs GDP per capita\". The URL likely is https://ourworldindata.org/grapher/human-development-index?tab=chart&region=World&time=2022. Let's try that.\n\n",
+        "query": "Our World in Data mean income per day 2022",
+        "urls": [
+          "https://ourworldindata.org/grapher/human-development-index?tab=chart&region=World&time=2022"
+        ],
+        "turns": 3,
+        "status": "not_found",
+        "information": "",
+        "information_chars": 0,
+        "nodes": 2,
+        "error": null,
+        "latency_ms": 37545.8,
+        "opened": [
+          {
+            "depth": 3,
+            "parent_reasoning": "We have a massive page. Need to pull out top ten for GDP per capita, HDI, mean income or consumption per day for 2022. The page shows HDI table and list sorted by HDI, but we need top ten entries. The page shows in that table list of countries with HDI values, sorted. It's sorted ascending? The page shows \"Sort by: Human Development Index, 2022\". It lists at top: Switzerland 0.966, United Kingdom 0.946, United States 0.93, South Korea 0.928, Chile 0.869, China 0.796, Brazil 0.78, India 0.676, Cameroon 0.581, Pakistan 0.544. That seems like top 10. So these are top ten HDI 2022: Switzerland, United Kingdom, United States, South Korea, Chile, China, Brazil, India, Cameroon, Pakistan.\n\nNext we need GDP per capita 2022. We need the top 10 for DP per capita from OWID dataset. Let's find page. Search maybe. There's link \"https://ourworldindata.org/grapher/gdp-per-capita-worldbank?tab=chart&stackMode=absolute&region=World&time=2022\" which seems to be page. We should get table. Probably easier to fetch CSV. Use API: \"https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?v=1&csvType=full&useColumnShortNames=false\". That might be large. But we can parse. However might be heavy. We could fetch the version with only the selected data for 2022. That maybe: \"https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?v=1&csvType=filtered&useColumnShortNames=false&tab=chart&region=World&time=2022\". That still may include many countries, but limited dataset. Let's fetch that.",
+            "query": "Our World in Data mean income per day 2022",
+            "urls": [
+              "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?v=1&csvType=filtered&useColumnShortNames=false&tab=chart&region=World&time=2022"
+            ],
+            "turns": 1,
+            "status": "partial",
+            "information": "*GDP per capita – 2022 (World Bank data, Our World in Data)*\n\n```\nEntity,Code,Year,GDP per capita,World region according to OWID\nBrazil,BRA,2022,18554.047,South America\nChina,CHN,2022,21499.312,Asia\nEthiopia,ETH,2022,2655.5928,Africa\nGermany,DEU,2022,63777.93,Europe\nIndia,IND,2022,8347.385,Asia\nJapan,JPN,2022,46819.36,Asia\nRussia,RUS,2022,38214.69,Europe\nSouth Korea,KOR,2022,53228.605,Asia\nUnited Kingdom,GBR,2022,53979.77,Europe\nUnited States,USA,2022,72828.74,North America\n```\n\n*Human Development Index – 2022 (OWID table)*  \n\nThe OWID HDI page lists the following top‑ten countries (sorted by HDI, 2022):\n\n```\nSwitzerland 0.966\nUnited Kingdom 0.946\nUnited States 0.93\nSouth Korea 0.928\nChile 0.869\nChina 0.796\nBrazil 0.78\nIndia 0.676\nCameroon 0.581\nPakistan 0.544\n```\n\n*Mean income or consumption per day – 2022*\n\nNo data was found on the page examined for GDP that references the mean income or consumption per day metric, and no separate page was opened for that dataset.",
+            "information_chars": 980,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 14714.5,
+            "opened": []
+          },
+          {
+            "depth": 3,
+            "parent_reasoning": "We need to fetch mean income per day. The relevant grapher might be \"mean-income-per-capita\" or \"mean-income-per-day\". Let's search.",
+            "query": "Our World in Data mean income per day 2022",
+            "urls": [
+              "https://ourworldindata.org/grapher/mean-income-per-day.csv?v=1&csvType=full&useColumnShortNames=false"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 930.5,
+            "opened": []
+          }
+        ]
+      }
+    ],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita.csv"
+    ],
+    "turns": 2,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 5,
+    "error": null,
+    "latency_ms": 90758.9,
+    "opened": [
+      {
+        "depth": 2,
+        "parent_reasoning": "We have the list URLs. Need to fetch each csv. Let's attempt open the link for GDP per capita worldbank.",
+        "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+        "urls": [
+          "https://ourworldindata.org/grapher/gdp-per-capita-worldbank?download-format=csv"
+        ],
+        "turns": 4,
+        "status": "not_found",
+        "information": "",
+        "information_chars": 0,
+        "nodes": 1,
+        "error": null,
+        "latency_ms": 37661.7,
+        "opened": [
+          {
+            "depth": 3,
+            "parent_reasoning": "We need to extract which countries ranked top ten for all three metrics: GDP per capita, Human Development Index, mean income or consumption per day, in 2022 dataset according to OWID.\n\nWe fetched GDP per capita page but it is huge, but we need CSV data. The page includes link to download CSV. We didn't open the CSV. We are allowed to open another page if it contains answer. The page contains link to download CSV. We can fetch CSV and examine 2022 data.\n\nNeed data for other metrics too. Likely we can open CSV directly. We'll use web_fetch for GDP per capita CSV with full data. Then parse into text (though we just need extraction lines). The CSV data may be huge; but we can focus on relative values 2022 and rank top 10. But due to time maybe just extract top 10 list from CSV? Might be feasible.\n\nLet's open gdp-per-capita csv.\n\n",
+            "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+            "urls": [
+              "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?v=1&csvType=full&useColumnShortNames=false&download-format=csv"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 8282.8,
+            "opened": []
+          }
+        ]
+      },
+      {
+        "depth": 2,
+        "parent_reasoning": "We need to obtain CSV data. Let's try to fetch the CSV with appropriate parameters. Maybe endpoint is `https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv`. The earlier attempts gave 404? The assistant tried interface with `?download-format=csv`. Let's inspect by opening the link directly. But maybe the correct endpoint is `https://ourworldindata.org/grapher/gdp-per-capita-worldbank?download-format=csv` which should return CSV. The tool responded not found. Let's maybe try with query string `?download-format=csv` didn't work; maybe the proper endpoint is `https://ourworldindata.org/grapher/gdp-per-capita-worldbank?download-format=csv`, same. But we tried that. Another possibility: using `.csv` extension: `https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv`. That gave 404. Maybe the grapher dataset uses slug `gdp-per-capita-worldbank` no extension slashes. Let's view ourgoat. Could use `https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv` which apparently returned 404 earlier. Let's test retrieving `human-development-index?download-format=csv`.",
+        "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+        "urls": [
+          "https://ourworldindata.org/grapher/human-development-index?download-format=csv"
+        ],
+        "turns": 2,
+        "status": "not_found",
+        "information": "",
+        "information_chars": 0,
+        "nodes": 2,
+        "error": null,
+        "latency_ms": 39066.0,
+        "opened": [
+          {
+            "depth": 3,
+            "parent_reasoning": "We need data. The open page for HDI shows entire table with many countries etc. This page contains the data per year. We need to find top ten for 2022 for HDI. We can parse the page? It shows a list sorted by HDI 2023 at top. But we might need to find 2022 top list. The page includes table for 2023, but maybe hidden? The page has sorting controls, but content is loaded via JS. The static page shows the table snippet, but may not capture full data. But from visible table, the first few lines show countries: United States, North America? Some region entries. But for 2022 it might be similar sorted order; but better to download CSV.\n\nWe can open the CSV URL: \"https://ourworldindata.org/grapher/human-development-index.csv?v=1&csvType=full&useColumnShortNames=false\" Provided earlier. Let's open that.",
+            "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+            "urls": [
+              "https://ourworldindata.org/grapher/human-development-index.csv?v=1&csvType=full&useColumnShortNames=false"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 11938.2,
+            "opened": []
+          },
+          {
+            "depth": 3,
+            "parent_reasoning": "We need data. The csv didn't work? It says no helpful info, maybe 404. Let's try without `v=` param: `https://ourworldindata.org/grapher/human-development-index.csv`.",
+            "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+            "urls": [
+              "https://ourworldindata.org/grapher/human-development-index.csv"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 7186.6,
+            "opened": []
+          }
+        ]
+      }
+    ],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?download-format=csv"
+    ],
+    "turns": 2,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 5,
+    "error": null,
+    "latency_ms": 83809.5,
+    "opened": [
+      {
+        "depth": 2,
+        "parent_reasoning": "The page is huge long dataset. We have the data for GDP per capita. We need top ten in 2022.\n\nFrom dataset: find entries with Year 2022 for each entity. We can scan for \"2022,\". For GDP per capita, we have bunch of lines. We need top ten values:\n\nLet's collect top values from dataset excerpt: I saw entries like Andorra 63913.383; Australia 60029.133; Austria 65694.46; Azerbaijan 21051.244; Bahamas 34342.93; Bahrain 57572.996; Bangladesh 7888.164; Barbados 20494.535; Belarus 26537.508 etc. Also Canada 58583.13; China 21499.312; etc. Need to find top ten highest values.\n\nFrom the snippet, the highest appear to be:\n\n- Andorra 63913.383\n- Austria 65694.46\n- Australia 60029.133\n- Bahrain 57572.996\n- Canada 58583.13\n- China 21499.312\nBut there might be other high countries like United Arab Emirates? not in dataset yet. But dataset is worldbank GDP per capita; also likely includes Norway? Norway lines maybe further up (not in snippet). Also Switzerland? Not in snippet.\n\nBut to answer the question, we need intersection among top ten categories for 2022 for three different metrics: GDP per capita, Human Development Index, mean income per day.\n\nWe might need to extract top ten for each metric. The dataset is huge; but use extraction.\n\nMaybe easier: Use OWID's \"mean-income-per-day\" dataset: URL https://ourworldindata.org/grapher/mean-income-per-day.csv?download-format=csv which we saw. We need 2022 values.\n\nSimilarly for human-development-index: https://ourworldindata.org/grapher/human-development-index.csv?download-format=csv.\n\nSo we need to find top ten from each.\n\nGiven time, we might focus on known high per capita GDP countries: Andorra, Austria, Australia, Bahrain, Canada, Denmark, France, Germany, Norway, Switzerland? Possibly.\n\nBut the question may expect answer with specific countries: Austria, Canada, Denmark, France, Germany, Norway, Switzerland, Italy? But need intersection with HDI top ten and mean income per day top ten.\n\nTop HDI 2022: countries like Norway, Switzerland, Ireland, Germany, Hong Kong, Australia, Iceland, etc. HDI top: Norway 0.960, Switzerland 0.955, Ireland 0.944, Germany 0.942, Hong Kong 0.940, Australia 0.938, Iceland 0.933, Netherlands 0.931, Sweden 0.933? Actually.\n\nMean income per day top: probably Andorra, Switzerland, Norway, Ireland, Australia, etc.\n\nThus intersection likely includes Norway, Switzerland, Ireland, Germany, Australia, Austria? Let's check.\n\nNeed to find precise lists. Might need to extract numeric values.\n\nWe can more conveniently open the CSV for mean-income-per-day and human-development-index. Use web_fetch to get the CSV.\n\nLet's request mean-income-per-day.csv.\n\n",
+        "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+        "urls": [
+          "https://ourworldindata.org/grapher/mean-income-per-day.csv?download-format=csv"
+        ],
+        "turns": 2,
+        "status": "not_found",
+        "information": "",
+        "information_chars": 0,
+        "nodes": 2,
+        "error": null,
+        "latency_ms": 25803.5,
+        "opened": [
+          {
+            "depth": 3,
+            "parent_reasoning": "The CSV link  https://ourworldindata.org/grapher/mean-income-per-day.csv?download-format=csv returned 404. Perhaps the correct path is https://ourworldindata.org/grapher/mean-income-per-day.csv?download-format=csv? Let's try without \"csv\"? Maybe https://ourworldindata.org/grapher/mean-income-per-day?download-format=csv. Let's open that.",
+            "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+            "urls": [
+              "https://ourworldindata.org/grapher/mean-income-per-day?download-format=csv"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 1658.3,
+            "opened": []
+          },
+          {
+            "depth": 3,
+            "parent_reasoning": "The URL pattern might be different, maybe \"mean-income-per-day-v2\" or \"mean-income-per-day\". Let's search Vor. Actually, let's search for \"mean income per day ourworldindata\".\n\nBut cannot use external search. Maybe the dataset is named \"mean-income-per-day\" but file can be accessed via .csv? Let's check \"https://ourworldindata.org/grapher/mean-income-per-day.csv\". Already 404.\n\nMaybe path variable missing: \"grapher/mean-income-per-day.csv\" might not work; instead \"grapher/mean-income-per-day\" returned 404 earlier. Let's try \"grapher/mean-income-per-dayv2\". We'll try.\n\n",
+            "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+            "urls": [
+              "https://ourworldindata.org/grapher/mean-income-per-day"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 3365.5,
+            "opened": []
+          }
+        ]
+      },
+      {
+        "depth": 2,
+        "parent_reasoning": "We already opened GDP per capita CSV. Have not opened mean income per day or HDI. Let's try the HDI CSV.",
+        "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+        "urls": [
+          "https://ourworldindata.org/grapher/human-development-index.csv?download-format=csv"
+        ],
+        "turns": 1,
+        "status": "not_found",
+        "information": "",
+        "information_chars": 0,
+        "nodes": 1,
+        "error": null,
+        "latency_ms": 17454.6,
+        "opened": [
+          {
+            "depth": 3,
+            "parent_reasoning": "We have huge data; but we need top ten for 2022 for each metric.\n\nWe have HDI csv; we need 2022 values for each country. But the csv is huge, but we could search within for 2022 lines.\n\nBut maybe easier: use OWID grapher CSV for mean-income-per-day and GDP per capita.\n\nWe opened mean-income-per-day.csv earlier? Yes some but didn't show content. Let's fetch that.\n\n",
+            "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+            "urls": [
+              "https://ourworldindata.org/grapher/mean-income-per-day.csv"
+            ],
+            "turns": 1,
+            "status": "not_found",
+            "information": "",
+            "information_chars": 0,
+            "nodes": 0,
+            "error": null,
+            "latency_ms": 1527.0,
+            "opened": []
+          }
+        ]
+      }
+    ],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita.csv?download-format=csv&download-version=published"
+    ],
+    "turns": 1,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 0,
+    "error": null,
+    "latency_ms": 4665.3,
+    "opened": [],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita.csv?download-format=csv"
+    ],
+    "turns": 1,
+    "status": "partial",
+    "information": "We'll attempt to open that page with web_fetch.",
+    "information_chars": 47,
+    "nodes": 0,
+    "error": null,
+    "latency_ms": 4414.9,
+    "opened": [],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita worldbank csv 2022 Our World in Data",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita?download-format=csv"
+    ],
+    "turns": 1,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 0,
+    "error": null,
+    "latency_ms": 1127.0,
+    "opened": [],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita-worldbank 2022 csv ourworldindata",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv?download-format=csv"
+    ],
+    "turns": 1,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 0,
+    "error": null,
+    "latency_ms": 13508.2,
+    "opened": [],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita-worldbank 2022 csv ourworldindata",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.csv"
+    ],
+    "turns": 1,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 0,
+    "error": null,
+    "latency_ms": 19364.6,
+    "opened": [],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita-worldbank 2022 csv ourworldindata",
+    "urls": [
+      "https://ourworldindata.org/grapher/gdp-per-capita-worldbank.json"
+    ],
+    "turns": 1,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 0,
+    "error": null,
+    "latency_ms": 2029.8,
+    "opened": [],
+    "entry": "fetch"
+  },
+  {
+    "depth": 1,
+    "parent_reasoning": "",
+    "query": "gdp-per-capita-worldbank 2022 csv ourworldindata",
+    "urls": [
+      "https://r.jina.ai/http://ourworldindata.org/grapher/gdp-per-capita-worldbank"
+    ],
+    "turns": 1,
+    "status": "not_found",
+    "information": "",
+    "information_chars": 0,
+    "nodes": 0,
+    "error": null,
+    "latency_ms": 6186.0,
+    "opened": [],
+    "entry": "fetch"
+  }
+]

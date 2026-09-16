@@ -1,35 +1,65 @@
-"""검색 에이전트 — vLLM OpenAI 호환 서버 위의 도구 루프.
+"""메인 추론 에이전트 — vLLM OpenAI 호환 서버 위의 도구 루프.
 
-세 모델 모두 같은 코드로 돈다. 다른 것은 서빙 플래그(serving.py)뿐이다.
-도구 실행이 우리 프로세스 안에 있으므로 세 가지가 가능하다.
+세 방법이 **같은 루프**를 돈다. 다른 것은 모델에게 어떤 도구를 주고, 검색 결과를
+어떻게 가공해서 돌려주느냐뿐이다.
 
-    1. **검색 예산.** 상한을 넘으면 도구를 뺏는 대신 "한도 초과, 이제 답하라"를
-       도구 결과로 돌려준다. 모델이 스스로 마무리하게 두는 쪽이 안전하다.
-    2. **컨텍스트 상한.** 대화 토큰을 계속 세다가 상한에 닿으면 도구 결과를 남은
-       만큼만 잘라 넣고 답을 강제한다. 컨텍스트 초과로 실행이 통째로 죽는 것을 막는다.
-    3. **정제(Search-o1의 Reason-in-Documents).** 페치 원문을 메인 대화에 넣지 않고,
-       같은 모델에게 직전 추론·현재 질의와 함께 넘겨 필요한 것만 뽑아 넣는다.
+    ragent       web_search + web_fetch.  페치 원문(jina 마크다운)이 그대로 들어간다
+    depthsearch  web_search + web_fetch.  페치한 페이지를 explorer 가 읽고 요약해서
+                 넣는다. explorer 는 그 페이지의 링크를 따라 재귀할 수 있다
+    search-o1    web_search 만.  검색당 상위 k개를 자동 페치해 페이지별 explorer 요약
+
+두 방법의 웹 검색·페치 도구와 검색 예산은 같다. DepthSearch는 출처별 추출과
+재귀 reader 및 전용 프롬프트를 사용한다. 전체 방법의 비교다.
+
+    ragent → depthsearch(depth 1)   원문 vs 요약   (컨텍스트 축)
+    depthsearch(depth 1) → (depth N) 평면 vs 재귀   (깊이 축)
+
+search-o1 은 원 논문대로 페치를 모델 선택으로 두지 않는다. 선행연구 참조점으로 둔다.
+
+검색 예산은 동일하다. 현재 DepthSearch는 전용 메인 프롬프트를 사용한다.
 """
 
 from __future__ import annotations
 
+import asyncio
+import copy
 import json
 import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from openai import AsyncOpenAI
-
+from .explorer import Budget, Document, Explorer, ExplorerConfig, ExplorerResult, _norm
+from .llm import LLM, Usage, recover_tool_calls, normalize_tool_names, history_tool_call
 from .serving import ServeProfile
-from .tools import ToolSpec, WebTools
-from .trace import ToolCall, Trace, Usage
+from .trace import ToolCall, Trace
+from .urls import normalize_fetch_url
 
-__all__ = ["AgentConfig", "RunResult", "SearchAgent"]
+__all__ = ["METHODS", "AgentConfig", "RunResult", "SearchAgent", "Step"]
+
+METHODS = ("ragent", "search-o1", "depthsearch")
 
 SEARCH_EXHAUSTED = (
     "web_search limit reached — you have used all {used} of your {limit} searches and "
     "no further search will run. Answer the question now from what you have gathered."
+)
+FETCH_EXHAUSTED = (
+    "web_fetch limit reached — you have used all {used} of your {limit} fetches. "
+    "Answer the question now from what you have."
+)
+ANSWER_NOW = (
+    "Research is complete for this attempt. Write the final answer now using the "
+    "collected evidence. Do not describe a next action or call a tool. Keep supported "
+    "partial findings even if some lookups failed. For lists and comparisons, check "
+    "every requested condition and distinguish missing evidence from disqualification. "
+    "Do not invent missing facts or imply that a partial list is exhaustive."
+    " Compare the same entity, variant/size, year, population and unit; unknown values "
+    "cannot support a ranking or an exclusion. If no answer can be supported, explicitly "
+    "state what remains unknown rather than returning an empty response."
+    " Verify the requested ordering (ascending/descending/chronological) from the actual "
+    "values, not search rank. Output exactly the requested answer format. Use real source "
+    "URLs; do not fabricate line references. Keep working plans and evidence tables out "
+    "of a names-only answer."
 )
 CONTEXT_EXHAUSTED = (
     "\n\n[Context limit reached. The result above was truncated and no further tool "
@@ -40,36 +70,39 @@ CONTEXT_EXHAUSTED = (
 @dataclass(slots=True)
 class AgentConfig:
     base_url: str = "http://127.0.0.1:8000/v1"
-    api_key: str = "EMPTY"  # vLLM은 키를 검사하지 않는다
+    api_key: str = "EMPTY"  # vLLM 은 기본적으로 키를 검사하지 않는다
+    # 요청의 `model` 필드로 보낼 이름. 비우면 프로파일의 repo 를 쓴다.
+    # 기성 이미지가 다른 이름으로 서빙하면 conf.yaml 의 served_model_name 으로 준다.
+    model_name: str = ""
     max_tokens: int = 8192
-    # 검색 예산. 넘어도 차단하지 않고 "이제 답하라"를 돌려준다.
-    max_searches: int = 20
-    # 0이면 무제한. 페치는 정제를 거쳐 짧게 들어가므로 굳이 막지 않는다.
-    max_fetches: int = 0
     max_turns: int = 40
-    # 대화 컨텍스트 상한. 서버의 --max-model-len에서 답변 여유를 뺀 값으로 둔다
-    # (128000 - 8000 = 120000). 도구 결과가 이 선을 넘기면 잘라 넣는다.
-    context_limit: int = 120_000
-    # 페치 원문을 같은 모델로 압축해 넣는다(Search-o1 방식).
-    refine_fetched: bool = True
-    # 정제기의 출력 상한. 정제 호출은 페이지 하나만 단독으로 받으므로 넉넉히 준다 —
-    # 이건 상한이지 목표가 아니고, 대부분의 정제는 한참 못 미친다.
-    refine_max_tokens: int = 32768
-    # 정제기에 넣을 **원문**의 토큰 상한. 도구 서버는 어떤 모델이 떠 있는지 모르므로
-    # 자 단위로만 자른다(FETCH_MAX_CHARS). 토큰 단위 절단은 모델을 아는 여기서 한다.
-    refine_max_document_tokens: int = 50_000
-    # 비우면 모델 프로파일의 기본값을 쓴다(gpt-oss는 medium). 덮어쓸 때만 채운다.
-    reasoning_effort: str = ""
-    # 확장 사고. 모델마다 기본값이 반대라 명시하지 않으면 비교가 안 된다 —
-    # gemma-4는 기본 OFF, qwen3.5는 기본 ON이다. None이면 서버 기본값에 맡긴다.
-    # 정제 호출에는 적용하지 않는다(추출 작업이라 사고가 낭비다).
-    enable_thinking: bool | None = None
     timeout_s: float = 600.0
+
+    # 검색 예산. 세 방법이 같은 값을 써야 비교가 성립한다.
+    max_searches: int = 10
+    # ragent 에서만 의미가 있다(모델이 페치를 직접 고르므로). 0 = 무제한.
+    max_fetches: int = 0
+    # serper 가 돌려주는 결과 수.
+    search_results: int = 10
+    # 검색당 자동 페치 수. 0 = 자동 페치 없음(= ragent). search-o1/depthsearch 가
+    # 각자 yaml 에서 명시한다.
+    search_top_k: int = 0
+
+    # 페치한 페이지 하나의 토큰 상한. **세 방법이 같은 값을 써야** 같은 분량의 웹을
+    # 본 것이 된다 — ragent 는 이걸 원문 그대로 대화에 넣고, 나머지 둘은 explorer 에게
+    # 넘긴다. 도구 서버는 어떤 모델이 떠 있는지 몰라 자 단위로밖에 못 자르므로,
+    # 토큰 절단은 토크나이저를 아는 여기서 한 번만 한다.
+    fetch_max_tokens: int = 32768
+
+    # 대화 컨텍스트 상한.
+    context_limit: int = 128_000
+    finalize_answer: bool = False
+    max_tool_recoveries: int = 1
 
 
 @dataclass(slots=True)
 class Step:
-    """한 턴에 모델이 한 일. response.json의 단위."""
+    """한 턴에 모델이 한 일. response.json 의 단위."""
 
     turn: int
     reasoning: str = ""
@@ -87,12 +120,12 @@ class Step:
 
 @dataclass(slots=True)
 class RunResult:
-    """한 문항 실행 결과. 어떤 모델이든 같은 형태다."""
+    """한 문항 실행 결과. 어떤 방법이든 같은 형태다."""
 
     answer: str = ""
     steps: list[Step] = field(default_factory=list)
-    # Search-o1 정제 기록. 원문까지 들고 있어 무거우므로 캐시에는 넣지 않는다.
-    refinements: list[dict[str, Any]] = field(default_factory=list)
+    # explorer 호출 트리. 원문까지 들고 있어 무거우므로 캐시에는 넣지 않는다.
+    explorations: list[dict[str, Any]] = field(default_factory=list)
     usage: Usage = field(default_factory=Usage)
     turns: int = 0
     stop_reason: str = ""
@@ -100,13 +133,32 @@ class RunResult:
     context_tokens: int = 0
     error: str | None = None
 
+    # 확장 예산 사용 내역
+    budget: dict[str, int] = field(default_factory=dict)
+    expansion_nodes: int = 0
+    max_depth_reached: int = 1
+    explorer_calls: int = 0
+    dead_dives: int = 0
+    # 페치 시도/실패. **도구 계층이 죽어도 눈에 보이게 하려고 센다.** 실측으로
+    # Jina 키 잔액이 0이 되어 1,273번 전부 실패했는데, summary.json 에는
+    # run_errors 0 · judge_errors 0 으로 정상 실행처럼 찍혔다.
+    fetch_attempts: int = 0
+    fetch_failures: int = 0
+    # 검색도 같이 센다. **페치만 세다가 검색이 죽은 것을 통째로 놓쳤다** — Serper
+    # 크레딧이 소진되어 검색의 47% 가 실패하는 동안 summary.json 에는 아무 신호도
+    # 없었고, 나는 그것을 프롬프트 탓으로 오진했다.
+    search_attempts: int = 0
+    search_failures: int = 0
+    context_exhausted: bool = False
+    reader_stats: dict[str, int] = field(default_factory=dict)
+    invalid_tool_calls: int = 0
+
     @property
     def tool_calls(self) -> list[ToolCall]:
         return [c for s in self.steps for c in s.tool_calls]
 
     @property
     def reasoning(self) -> str:
-        """턴별 추론을 이어 붙인 것. 사람이 훑어볼 때 쓴다."""
         return "\n\n".join(f"[turn {s.turn}] {s.reasoning}" for s in self.steps if s.reasoning)
 
     @property
@@ -115,6 +167,7 @@ class RunResult:
 
     @property
     def fetches(self) -> int:
+        """메인 모델이 직접 부른 페치. 자동 페치·확장 노드는 여기 안 들어간다."""
         return sum(1 for c in self.tool_calls if c.name == "web_fetch" and not c.refused)
 
     @property
@@ -125,6 +178,11 @@ class RunResult:
     def urls(self) -> list[str]:
         return [c.url for c in self.tool_calls if c.name == "web_fetch" and c.url]
 
+    @property
+    def budget_exhausted(self) -> bool:
+        total = self.budget.get("total", 0)
+        return total > 0 and self.budget.get("used", 0) >= total
+
     def as_dict(self) -> dict[str, Any]:
         """캐시와 트레이스에 들어가는 슬림 버전(도구 결과 본문 제외)."""
         return {
@@ -133,7 +191,19 @@ class RunResult:
             "turns": self.turns,
             "searches": self.searches,
             "fetches": self.fetches,
+            "expansion_nodes": self.expansion_nodes,
+            "max_depth_reached": self.max_depth_reached,
+            "explorer_calls": self.explorer_calls,
+            "dead_dives": self.dead_dives,
+            "fetch_attempts": self.fetch_attempts,
+            "fetch_failures": self.fetch_failures,
+            "search_attempts": self.search_attempts,
+            "search_failures": self.search_failures,
+            "budget": self.budget,
             "context_tokens": self.context_tokens,
+            "context_exhausted": self.context_exhausted,
+            "reader_stats": self.reader_stats,
+            "invalid_tool_calls": self.invalid_tool_calls,
             "steps": [s.as_dict(full=False) for s in self.steps],
             "usage": self.usage.as_dict(),
             "latency_ms": round(self.latency_ms, 1),
@@ -145,7 +215,7 @@ class RunResult:
         return {**self.as_dict(), "steps": [s.as_dict(full=True) for s in self.steps]}
 
     def render_trajectory(self) -> str:
-        """교사 피드백에 들어갈 사람이 읽는 궤적."""
+        """교사 피드백에 들어갈, 사람이 읽는 궤적."""
         calls = self.tool_calls
         if not calls:
             return "(the agent answered without using any tool)"
@@ -157,50 +227,145 @@ class RunResult:
             lines.append(f"{i:>3}. {label}  {detail}{note}")
         return "\n".join(lines)
 
+    def render_explorer_log(self, limit: int = 6000) -> str:
+        """explorer 컴포넌트의 피드백에 들어갈 서브트리 요약."""
+        if not self.explorations:
+            return "(no page was read by the explorer)"
+        lines: list[str] = []
+
+        def walk(node: dict[str, Any], indent: int) -> None:
+            pad = "  " * indent
+            urls = ", ".join(node.get("urls") or []) or "(none)"
+            lines.append(
+                f"{pad}- depth {node.get('depth')} [{node.get('status')}] "
+                f"turns={node.get('turns')} {urls}"
+            )
+            if goal := node.get("goal"):
+                lines.append(f"{pad}  goal: {goal}")
+            info = (node.get("information") or "").strip().replace("\n", " ")
+            lines.append(f"{pad}  returned: {info[:300] or '(nothing)'}")
+            for child in node.get("opened") or []:
+                walk(child, indent + 1)
+
+        for entry in self.explorations:
+            if entry.get("entry") == "fetch":
+                lines.append(f'opened: {(entry.get("urls") or ["?"])[0]}')
+            else:
+                lines.append(f'search: "{entry.get("query", "")}"')
+            walk(entry, 1)
+        text = "\n".join(lines)
+        return text if len(text) <= limit else text[:limit] + "\n... (truncated)"
+
 
 class SearchAgent:
-    def __init__(self, profile: ServeProfile, config: AgentConfig | None = None) -> None:
+    def __init__(
+        self,
+        profile: ServeProfile,
+        config: AgentConfig | None = None,
+        method: str = "depthsearch",
+        explorer_config: ExplorerConfig | None = None,
+        explorer_prompt: str = "",
+    ) -> None:
+        if method not in METHODS:
+            raise ValueError(f"알 수 없는 method '{method}'. 사용 가능: {', '.join(METHODS)}")
         self.profile = profile
         self.config = config or AgentConfig()
-        self._client = AsyncOpenAI(
+        self.method = method
+        self.explorer_config = explorer_config
+        self.explorer_prompt = explorer_prompt
+        self.llm = LLM(
+            profile,
             base_url=self.config.base_url,
             api_key=self.config.api_key,
-            timeout=self.config.timeout_s,
+            timeout_s=self.config.timeout_s,
+            model_name=self.config.model_name,
         )
-        self._http: Any = None  # /tokenize용. 처음 쓸 때 만든다
+
+    @property
+    def uses_explorer(self) -> bool:
+        return self.method != "ragent"
+
+    @property
+    def tool_names(self) -> list[str]:
+        """모델에게 노출할 도구.
+
+        ragent 와 depthsearch 는 **같다** — 둘 다 메인 모델이 검색 결과를 보고 열
+        페이지를 고른다. 다른 것은 그 페이지가 원문으로 들어오느냐(ragent) explorer
+        요약으로 들어오느냐(depthsearch)뿐이다. 그래서 ①→③ 이 손잡이 하나 차이다.
+
+        search-o1 만 web_search 하나다. 원 논문이 페치를 모델 선택으로 두지 않고
+        검색당 상위 k개를 자동으로 가져오기 때문이다.
+        """
+        return ["web_search"] if self.method == "search-o1" else ["web_search", "web_fetch"]
+
+    @property
+    def explores_on_fetch(self) -> bool:
+        """메인 모델의 web_fetch 를 explorer 로 흘릴 것인가(= depthsearch)."""
+        return self.method == "depthsearch"
 
     async def run(
         self,
         question: str,
         system_prompt: str | None,
-        tools: WebTools,
+        tools: Any,
         trace: Trace,
     ) -> RunResult:
         cfg = self.config
         result = RunResult()
         started = time.perf_counter()
 
-        system = _system_prompt(
-            system_prompt, cfg.reasoning_effort or self.profile.reasoning_effort
-        )
+        system = _system_prompt(system_prompt, self.profile.reasoning_effort)
         messages: list[dict[str, Any]] = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": question})
 
-        specs = [spec for spec in tools.specs]
+        specs = [spec.as_openai() for spec in tools.specs_for(self.tool_names)]
+        if self.method == "depthsearch":
+            specs = copy.deepcopy(specs)
+            for spec in specs:
+                function = spec["function"]
+                if function["name"] == "web_search":
+                    function["description"] += (
+                        "\nFind an entry page or one missing fact. Start with the source/topic "
+                        "and a few distinctive terms; do not pack every condition of the "
+                        "question into one query. Let web_fetch readers follow links and "
+                        "check detailed conditions. Narrow only when results justify it; "
+                        "if results miss the topic, remove constraints or change the anchor."
+                    )
+        explorer_cfg = self.explorer_config or ExplorerConfig()
+        budget = Budget(explorer_cfg.max_expansion_nodes if self.uses_explorer else 0)
+
+        # 모든 페치가 지나는 단 하나의 경로. 오염 필터와 토큰 절단이 여기 한 번만
+        # 걸리므로 세 방법이 같은 분량의 웹을 보게 된다.
+        async def guarded_fetch(url: str) -> Document:
+            return await self._document(url, tools, question, trace, result)
+
+        explorer = (
+            Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch)
+            if self.uses_explorer
+            else None
+        )
+
         trace.event(
             "run.start",
-            model=self.profile.repo,
+            method=self.method,
+            model=self.llm.model_name,
             question=question,
             system_prompt=system,
+            tools=[s["function"]["name"] for s in specs],
             budget={
                 "searches": cfg.max_searches,
+                "search_results": cfg.search_results,
                 "fetches": cfg.max_fetches or "unlimited",
+                "search_top_k": cfg.search_top_k if self.uses_explorer else 0,
+                "expansion_nodes": budget.total,
+                "max_depth": explorer_cfg.max_depth if self.uses_explorer else 0,
                 "context_tokens": cfg.context_limit,
             },
         )
 
+        tool_resume_attempts = 0
         try:
             for turn in range(1, cfg.max_turns + 1):
                 result.turns = turn
@@ -208,82 +373,180 @@ class SearchAgent:
                 result.steps.append(step)
 
                 trace.event("llm.request", turn=turn, context_tokens=result.context_tokens)
-                message, finish = await self._complete(messages, specs, result)
+                reply = await self.llm.chat(
+                    messages,
+                    max_tokens=cfg.max_tokens,
+                    tools=specs,
+                    usage=result.usage,
+                )
+                if reply.context_tokens:
+                    result.context_tokens = reply.context_tokens
 
-                step.reasoning = str(getattr(message, "reasoning_content", "") or "")
-                step.text = str(message.content or "")
-                calls = list(getattr(message, "tool_calls", None) or [])
+                # 특수토큰은 **받는 즉시** 턴다. 답변으로도, 대화 이력으로도 나쁘다.
+                raw_text = reply.text
+                recovered_call = recover_tool_calls(reply, specs)
+                normalized = normalize_tool_names(reply, specs)
+                reply.text = "" if recovered_call else _clean_answer(reply.text)
+                step.reasoning = reply.reasoning
+                step.text = reply.text
                 trace.event(
                     "llm.response",
                     turn=turn,
                     reasoning_chars=len(step.reasoning),
                     text=step.text[:2000],
-                    tool_calls=[c.function.name for c in calls],
-                    finish_reason=finish,
+                    raw_text=raw_text,
+                    cleanup_changed=raw_text != reply.text,
+                    recovered_tool_call=recovered_call,
+                    normalized_tool_names=normalized,
+                    tool_calls=[c.function.name for c in reply.tool_calls],
+                    finish_reason=reply.finish_reason,
                 )
 
-                if not calls:
+                if not reply.tool_calls:
+                    # A missing/malformed tool response is not the end of research.
+                    # Keep tools and evidence for one bounded continuation before
+                    # falling back to answer-only finalization.
+                    can_use_tools = any(
+                        (s["function"]["name"] == "web_search" and result.searches < cfg.max_searches)
+                        or (s["function"]["name"] == "web_fetch" and
+                            (not cfg.max_fetches or result.fetches < cfg.max_fetches))
+                        for s in specs
+                    )
+                    if (can_use_tools and tool_resume_attempts < cfg.max_tool_recoveries and turn < cfg.max_turns
+                            and (not step.text.strip() or _looks_like_action(step.text))):
+                        tool_resume_attempts += 1
+                        trace.event("run.resume_tools", turn=turn, attempt=tool_resume_attempts,
+                                    reason="missing_or_malformed_tool_call")
+                        messages.append({"role": "user", "content": (
+                            "The previous turn supplied no usable answer or tool call. "
+                            "Research may continue: use an actual web_search or web_fetch "
+                            "function call for the next missing fact. Do not print a tool "
+                            "header or JSON as prose. If the evidence is already sufficient, "
+                            "give the final answer."
+                        )})
+                        continue
+                    # **사고만 하고 아무것도 내놓지 않는 턴이 있다.** 도구를 부르려던
+                    # 사고로 끝나는데 툴콜도 본문도 비어 있다(실측: gpt-oss 30문항에서
+                    # 4건). 그대로 두면 빈 답이 채점으로 넘어가 0점이 되고, 판정 쪽에는
+                    # judge_error(empty_response)로만 보여 원인이 가려진다.
+                    # 한 번만 명시적으로 답을 요구한 뒤, 그래도 비면 포기한다.
+                    if cfg.finalize_answer or not step.text.strip() or _looks_like_action(step.text) or reply.truncated:
+                        trace.event("run.finalizing", turn=turn, reason=(
+                            "truncated" if reply.truncated else "verification" if cfg.finalize_answer else "empty_or_action"
+                        ))
+                        final = await self._salvage(messages, trace, result.usage)
+                        usable_draft = step.text.strip() if not reply.truncated and not _looks_like_action(step.text) else ""
+                        result.answer = final or usable_draft
+                        result.stop_reason = "finalized" if final else (
+                            "answered" if usable_draft else "truncated" if reply.truncated else "no_answer"
+                        )
+                        break
+
                     result.answer = step.text.strip()
-                    # max_tokens에 걸려 끊긴 것은 답변이 아니다. 그대로 "answered"로
-                    # 두면 반복 루프에 빠져 잘린 출력이 정상 점수를 받는다.
-                    result.stop_reason = "truncated" if finish == "length" else "answered"
-                    if finish == "length":
-                        trace.event("run.truncated", reason="max_tokens", turn=turn)
+                    result.stop_reason = "answered"
                     break
 
-                messages.append(_assistant_message(message, calls))
-                for call in calls:
-                    output = await self._run_tool(call, tools, result, step, trace, question)
+                messages.append(_assistant_message(reply))
+                for call in reply.tool_calls:
+                    output = await self._run_tool(
+                        call=call,
+                        tools=tools,
+                        explorer=explorer,
+                        budget=budget,
+                        result=result,
+                        step=step,
+                        trace=trace,
+                        question=question,
+                    )
                     messages.append(
                         {"role": "tool", "tool_call_id": call.id, "content": output}
                     )
             else:
                 result.stop_reason = "max_turns"
                 trace.event("run.truncated", reason="max_turns", turns=cfg.max_turns)
+                final = await self._salvage(messages, trace, result.usage)
+                if final:
+                    result.answer, result.stop_reason = final, "finalized"
         except Exception as exc:
             result.error = repr(exc)
             result.stop_reason = "error"
             trace.event("run.error", error=result.error)
+            # **죽은 대화에서 답만이라도 건진다.**
+            #
+            # vLLM 의 harmony 파서가 gpt-oss 출력에서 500 으로 죽는 일이 있는데, 그냥
+            # 다시 뽑아도 같은 곳에서 또 죽는다(실측: 재시도 3회 전부 실패). 페치가
+            # 계속 실패하면 모델이 이상한 주소를 궁리하는 퇴행 루프에 빠지고, 그
+            # 상태의 이력이 매번 같은 망가진 출력을 유도하기 때문이다. 그래서
+            # **프롬프트를 바꿔** 한 번 더 부른다 — 도구를 빼고 답만 요구하면 분포가
+            # 달라져 루프에서 빠져나온다.
+            #
+            # 이게 없으면 그 문항은 답 0자로 끝나 0점이 되고, 모델의 실력이 아니라
+            # 서버 버그가 점수에 섞인다.
+            salvaged = await self._salvage(messages, trace, result.usage)
+            if salvaged:
+                result.answer = salvaged
+                result.stop_reason = "salvaged"
+                trace.event("run.salvaged", answer_chars=len(salvaged))
 
+        result.budget = budget.as_dict()
         result.latency_ms = (time.perf_counter() - started) * 1000
         trace.event("run.end", **result.as_dict())
         return result
 
-    # --- 내부 ---------------------------------------------------------------
+    async def _salvage(self, messages: list[dict[str, Any]], trace: Trace, usage: Usage) -> str:
+        """죽은 대화에서 마지막으로 답을 한 번 받아 본다. 실패하면 빈 문자열.
 
-    async def _complete(
-        self, messages: list[dict[str, Any]], tools: list[ToolSpec], result: RunResult
-    ) -> tuple[Any, str]:
-        request: dict[str, Any] = {
-            "model": self.profile.repo,
-            "messages": messages,
-            "max_tokens": self.config.max_tokens,
-            "tools": [t.as_openai() for t in tools],
-            "tool_choice": "auto",
-            **self.profile.sampling,
-        }
-        # extra_body는 한 번에 합쳐 넣는다(두 곳에서 따로 주면 서로 덮어쓴다).
-        extra = {**self.profile.sampling_extra, **_chat_kwargs(self.config.enable_thinking)}
-        if extra:
-            request["extra_body"] = extra
-        response = await self._client.chat.completions.create(**request)
-        choice = response.choices[0]
-        if usage := response.usage:
-            details = getattr(usage, "completion_tokens_details", None)
-            result.usage.add(
-                usage.prompt_tokens,
-                usage.completion_tokens,
-                getattr(details, "reasoning_tokens", 0) if details else 0,
-            )
-            # 서버가 센 값이 가장 정확하다. 다음 턴의 컨텍스트 크기는 이번 프롬프트
-            # 더하기 이번 출력이다.
-            result.context_tokens = (usage.prompt_tokens or 0) + (usage.completion_tokens or 0)
-        return choice.message, str(getattr(choice, "finish_reason", "") or "")
+        어시스턴트 턴을 전부 버리고 **시스템 프롬프트 · 원 질문 · 도구 결과**만 남긴
+        뒤 도구 없이 부른다. 버리는 쪽이 모델이 맴돌던 사고이고, 남기는 쪽이 실제로
+        모아 온 근거다. 이것까지 실패하면 조용히 포기한다 — 여기서 예외를 올리면
+        원래 에러를 덮어 진단이 불가능해진다.
+        """
+        kept = [m for m in messages if m.get("role") in ("system", "user", "tool")]
+        # tool 메시지는 바로 앞의 tool_calls 없이는 형식이 깨진다. 내용만 옮긴다.
+        rebuilt: list[dict[str, Any]] = []
+        for message in kept:
+            if message.get("role") == "tool":
+                rebuilt.append(
+                    {"role": "user", "content": f"Tool result:\n{message.get('content', '')}"}
+                )
+            else:
+                rebuilt.append(message)
+        rebuilt.append({"role": "user", "content": ANSWER_NOW})
+        for attempt in range(2):
+            try:
+                reply = await self.llm.chat(rebuilt, max_tokens=self.config.max_tokens, usage=usage)
+            except Exception as exc:  # Keep the original error for diagnosis.
+                trace.event("run.salvage_failed", error=repr(exc))
+                return ""
+            text = _clean_answer(reply.text or "").strip()
+            trace.event("run.final_response", text=text, raw_text=reply.text, attempt=attempt,
+                        cleanup_changed=text != (reply.text or "").strip(),
+                        finish_reason=reply.finish_reason,
+                        tool_calls=[c.function.name for c in reply.tool_calls])
+            if text and not (reply.truncated or reply.tool_calls or _looks_like_action(text)):
+                return text
+            # Retry an unusable output once without reinserting its reasoning or
+            # malformed tool syntax. No searches or new tools are introduced.
+            if not attempt:
+                rebuilt.append({"role": "user", "content": (
+                    "No usable final answer was returned. Put a concise answer in the "
+                    "final channel now, using only the evidence above. State unresolved "
+                    "facts if needed. Do not narrate a plan or print a tool call."
+                )})
+        return ""
+
+    async def aclose(self) -> None:
+        await self.llm.aclose()
+
+    # --- 도구 ---------------------------------------------------------------
 
     async def _run_tool(
         self,
+        *,
         call: Any,
-        tools: WebTools,
+        tools: Any,
+        explorer: Explorer | None,
+        budget: Budget,
         result: RunResult,
         step: Step,
         trace: Trace,
@@ -298,43 +561,68 @@ class SearchAgent:
         record = ToolCall(name=name, arguments=arguments)
         step.tool_calls.append(record)
 
-        # 1) 예산 — 차단이 아니라 안내를 돌려준다.
+        # Repairable argument errors must not turn into a fetch of an empty URL.
+        try:
+            if name == "web_fetch":
+                arguments["url"] = normalize_fetch_url(arguments.get("url"))
+            elif name == "web_search":
+                query = arguments.get("query")
+                if not isinstance(query, str) or not query.strip():
+                    raise ValueError("query must be a non-empty string")
+        except ValueError as exc:
+            result.invalid_tool_calls += 1
+            record.is_error = True
+            record.refused = True
+            record.result = f"Invalid {name} arguments: {exc}. Retry with a valid JSON object."
+            record.result_chars = len(record.result)
+            trace.event("tool.invalid_arguments", tool=name, arguments=arguments, error=str(exc))
+            return record.result
+
         if name == "web_search" and used >= cfg.max_searches:
             notice = SEARCH_EXHAUSTED.format(used=used, limit=cfg.max_searches)
             record.refused, record.result = True, notice
             trace.event("budget.search_exhausted", turn=step.turn, used=used)
             return notice
         if name == "web_fetch" and cfg.max_fetches and used >= cfg.max_fetches:
-            notice = (
-                f"web_fetch limit reached — you have used all {used} of your "
-                f"{cfg.max_fetches} fetches. Answer the question now from what you have."
-            )
+            notice = FETCH_EXHAUSTED.format(used=used, limit=cfg.max_fetches)
             record.refused, record.result = True, notice
             trace.event("budget.fetch_exhausted", turn=step.turn, used=used)
             return notice
 
         trace.event("tool.call", turn=step.turn, tool=name, arguments=arguments)
-        outcome = await tools.call(name, arguments)
-        record.is_error = outcome.is_error
-        record.duration_ms = outcome.duration_ms
-        text = outcome.text
+        if name == "web_search":
+            text, raw_chars = await self._search(
+                query=str(arguments.get("query") or ""),
+                tools=tools,
+                explorer=explorer,
+                budget=budget,
+                result=result,
+                record=record,
+                trace=trace,
+                question=question,
+                turn=step.turn,
+            )
+        elif name == "web_fetch":
+            text, raw_chars = await self._fetch(
+                url=str(arguments.get("url") or ""),
+                tools=tools,
+                explorer=explorer,
+                budget=budget,
+                result=result,
+                record=record,
+                trace=trace,
+                question=question,
+                turn=step.turn,
+            )
+        else:
+            text, raw_chars = f"unknown tool '{name}'.", 0
+            record.is_error = True
+            record.refused = True
+            result.invalid_tool_calls += 1
 
-        # 2) 벤치마크 유출 제거. 도구 서버는 이름으로만 막을 수 있지만(BLOCKED_TERMS),
-        #    미러는 이름이 무관한 경우가 많다. 문제 원문이 스니펫에 그대로 실려 있으면
-        #    그것이 곧 유출이므로 여기서 걷어낸다 — 질문을 아는 쪽은 에이전트뿐이다.
-        if name == "web_search" and not outcome.is_error:
-            text, leaked = _strip_leaks(text, question)
-            if leaked:
-                record.leaked = leaked
-                trace.event("contamination.filtered", turn=step.turn, removed=leaked)
-
-        # 3) 페치 원문은 메인 대화에 넣지 않는다. 정제한 것만 넣는다.
-        if name == "web_fetch" and not outcome.is_error and cfg.refine_fetched:
-            text = await self._refine(arguments.get("url", ""), text, result, step)
-
-        # 4) 컨텍스트 상한 — 남은 만큼만 넣고 답을 강제한다.
         text, truncated = await self._fit(text, result)
         if truncated:
+            result.context_exhausted = True
             trace.event(
                 "budget.context_exhausted",
                 turn=step.turn,
@@ -342,148 +630,296 @@ class SearchAgent:
                 limit=cfg.context_limit,
             )
 
-        record.result = _parse_result(name, text)
+        record.result = _parse_result(name, text, self.uses_explorer)
         record.result_chars = len(text)
         trace.event(
             "tool.result",
             turn=step.turn,
             tool=name,
             arguments=arguments,
-            is_error=outcome.is_error,
-            duration_ms=round(outcome.duration_ms, 1),
-            raw_chars=len(outcome.text),
+            is_error=record.is_error,
+            duration_ms=round(record.duration_ms, 1),
+            raw_chars=raw_chars,
             result_chars=len(text),
             truncated=truncated,
         )
         return text
+
+    async def _search(
+        self,
+        *,
+        query: str,
+        tools: Any,
+        explorer: Explorer | None,
+        budget: Budget,
+        result: RunResult,
+        record: ToolCall,
+        trace: Trace,
+        question: str,
+        turn: int,
+    ) -> tuple[str, int]:
+        """검색. ragent 는 결과 목록을, 나머지는 explorer 의 요약을 돌려준다."""
+        result.search_attempts += 1
+        parsed, outcome = await tools.search(query)
+        record.is_error = outcome.is_error
+        record.duration_ms = outcome.duration_ms
+        if outcome.is_error:
+            result.search_failures += 1
+            trace.event("search.failed", turn=turn, query=query, error=outcome.text[:200])
+            return outcome.text, len(outcome.text)
+
+        # 벤치마크 유출 제거. 도구 서버는 이름으로만 막을 수 있지만(BLOCKED_TERMS)
+        # 미러는 이름이 무관한 경우가 많다. 문제 원문이 스니펫에 그대로 실려 있으면
+        # 그것이 곧 유출이므로 여기서 걷어낸다 — 질문을 아는 쪽은 우리뿐이다.
+        parsed = {**parsed, "organic": (parsed.get("organic") or [])[:self.config.search_results]}
+        parsed, leaked = _strip_leaks(parsed, question)
+        if leaked:
+            record.leaked = leaked
+            trace.event("contamination.filtered", turn=turn, removed=leaked)
+
+        # 자동 페치가 없으면(ragent · depthsearch) 검색 결과 목록을 그대로 돌려준다.
+        # 메인 모델이 제목·스니펫·랭킹을 보고 열 페이지를 고른다 — 페이지 안의 앵커
+        # 텍스트보다 훨씬 나은 판단 근거다.
+        if not self.config.search_top_k or explorer is None:
+            text = json.dumps(parsed, ensure_ascii=False)
+            return text, len(outcome.text)
+
+        # search-o1 — 상위 k개를 자동으로 열어 explorer 에게 한 번에 넘긴다.
+        entries = (parsed.get("organic") or [])[: self.config.search_top_k]
+        urls = [str(e.get("link") or "") for e in entries if e.get("link")]
+        titles = {str(e.get("link") or ""): str(e.get("title") or "") for e in entries}
+        documents = list(
+            await asyncio.gather(
+                *(self._document(u, tools, question, trace, result) for u in urls)
+            )
+        )
+        for document in documents:
+            document.title = titles.get(document.url, "")
+
+        blocked = sum(1 for d in documents if d.is_error and "BLOCKED" in d.content)
+        if blocked:
+            record.leaked += blocked
+
+        ok = [d for d in documents if not d.is_error]
+        trace.event(
+            "search.fetched",
+            turn=turn,
+            requested=len(entries),
+            fetched=len(ok),
+            failed=len(documents) - len(ok) - blocked,
+            blocked=blocked,
+            urls=[d.url for d in documents],
+        )
+
+        # **페이지 하나에 explorer 하나.** 묶어서 한 번에 읽히지 않는다.
+        #
+        # 묶어 주면 k개가 문서 예산을 나눠 갖게 되어 페이지당 분량이 1/k 로 줄고,
+        # ragent·depthsearch 와의 "같은 분량의 웹을 봤다"가 깨진다(실측: 묶어서 줬을
+        # 때 절단이 41%, 다른 둘은 1% 였다). 하나씩 주면 각 페이지가 다른 두 방법과
+        # 똑같이 max_document_tokens 를 통째로 받는다.
+        #
+        # 이렇게 해야 README 의 주장 — "depthsearch 와 같은 코드 경로를 쓰고 다른
+        # 것은 max_depth 뿐" — 이 실제로 성립한다. explorer 는 어느 쪽에서든 늘
+        # 페이지 하나를 읽는다.
+        targets = ok or documents
+        explorations = await asyncio.gather(
+            *(
+                explorer.explore(
+                    question=question,
+                    reasoning=_accumulated_reasoning(result),
+                    query=query,
+                    documents=[doc],
+                    budget=budget,
+                    trace=trace,
+                    usage=result.usage,
+                    depth=1,
+                )
+                for doc in targets
+            )
+        )
+        parts = []
+        for doc, exploration in zip(targets, explorations):
+            _absorb(result, exploration, query=query, record=record)
+            parts.append(f"### {doc.title or doc.url}\n{exploration.render_for_gate()}")
+        text = "\n\n".join(parts) or "No helpful information found."
+        if answer_box := parsed.get("answer_box"):
+            text = f"{text}\n\n**Search answer box:** {json.dumps(answer_box, ensure_ascii=False)}"
+        return text, len(outcome.text)
+
+    async def _document(
+        self, url: str, tools: Any, question: str, trace: Trace,
+        result: RunResult | None = None,
+    ) -> Document:
+        """페치 → 오염 필터 → 토큰 절단. 페이지를 여는 유일한 경로다."""
+        if result is not None:
+            result.fetch_attempts += 1
+        document = await tools.fetch(url)
+        trace.event("fetch.source", url=url, retrieval=document.retrieval,
+                    retrieval_note=document.retrieval_note, is_error=document.is_error)
+        if document.is_error:
+            if result is not None:
+                result.fetch_failures += 1
+            return document
+
+        document.content, leaked = strip_page_leaks(document.content, question)
+        if leaked:
+            document.is_error = True
+            trace.event("contamination.blocked_page", url=url)
+            return document
+
+        if "/fb-answers/" in url.lower():
+            document.is_error = True
+            document.content = "BLOCKED: answer-reposting page; use the underlying factual sources."
+            trace.event("contamination.blocked_page", url=url)
+            return document
+
+        document.content, truncated = await self.llm.cap(
+            document.content, self.config.fetch_max_tokens
+        )
+        if truncated:
+            document.content += "\n\n... (page truncated)"
+            trace.event("fetch.truncated", url=url, limit=self.config.fetch_max_tokens)
+        return document
+
+    async def _fetch(
+        self,
+        *,
+        url: str,
+        tools: Any,
+        explorer: Explorer | None,
+        budget: Budget,
+        result: RunResult,
+        record: ToolCall,
+        trace: Trace,
+        question: str,
+        turn: int,
+    ) -> tuple[str, int]:
+        """메인 모델이 고른 페이지 하나를 연다.
+
+        ragent      원문(jina 마크다운)을 그대로 돌려준다
+        depthsearch explorer 가 읽고 요약해서 돌려준다. explorer 는 그 페이지의
+                    링크를 따라 재귀할 수 있다(= depth 2 이상, 노드 예산에서 차감)
+        """
+        started = time.perf_counter()
+        if self.explores_on_fetch and _norm(url) in budget.readings:
+            from .explorer import _render_notes
+            budget.reused += 1
+            text = _render_notes(budget.readings[_norm(url)])
+            text += "\nPreviously saved notes; no new network fetch. "
+            text += "Use the source links in these notes to fill any remaining gaps."
+            trace.event("fetch.reused", url=url)
+            return text, len(text)
+        document = await self._document(url, tools, question, trace, result)
+        record.is_error = document.is_error
+        record.duration_ms = (time.perf_counter() - started) * 1000
+        raw_chars = len(document.content)
+        if document.is_error:
+            return document.content, raw_chars
+
+        if not self.explores_on_fetch or explorer is None:
+            return document.content, raw_chars
+
+        exploration = await explorer.explore(
+            question=question,
+            reasoning=_accumulated_reasoning(result),
+            query=_latest_query(result),
+            documents=[document],
+            budget=budget,
+            trace=trace,
+            usage=result.usage,
+            depth=1,
+        )
+        _absorb(result, exploration, query=_latest_query(result), url=url, record=record)
+        return exploration.render_for_gate(), raw_chars
 
     async def _fit(self, text: str, result: RunResult) -> tuple[str, bool]:
         """도구 결과가 컨텍스트 상한을 넘기면 남은 토큰만큼만 남긴다."""
         remaining = self.config.context_limit - result.context_tokens
         if remaining <= 0:
             return CONTEXT_EXHAUSTED.strip(), True
-
-        # 대개는 근사치로 충분하다. 경계 근처에서만 서버에 정확한 수를 묻는다.
-        if _estimate_tokens(text) < remaining * 0.9:
-            return text, False
-
-        exact = await self._count_tokens(text)
-        if exact <= remaining:
-            return text, False
-        # 이 텍스트의 실제 토큰당 문자 수로 자를 지점을 잡는다.
-        keep = max(0, int(remaining * len(text) / max(exact, 1)))
-        return text[:keep] + CONTEXT_EXHAUSTED, True
-
-    async def _cap(self, text: str, limit_tokens: int) -> tuple[str, bool]:
-        """텍스트를 토큰 상한에 맞춰 자른다. 모델 토크나이저 기준이다."""
-        if limit_tokens <= 0 or _estimate_tokens(text) < limit_tokens * 0.9:
-            return text, False
-        exact = await self._count_tokens(text)
-        if exact <= limit_tokens:
-            return text, False
-        keep = max(0, int(limit_tokens * len(text) / max(exact, 1)))
-        return text[:keep], True
-
-    async def _count_tokens(self, text: str) -> int:
-        """**돌리는 모델의 토크나이저로** 센다 — vLLM의 /tokenize.
-
-        tiktoken 같은 남의 인코딩은 어휘가 달라 수백 토큰씩 어긋난다. 컨텍스트
-        경계를 다루는 자리라 서버에 직접 묻는다. 실패하면 근사치로 물러선다.
-        """
-        try:
-            import httpx
-
-            if self._http is None:
-                self._http = httpx.AsyncClient(timeout=30.0)
-            root = self.config.base_url.rstrip("/").removesuffix("/v1")
-            response = await self._http.post(
-                f"{root}/tokenize", json={"model": self.profile.repo, "prompt": text}
-            )
-            return int(response.json()["count"])
-        except Exception:
-            return _estimate_tokens(text)
-
-    async def _refine(self, url: str, page: str, result: RunResult, step: Step) -> str:
-        """페치 원문을 같은 모델로 압축한다(Search-o1의 Reason-in-Documents).
-
-        직전 추론과 가장 최근 검색어를 함께 넘겨, 지금 알아내려는 것에 맞춰 뽑게 한다.
-        이 호출이 실패하면 원문을 그대로 쓴다 — 정제는 최적화이지 정확성 요건이 아니다.
-        """
-        document, doc_truncated = await self._cap(page, self.config.refine_max_document_tokens)
-        prompt = REFINE_PROMPT.format(
-            prev_reasoning=_previous_reasoning(result) or "(none yet)",
-            search_query=_latest_query(result) or "(no search issued yet)",
-            document=document,
-        )
-        started = time.perf_counter()
-        refined, error = page, None
-        try:
-            response = await self._client.chat.completions.create(
-                model=self.profile.repo,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=self.config.refine_max_tokens,
-                # 정제는 추출이라 사고가 낭비다. 모델이 이 스위치를 아는 경우에만 끈다.
-                extra_body={
-                    **self.profile.sampling_extra,
-                    **_chat_kwargs(False if self.config.enable_thinking is not None else None),
-                }
-                or None,
-                **self.profile.sampling,
-            )
-        except Exception as exc:
-            error = repr(exc)
-        else:
-            if usage := response.usage:
-                result.usage.add(usage.prompt_tokens, usage.completion_tokens)
-            refined = (response.choices[0].message.content or "").strip() or page
-
-        result.refinements.append(
-            {
-                "turn": step.turn,
-                "url": url,
-                "search_query": _latest_query(result),
-                "prev_reasoning": _previous_reasoning(result),
-                "document_chars": len(page),
-                "document_truncated": doc_truncated,
-                "document": page,  # jina 원문 전체. search_o1.json에만 남는다
-                "refined": refined,
-                "refined_chars": len(refined),
-                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
-                "error": error,
-            }
-        )
-        return refined
+        capped, truncated = await self.llm.cap(text, remaining)
+        return (capped + CONTEXT_EXHAUSTED, True) if truncated else (capped, False)
 
 
 # --- 도우미 -----------------------------------------------------------------
 
 
-def _system_prompt(system_prompt: str | None, reasoning_effort: str) -> str:
-    """gpt-oss는 추론 강도를 시스템 프롬프트 한 줄로 받는다."""
-    parts = [p for p in (system_prompt or "").strip().splitlines()]
-    if reasoning_effort:
-        parts = [f"Reasoning: {reasoning_effort}", *parts]
-    return "\n".join(parts).strip()
+def _absorb(
+    result: RunResult,
+    exploration: ExplorerResult,
+    query: str = "",
+    url: str = "",
+    record: ToolCall | None = None,
+) -> None:
+    """explorer 서브트리의 통계를 실행 결과에 합친다.
 
-
-def _previous_reasoning(result: RunResult) -> str:
-    """정제기에 넘길 직전 추론 블록."""
-    for step in reversed(result.steps):
-        if step.reasoning:
-            return step.reasoning
-    return ""
+    진입점이 둘이다 — search-o1 은 검색당(query), depthsearch 는 메인 모델이 고른
+    페이지당(url). 어느 쪽으로 들어왔는지가 로그에 남아야 사후에 구분된다.
+    """
+    log = {**exploration.log, "query": query, "entry": "fetch" if url else "search"}
+    result.explorations.append(log)
+    if record is not None:
+        # 도구 호출에 직접 매달아 두면 트리 시각화가 steps 만 보고 그려진다.
+        # search-o1 은 검색 하나가 k개를 태우므로 덮어쓰지 않고 붙인다.
+        record.explorations.append(log)
+    result.expansion_nodes += exploration.nodes
+    result.explorer_calls += exploration.calls
+    result.dead_dives += exploration.dead_dives
+    result.max_depth_reached = max(result.max_depth_reached, exploration.depth_reached)
+    def count_readers(node: dict[str, Any]) -> None:
+        if node.get("reused"):
+            return
+        state = node.get("own_extraction_state", node.get("extraction_state", "complete"))
+        for key, amount in (
+            ("sessions", 1), (state, 1),
+            ("empty_notes", int(not node.get("own_information_chars", node.get("information_chars", 0)))),
+            ("recovery_attempts", int(node.get("recovery_attempts", 0))),
+            ("no_relevant_evidence", int(node.get("own_status", node.get("status")) == "not_found"
+                                         and state == "complete")),
+            ("navigation_errors", int(bool(node.get("error")))),
+            ("pruned_branches", int(bool(node.get("expansion_stop_reason")))),
+            ("repeated_content", int(node.get("expansion_stop_reason") == "repeated_content")),
+        ):
+            result.reader_stats[key] = result.reader_stats.get(key, 0) + amount
+        for child in node.get("opened", []):
+            count_readers(child)
+    count_readers(log)
 
 
 def _latest_query(result: RunResult) -> str:
+    """가장 최근에 던진 검색어. explorer 에게 "지금 무엇을 쫓고 있는가"로 넘긴다."""
     for call in reversed(result.tool_calls):
         if call.name == "web_search" and call.query:
             return call.query
     return ""
 
 
-def _parse_result(name: str, text: str) -> Any:
-    """검색 결과는 구조를 살려 저장한다(title/link/snippet). 나머지는 문자열."""
-    if name != "web_search":
+def _accumulated_reasoning(result: RunResult) -> str:
+    """explorer 에게 넘길 **누적** 추론 체인.
+
+    Search-o1 식 (4) 의 R(<i) 는 i번째 검색 직전까지의 추론 체인 전체다. 마지막
+    블록 하나만 넘기면 explorer 가 무엇을 쫓는지 모르는 채로 읽게 된다.
+    """
+    blocks: list[str] = []
+    for step in result.steps:
+        if step.reasoning:
+            blocks.append(f"[turn {step.turn}] {step.reasoning.strip()}")
+        elif step.text:
+            blocks.append(f"[turn {step.turn}] {step.text.strip()}")
+    return "\n\n".join(blocks)
+
+
+def _system_prompt(system_prompt: str | None, reasoning_effort: str) -> str:
+    """gpt-oss 는 추론 강도를 시스템 프롬프트 한 줄로 받는다."""
+    body = (system_prompt or "").strip()
+    if reasoning_effort:
+        return f"Reasoning: {reasoning_effort}\n{body}".strip()
+    return body
+
+
+def _parse_result(name: str, text: str, uses_explorer: bool) -> Any:
+    """ragent 의 검색 결과만 구조를 살려 저장한다. 나머지는 문자열."""
+    if name != "web_search" or uses_explorer:
         return text
     try:
         return json.loads(text)
@@ -491,18 +927,83 @@ def _parse_result(name: str, text: str) -> Any:
         return text
 
 
-def _assistant_message(message: Any, calls: list[Any]) -> dict[str, Any]:
+# harmony 채널 토큰. gpt-oss 가 본문 안에 이걸 흘리는 일이 있는데, 그대로 대화
+# 이력에 되넣으면 **다음 요청에서 서버가 통째로 죽는다** —
+#   500 unexpected tokens remaining in message header: "... <|end|><|start|>assistant
+#   <|channel|>analysis"
+# 그러면 그 문항은 답 없이 끝난다(실측: ragent 30문항에서 1건). 되넣기 직전에 턴다.
+_SPECIAL = re.compile(r"<\|[^|>]{0,64}\|>")
+
+
+def _strip_special(text: str) -> str:
+    return _SPECIAL.sub("", text) if text else text
+
+
+def _looks_like_action(text: str) -> bool:
+    """Reject navigation/planning text without treating short answers as errors."""
+    return bool(re.search(
+        r"(?:^|[.!?\n]\s*)(?:let(?:'s| us| me)|I(?:'ll| will)|we (?:need to|should|must)|now (?:we (?:need to|should) )?)"
+        r"\s*(?:try to\s+)?(?:open|fetch|search|look up|confirm|check|retrieve|find|inspect)\b[^\n]*[.!]?\s*$",
+        text.strip(), re.IGNORECASE,
+    ) or re.fullmatch(
+        r"(?:open|fetch|search for|let(?:'s| me) (?:open|fetch|search)|"
+        r"I(?:'ll| will) (?:open|fetch|search))\s+[^\n.!?]{1,150}[.!]?",
+        text.strip(), re.IGNORECASE,
+    ) or re.search(
+        r"(?:^|[.!?\n]\s*)(?:I(?:['’]ll| will)|we (?:will|should|need to))\s+"
+        r"(?:produce|give|write|assume|guess)\b",
+        text.strip(), re.IGNORECASE,
+    ))
+
+
+def _clean_answer(text: str) -> str:
+    """모델이 흘린 harmony 토큰을 털어낸다. 남은 것이 툴콜 잔해면 답이 아니다.
+
+    gpt-oss 가 최종 응답 자리에 채널 헤더를 그대로 뱉는 일이 있다(실측: 90문항에
+    8건, search-o1 은 30문항 중 4건).
+
+        <|start|>assistant<|channel|>commentary to=functions.web_search}<|call|>
+
+    토큰만 털면 "assistant commentary to=functions.web_search}" 같은 44자가 남는데,
+    이건 답변이 아니라 **끊긴 툴콜**이다. 그대로 두면 채점에서 0점을 받고 모델의
+    실력처럼 보인다. 빈 문자열로 돌려주면 답변 없음 경로(재촉)를 타게 된다.
+
+    토큰이 섞였어도 본문이 멀쩡하면 털어내고 살린다 — 실제로 1,163자짜리 정상
+    답변에 토큰 하나가 낀 경우가 있었다.
+    """
+    if not text:
+        return text
+    # Tool routing residue can lack special-token delimiters entirely.
+    if re.match(r"^(?:assistant\s*)?(?:(?:analysis|commentary)\s*)?to=", text.strip()):
+        return ""
+    if "<|" not in text:
+        return text
+    # Only the last body in a leaked Harmony envelope can be a final answer.
+    # Length is not an error signal: a country, date or name may be very short.
+    separators = list(re.finditer(r"<\|(?:message|im_sep)\|>", text))
+    if separators:
+        separator = separators[-1]
+        header = re.split(r"<\|(?:start|im_start)\|>", text[:separator.start()])[-1]
+        if re.search(r"\bto=[\w.]+", header) or re.search(
+            r"<\|(?:channel|meta_sep)\|>\s*(?:analysis|commentary)\b", header
+        ):
+            return ""
+        text = text[separator.end():]
+    cleaned = _SPECIAL.sub("", text).strip()
+    if re.match(r"^(?:assistant\s*)?(?:(?:analysis|commentary)\s*)?to=[\w.]+", cleaned):
+        return ""
+    if cleaned.lower() in {"assistant", "assistant final", "assistantfinal",
+                           "assistant analysis", "assistantanalysis",
+                           "assistant commentary", "assistantcommentary"}:
+        return ""
+    return cleaned
+
+
+def _assistant_message(reply: Any) -> dict[str, Any]:
     return {
         "role": "assistant",
-        "content": message.content or "",
-        "tool_calls": [
-            {
-                "id": c.id,
-                "type": "function",
-                "function": {"name": c.function.name, "arguments": c.function.arguments},
-            }
-            for c in calls
-        ],
+        "content": _strip_special(reply.text or ""),
+        "tool_calls": [history_tool_call(c) for c in reply.tool_calls],
     }
 
 
@@ -527,87 +1028,50 @@ def _ngrams(text: str, n: int = 8) -> set[str]:
     return {" ".join(words[i : i + n]) for i in range(max(0, len(words) - n + 1))}
 
 
-def _strip_leaks(raw: str, question: str) -> tuple[str, int]:
+def _strip_leaks(data: dict[str, Any], question: str) -> tuple[dict[str, Any], int]:
     """문제 원문을 그대로 싣고 있는 검색 결과를 지운다.
 
     벤치마크 미러는 이름이 무관해도(예: 어떤 사용자의 데이터셋 사본) 스니펫에 문항이
-    통째로 들어 있다. 8-gram이 하나라도 겹치면 유출로 본다 — 자연스러운 우연으로
+    통째로 들어 있다. 8-gram 이 하나라도 겹치면 유출로 본다 — 자연스러운 우연으로
     연속 8단어가 일치하기는 어렵다.
     """
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return raw, 0
     if not isinstance(data, dict) or "organic" not in data:
-        return raw, 0
-
+        return data, 0
     marks = _ngrams(question)
     if not marks:
-        return raw, 0
+        return data, 0
 
     kept, removed = [], 0
     for item in data.get("organic") or []:
         blob = f"{item.get('title', '')} {item.get('snippet', '')}"
-        if marks & _ngrams(blob):
+        if marks & _ngrams(blob) or "/fb-answers/" in str(item.get("link", "")).lower():
             removed += 1
             continue
         kept.append(item)
     if not removed:
-        return raw, 0
+        return data, 0
 
-    data["organic"] = kept
+    data = {**data, "organic": kept}
     note = _LEAK_NOTICE.format(n=removed)
-    data["filtered_results"] = f"{data['filtered_results']} {note}" if data.get("filtered_results") else note
-    return json.dumps(data, ensure_ascii=False), removed
+    existing = data.get("filtered_results")
+    data["filtered_results"] = f"{existing} {note}" if existing else note
+    return data, removed
 
 
-def _chat_kwargs(enabled: bool | None) -> dict[str, Any]:
-    """확장 사고 스위치. vLLM이 chat template로 넘긴다(gemma-4·qwen3 공통 키)."""
-    if enabled is None:
-        return {}
-    return {"chat_template_kwargs": {"enable_thinking": enabled}}
+def strip_page_leaks(text: str, question: str) -> tuple[str, bool]:
+    """페치 본문이 문항을 통째로 싣고 있으면 통째로 버린다.
 
-
-def _estimate_tokens(text: str) -> int:
-    """빠른 근사치. 정확한 값은 SearchAgent._count_tokens(서버 /tokenize)가 준다."""
-    return max(1, len(text) // 3)
-
-
-REFINE_PROMPT = """\
-**Task Instruction:**
-
-You are tasked with reading and analyzing a fetched web page based on the following inputs: **Previous Reasoning Steps**, **Current Search Query**, and the **Fetched Web Page**. Your objective is to extract relevant and helpful information for **Current Search Query** from the **Fetched Web Page** and seamlessly integrate this information into the **Previous Reasoning Steps** to continue reasoning for the original question.
-
-**Guidelines:**
-
-1. **Analyze the Fetched Web Page:**
-- Carefully review the content of the fetched web page.
-- Identify factual information that is relevant to the **Current Search Query** and can aid in the reasoning process for the original question.
-
-2. **Extract Relevant Information:**
-- Select the information from the Fetched Web Page that directly contributes to advancing the **Previous Reasoning Steps**.
-- Ensure that the extracted information is accurate and relevant.
-
-3. **Output Format:**
-- **If the web page provides helpful information for current search query:** Present the information beginning with `**Final Information**` as shown below.
-**Final Information**
-
-[Helpful information]
-
-- **If the web page does not provide any helpful information for current search query:** Output the following text.
-**Final Information**
-
-No helpful information found.
-
-**Inputs:**
-- **Previous Reasoning Steps:**
-{prev_reasoning}
-
-- **Current Search Query:**
-{search_query}
-
-- **Fetched Web Page:**
-{document}
-
-Now you should analyze the web page and find helpful information based on the current search query "{search_query}" and previous reasoning steps.
-"""
+    검색 결과에만 필터를 걸면 확장 노드(depth 2 이상)가 그물을 빠져나간다. 깊이가
+    깊어질수록 미러에 닿을 확률이 오르므로 모든 페치에 같은 기준을 적용한다.
+    """
+    marks = _ngrams(question)
+    if not marks or not text:
+        return text, False
+    normalized = " " + " ".join(re.findall(r"[a-z0-9]+", text.lower())) + " "
+    if any(" " + mark + " " in normalized for mark in marks) or re.search(r"^URL Source:\s*https?://[^\n]*/fb-answers/", text, re.M | re.I):
+        return (
+            "BLOCKED: this page reproduces the evaluation question itself, so it is the "
+            "benchmark leaking rather than a source. Find the underlying facts elsewhere.",
+            True,
+        )
+    return text, False

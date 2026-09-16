@@ -1,150 +1,76 @@
-"""모델별 vLLM 서빙 프로파일.
+"""모델별 프로파일.
 
-세 모델을 전부 vLLM의 OpenAI 호환 서버로 띄우므로 에이전트 코드는 하나면 된다.
-다른 것은 서빙 플래그와 권장 샘플링뿐이라 그것만 여기 모은다.
+**이 저장소는 모델을 띄우지 않는다.** vLLM 은 RunPod 등의 기성 이미지로 팟에서
+돌고, 우리는 OpenAI 호환 엔드포인트에 요청만 보낸다. 그래서 여기 남는 것은
+"부를 때 필요한 것" 뿐이다 — 모델 이름, 권장 샘플링, 추론을 켜는 방식.
 
-    python scripts/serve.py qwen        # 띄울 명령을 출력한다
+    도구는 팟이 모른다.  MCP 서버는 로컬에서 돌고, 우리가 도구 스키마를 요청 본문의
+    `tools=[...]` 에 실어 보낸다. 팟은 툴콜을 **파싱해서 돌려주기만** 하면 된다.
 
-각 값의 출처는 HF 모델카드와 vLLM recipes다. 셋 다 툴콜과 추론(thinking)을
-네이티브로 지원하고, vLLM이 `reasoning_content`와 `tool_calls`를 분리해 준다.
+그래서 팟의 vLLM 실행 인자에 파서가 켜져 있어야 한다. 없으면 툴콜이 파싱되지 않아
+모델이 도구 호출을 평문으로 뱉고, 사고가 content 에 섞여 나온다. 필요한 인자는
+`profile.required_flags()` 가 준다.
+
+**파서 이름과 필요 여부는 모델·vLLM 빌드마다 다르다.**
+
+    qwen      --tool-call-parser qwen3_coder  --reasoning-parser qwen3
+    gemma     --tool-call-parser gemma4       --reasoning-parser gemma4
+    gpt-oss   --tool-call-parser openai       --reasoning-parser openai_gptoss
+              **이미지는 vllm/vllm-openai:latest.** :gptoss 태그에는 gpt-oss 용
+              tool-call 파서가 아직 없어 기동조차 못 한다.
+
+잘못 주면 기동 시 invalid choice 로 죽으면서 그 빌드가 아는 목록을 찍어 준다.
+`python tests/model.py` 가 실제로 켜졌는지 확인한다.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
-from .paths import PROJECT_ROOT
-
-__all__ = ["MODELS_DIR", "PROFILES", "ServeProfile", "profile_for"]
-
-# 가중치는 여기에 git clone 해 둔다. 있으면 로컬 경로로, 없으면 HF ID로 띄운다.
-#
-#   git lfs install
-#   git clone https://huggingface.co/Qwen/Qwen3.5-9B models/Qwen3.5-9B
-MODELS_DIR = PROJECT_ROOT / "models"
+__all__ = ["PROFILES", "ServeProfile", "profile_for"]
 
 
 @dataclass(slots=True)
 class ServeProfile:
-    """한 모델을 띄우고 부르는 데 필요한 전부."""
+    """한 모델을 **부르는 데** 필요한 전부."""
 
     key: str
-    repo: str  # HuggingFace 저장소 ID
+    # 요청의 `model` 필드로 보내는 이름. 팟이 다른 이름으로 서빙하면
+    # conf.yaml 의 served_model_name 으로 덮어쓴다.
+    repo: str
+    # 팟의 vLLM 이 이 파서로 떠 있어야 한다. 우리가 쓰는 값은 아니고 점검용이다.
     tool_call_parser: str
     reasoning_parser: str
     # 권장 샘플링. 모델카드 값을 그대로 쓴다(OpenAI 표준 파라미터만).
     sampling: dict[str, Any] = field(default_factory=dict)
-    # OpenAI 표준이 아닌 샘플링(repetition_penalty, top_k 등)은 extra_body로 나간다.
+    # OpenAI 표준이 아닌 샘플링(repetition_penalty, top_k 등)은 extra_body 로 나간다.
     sampling_extra: dict[str, Any] = field(default_factory=dict)
-    # chat template를 따로 줘야 하는 모델만 채운다(vLLM 저장소 기준 상대 경로).
-    chat_template: str = ""
-    # 이 모델만 붙는 추가 플래그.
-    extra_flags: list[str] = field(default_factory=list)
-    # 이 모델만의 주의사항. serve 명령과 함께 출력된다.
-    notes: str = ""
-    max_model_len: int = 128000
     # 시스템 프롬프트에 "Reasoning: <값>" 한 줄로 추론 강도를 주는 모델(gpt-oss)만
-    # 채운다. AgentConfig.reasoning_effort가 비어 있으면 이 값이 쓰인다.
+    # 채운다. 비어 있으면 시스템 프롬프트에 아무것도 붙이지 않는다.
     reasoning_effort: str = ""
-    # serve 명령 앞에 붙일 환경 변수.
-    env: dict[str, str] = field(default_factory=dict)
+    # chat_template_kwargs={"enable_thinking": ...} 를 이해하는 모델인가.
+    # gpt-oss 는 harmony 포맷이라 이 키를 모르고 reasoning_effort 로 대신 받는다.
+    thinking_kwarg: bool = True
+    # 팟을 띄울 때 알아야 할 것. tests/model.py 가 실패하면 여기부터 본다.
+    notes: str = ""
 
-    @property
-    def local_dir(self) -> Path:
-        """`models/<저장소 이름>`. clone 받아 둘 위치."""
-        return MODELS_DIR / self.repo.rsplit("/", 1)[-1]
+    def required_flags(self) -> list[str]:
+        """팟의 vLLM 이 반드시 들고 떠야 하는 인자.
 
-    @property
-    def is_local(self) -> bool:
-        return (self.local_dir / "config.json").exists()
-
-    @property
-    def launch_path(self) -> str:
-        """`vllm serve`에 넘길 값. 로컬 clone이 있으면 그 경로를 쓴다.
-
-        **클라이언트가 보내는 모델 이름은 이게 아니라 `repo`다.** serve_command가
-        --served-model-name을 repo로 고정하므로, 가중치가 로컬에 있든 없든 API가
-        아는 이름은 항상 repo 하나다. 둘을 섞으면 404가 난다.
+        파서 이름은 **vLLM 빌드마다 다르다.** 잘못 주면 기동 시 invalid choice 로
+        죽으면서 그 빌드가 아는 목록을 찍어 준다 — 그걸 보고 맞추면 된다.
         """
-        return str(self.local_dir) if self.is_local else self.repo
-
-    def clone_command(self) -> str:
-        return f"git clone https://huggingface.co/{self.repo} {self.local_dir}"
-
-    def serve_command(
-        self,
-        max_model_len: int | None = None,
-        gpu_util: float = 0.90,
-        max_num_seqs: int = 1,
-        port: int = 8000,
-        oneline: bool = False,
-    ) -> str:
-        """`vllm serve` 명령 한 벌. oneline이면 셸에 그대로 넘길 수 있는 한 줄."""
-        prefix = " ".join(f"{k}={v}" for k, v in self.env.items())
-        parts = [
-            f"{prefix} vllm serve".strip(),
-            self.launch_path,
-            f"--served-model-name {self.repo}",
-            f"--max-model-len {max_model_len or self.max_model_len}",
-            f"--gpu-memory-utilization {gpu_util}",
-            f"--max-num-seqs {max_num_seqs}",
-            "--enable-auto-tool-choice",
-            f"--tool-call-parser {self.tool_call_parser}",
-            f"--reasoning-parser {self.reasoning_parser}",
-        ]
-        if self.chat_template:
-            parts.append(f"--chat-template {self.chat_template}")
-        parts += [*self.extra_flags, "--host 127.0.0.1", f"--port {port}"]
-        return " ".join(parts) if oneline else " \\\n  ".join(parts)
+        flags = ["--enable-auto-tool-choice"]
+        if self.tool_call_parser:
+            flags.append(f"--tool-call-parser {self.tool_call_parser}")
+        if self.reasoning_parser:
+            flags.append(f"--reasoning-parser {self.reasoning_parser}")
+        flags.append(f"--served-model-name {self.repo}")
+        return flags
 
 
 PROFILES: dict[str, ServeProfile] = {
-    "gemma": ServeProfile(
-        key="gemma",
-        repo="google/gemma-4-12B-it",
-        tool_call_parser="gemma4",
-        reasoning_parser="gemma4",
-        # 툴콜만 쓸 거면 모델 내장 템플릿으로 충분하다. 확장 사고를 켤 때만 파일이
-        # 필요하다 — 아래 notes의 "확장 사고" 절 참고.
-        chat_template="",
-        sampling={"temperature": 1.0, "top_p": 0.95},
-        # 텍스트 전용 워크로드라 비전·오디오 프로파일링을 끈다(vLLM 레시피 권장).
-        extra_flags=[
-            "--limit-mm-per-prompt '{\"image\": 0, \"audio\": 0}'",
-            "--async-scheduling",
-        ],
-        notes=(
-            "**transformers를 5.14.x로 내려야 뜬다 (실측: vLLM 0.27.1 + transformers 5.14.1).**\n"
-            "vLLM은 이 아키텍처를 지원한다 — Gemma4UnifiedForConditionalGeneration이 supported\n"
-            "archs에 있다. 문제는 transformers 5.15부터 config.head_dim 접근이 막히는 것이다:\n"
-            "  AmbiguousGlobalPerLayerAttributeError: 'head_dim' is a per-layer attribute\n"
-            "레이어마다 head_dim이 다른데(sliding 256 / global 512) vLLM의 get_head_size()가\n"
-            "전역 값 하나를 읽기 때문이다. vLLM이 transformers 상한을 안 걸어 둬서(>=5.5.3)\n"
-            "최신이 그냥 깔린다. 서버 환경에서만 내리면 된다:\n"
-            "  uv pip install 'transformers==5.14.*'\n"
-            "확인: AutoConfig.from_pretrained(경로).head_dim 이 256을 돌려주면 OK.\n"
-            "너무 내리면 반대로 config 자체를 못 읽는다(Gemma4Unified가 신규 아키텍처).\n"
-            "에러가 안내하는 allow_global_per_layer_attribute_access는 쓰지 말 것 —\n"
-            "transformers 다운그레이드가 같은 효과를 내면서 훨씬 명시적이다.\n"
-            "툴콜만 쓸 거면 chat template은 모델 내장본으로 충분하다.\n"
-            "셋 중 VRAM이 제일 빡빡하다. global 레이어 head_dim이 512라 KV가 비싸서"
-            " 128K에서 KV ~16GB + 가중치 23GB = ~40GB다(A6000 48GB에 들어간다).\n"
-            "빠듯하면 --kv-cache-dtype fp8로 KV를 절반으로 내린다.\n"
-            "\n"
-            "**확장 사고(enable_thinking)를 켤 거면 세 가지가 다 필요하다 — 전부 실측이다.**\n"
-            "  1) env={'VLLM_USE_V2_MODEL_RUNNER': '0'}\n"
-            "     V2 러너는 gemma-4의 thinking_token_budget을 지원하지 않아 사고가 통째로\n"
-            "     죽는다 — reasoning_content가 늘 비고 사고가 content로 섞여 나온다.\n"
-            "     기동 로그의 'does not yet support the thinking_token_budget'이 그 신호다.\n"
-            "     이때 --async-scheduling은 빼야 할 수 있다.\n"
-            "  2) chat_template — vLLM 저장소의 tool_chat_template_gemma4.jinja를 받아\n"
-            "     절대 경로로 준다(pip 설치본에는 그 파일이 없다).\n"
-            "  3) sampling_extra={'repetition_penalty': 1.05}\n"
-            "     없으면 사고 중에 같은 문단을 수십 번 되풀이하다 max_tokens에 걸린다."
-        ),
-    ),
     "qwen": ServeProfile(
         key="qwen",
         repo="Qwen/Qwen3.5-9B",
@@ -153,27 +79,84 @@ PROFILES: dict[str, ServeProfile] = {
         sampling={"temperature": 1.0, "top_p": 0.95, "presence_penalty": 1.5},
         sampling_extra={"top_k": 20},
         notes=(
-            "thinking이 기본으로 켜져 있다. 끄려면 요청에"
-            ' chat_template_kwargs={"enable_thinking": false}를 넘긴다.\n'
-            "네이티브 262K까지 되지만 128K로 잡아 둔다. 하이브리드 아키텍처"
-            "(GatedDeltaNet + Attention)라 KV가 표준 트랜스포머보다 싸다."
+            "thinking 이 기본으로 켜져 있다. 우리는 항상 켜므로 따로 할 일이 없다.\n"
+            "네이티브 262K 까지 되지만 128K 로 잡아도 충분하다 — agent.context_limit 은\n"
+            "그 값에서 답변 여유를 뺀 120K 다. 팟의 --max-model-len 이 그보다 작으면\n"
+            "context_limit 을 같이 내려야 한다."
         ),
     ),
     "gpt-oss": ServeProfile(
         key="gpt-oss",
         repo="openai/gpt-oss-20b",
         tool_call_parser="openai",
+        # **둘 다 필요하다(실측).** vLLM recipe 의 "reasoning and final text output
+        # will be returned structurally" 는 파서 없이도 분리된다는 뜻이 아니다.
+        # 파서를 빼면 reasoning_content 가 늘 비고 CoT 가 content 에 섞여 나온다.
         reasoning_parser="openai_gptoss",
         sampling={"temperature": 1.0, "top_p": 1.0},
-        # 이 모델만 추론 강도를 시스템 프롬프트로 받는다. medium으로 고정한다 —
-        # high는 사고 토큰이 폭주하고(이전 실험에서 답변 449토큰에 사고 2만 토큰),
+        # 이 모델만 추론 강도를 시스템 프롬프트로 받는다. medium 으로 고정한다 —
+        # high 는 사고 토큰이 폭주하고(이전 실험에서 답변 449토큰에 사고 2만 토큰),
         # 이 과제에 필요한 것은 깊은 추론이 아니라 페이지를 열어 읽는 것이다.
         reasoning_effort="medium",
+        thinking_kwarg=False,
         notes=(
-            "harmony 포맷 전용 모델이지만, vLLM의 OpenAI 호환 서버가 변환을 처리하므로"
-            " /v1/chat/completions를 그대로 쓰면 된다(vLLM >= 0.10).\n"
-            "추론 강도는 시스템 프롬프트의 'Reasoning: medium' 한 줄로 자동 주입된다"
-            " (agent.reasoning_effort로 덮어쓸 수 있다)."
+            "**이미지를 vllm/vllm-openai:latest 로 쓸 것.** :gptoss 태그는 출시 무렵에\n"
+            "핀된 스냅샷이라 gpt-oss 용 --tool-call-parser openai 가 아직 없다\n"
+            "(기동 시 KeyError: 'invalid tool call parser: openai' 로 죽는다).\n"
+            "\n"
+            "vLLM recipe (docs.vllm.ai/projects/recipes → OpenAI → GPT OSS):\n"
+            "  Function calling: --tool-call-parser openai --enable-auto-tool-choice\n"
+            "여기에 **--reasoning-parser openai_gptoss 도 반드시 넣는다(실측).** 문서의\n"
+            "'reasoning and final text output will be returned structurally' 는 파서\n"
+            "없이도 분리된다는 뜻이 아니다 — 빼고 돌리면 reasoning_content 가 늘 비고\n"
+            "CoT 가 content 에 섞여 나온다. 그러면 explorer 에게 넘길 누적 추론이\n"
+            "사라져 '(none yet)' 만 내려간다.\n"
+            "\n"
+            "**--reasoning-parser openai_gptoss 는 openai_harmony 를 초기화하고, 그게 tiktoken\n"
+            "vocab 파일을 원격 CDN 에서 받는다(HuggingFace 가 아니다).** 컨테이너에 DNS 가\n"
+            "없으면 httpx.ConnectError 로 서버가 통째로 죽는다 — 파서를 빼면 뜨는데\n"
+            "reasoning_content 가 비므로, 증상만 보고 파서 탓을 하면 안 된다.\n"
+            "  TIKTOKEN_RS_CACHE_DIR=/root/.cache/huggingface/tiktoken\n"
+            "볼륨 안이라 한 번만 받으면 영구 캐시된다(첫 1회는 DNS 필요).\n"
+            "미리 받아두려면 DNS 되는 곳에서:\n"
+            "  pip install openai-harmony\n"
+            "  TIKTOKEN_RS_CACHE_DIR=./vocab python -c \\\n"
+            "    \"from openai_harmony import load_harmony_encoding;\\\n"
+            "     load_harmony_encoding('HarmonyGptOss')\"\n"
+            "생긴 해시 이름 파일을 팟의 캐시 디렉터리에 넣는다.\n"
+            "\n"
+            "Known Limitations: H100 TP1 에서 기본 gpu-memory-utilization 이면 OOM 이 난다.\n"
+            "--gpu-memory-utilization 0.95 (필요하면 --max-num-batched-tokens 1024).\n"
+            "Ampere(A100)도 TRITON_ATTN + Marlin MXFP4 로 기본 동작한다.\n"
+            "\n"
+            "추론 강도는 시스템 프롬프트의 'Reasoning: medium' 한 줄로 자동 주입된다."
+        ),
+    ),
+    "gemma": ServeProfile(
+        key="gemma",
+        repo="google/gemma-4-12B-it",
+        tool_call_parser="gemma4",
+        reasoning_parser="gemma4",
+        sampling={"temperature": 1.0, "top_p": 0.95},
+        # 사고 중 같은 문단을 되풀이하다 max_tokens 에 걸리는 것을 막는다(실측).
+        sampling_extra={"repetition_penalty": 1.05},
+        notes=(
+            "**사고와 툴콜을 동시에 켜면 기성 이미지로는 잘 안 된다.** 팟 템플릿에\n"
+            "아래 셋을 다 넣어야 한다 — 전부 실측이다.\n"
+            "  1) 환경변수 VLLM_USE_V2_MODEL_RUNNER=0\n"
+            "     V2 러너는 gemma-4 의 thinking_token_budget 을 지원하지 않아 사고가\n"
+            "     통째로 죽는다 — reasoning_content 가 늘 비고 사고가 content 로 섞인다.\n"
+            "     기동 로그의 'does not yet support the thinking_token_budget' 이 신호다.\n"
+            "     이때 --async-scheduling 은 빼야 할 수 있다.\n"
+            "  2) --chat-template <tool_chat_template_gemma4.jinja 절대경로>\n"
+            "     vLLM 저장소에 있고 pip 설치본에는 없다. 팟에 따로 넣어야 한다.\n"
+            "  3) repetition_penalty 1.05 (이 프로파일이 요청마다 보낸다)\n"
+            "또 transformers 5.15+ 에서 config.head_dim 접근이 막혀 vLLM 이 못 뜬다\n"
+            "(AmbiguousGlobalPerLayerAttributeError). 이미지의 transformers 가 5.15 이상이면\n"
+            "  pip install 'transformers==5.14.*'\n"
+            "확인: AutoConfig.from_pretrained(경로).head_dim 이 256 이면 OK.\n"
+            "셋 중 VRAM 이 제일 빡빡하다(128K 에서 KV ~16GB + 가중치 23GB).\n"
+            "빠듯하면 --kv-cache-dtype fp8."
         ),
     ),
 }

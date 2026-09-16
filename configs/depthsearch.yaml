@@ -1,0 +1,160 @@
+# DepthSearch — RAgent + Reason-in-Documents + 재귀 확장.
+#
+# web_search + web_fetch는 ragent와 같은 검색 통제를 따른다. DepthSearch는
+# 출처별 근거 추출·원문 링크 재귀 탐색·전용 프롬프트를 사용한다.
+#
+#   ragent       web_fetch → jina 마크다운 원문이 그대로 메인 컨텍스트에
+#   depthsearch  web_fetch → explorer 가 읽고 요약한 것만 메인 컨텍스트에
+#                            explorer 는 그 페이지의 링크를 따라 재귀할 수 있다
+#
+# 아래는 구조 차이이며, 실제 방법 비교에는 전용 프롬프트도 포함된다.
+#   ragent            → depthsearch(max_depth 1)   원문 vs 요약
+#   depthsearch(1)    → depthsearch(3)             평면 vs 재귀
+#
+# 확장 노드(depth 2 이상)는 예산에서 차감한다. 메인 모델이 고른 페치(depth 1)는
+# ragent 에도 똑같이 있으므로 차감하지 않는다 — 차감하면 두 조건의 행동이 달라진다.
+#
+# 제약은 프롬프트가 아니라 구조로 건다. explorer 는 max_depth 에 닿거나 예산이
+# 소진되면 fetch 도구를 **아예 받지 않는다**.
+
+agent:
+  base_url: http://127.0.0.1:8000/v1
+  max_tokens: 8192
+  max_turns: 40
+  timeout_s: 600
+
+  # 검색 예산. 세 방법이 같은 값을 써야 비교가 성립한다.
+  #
+  # 검색량별 점수는 문항 난이도와 섞여 있다. 정보 전달 개선을 비교하는 동안 고정한다.
+  max_searches: 10
+  max_fetches: 0                # 0 = 무제한. 메인 모델의 페치는 막지 않는다
+  search_results: 10            # serper 가 돌려주는 결과 수. 모델이 보고 고른다
+  search_top_k: 0               # 자동 페치 없음. search-o1 만 쓴다
+
+  # 페치한 원문의 공통 토큰 상한. 세 방법에 동일하게 적용한다.
+  fetch_max_tokens: 32768
+
+  # 대화 컨텍스트 상한. **팟의 --max-model-len 에서 max_tokens 를 뺀 값이어야 한다.**
+  #   131072(--max-model-len) - 8192(max_tokens) = 122880
+  # 이 둘은 항상 같이 움직인다. 팟을 65536 으로 내리면 여기도 57344 로 내린다.
+  context_limit: 122880
+  finalize_answer: true        # 탐색 종료 후 근거로 최종 답변을 별도 작성
+  # 프로토콜 복구 재시도 상한. **세 방법이 같아야 한다** — 모델이 툴콜을 평문
+  # JSON 으로 흘리는 것은 방법의 성질이 아니라 gpt-oss 의 버릇이라, 베이스라인만
+  # 낮게 두면 방법 차이가 아니라 구현 차이로 점수가 갈린다.
+  # 검색·페치 예산이 남아 있을 때만 발동하고 턴만 더 쓴다(예산 밖으로 새지 않는다).
+  max_tool_recoveries: 2
+
+explorer:
+  max_depth: 3
+  extract_before_expand: true   # 현재 페이지 근거를 먼저 저장한 뒤 링크 탐색
+  isolate_extraction_context: true  # 추출 입력에는 부모 노트/누적 추론을 넣지 않는다
+  prune_unhelpful_branches: true    # 무관한 가지와 같은 내용의 재귀를 중단
+
+  # 확장 예산. **depth 2 이상만 센다.**
+  # 문항 전체의 depth>=2 노드 총량.
+  #
+  # 과거 summary는 빈 응답을 분모에서 제외했다. 새 F1은 전체 문항 기준이다.
+  max_expansion_nodes: 12
+  max_subtree_children: 2       # explorer 하나가 열 수 있는 자식 수
+  max_turns: 6                  # reader의 탐색 턴 상한
+  max_root_nodes: 6            # 한 진입 페이지가 문항 전체 예산을 독식하지 않음
+
+  # 열 만한 링크를 몇 개 보여 줄 것인가. 실측으로 페이지 하나에 링크가
+  # 250~921개라 모델이 훑지 못하고 주소를 지어냈다(확장의 93%가 URL 추론,
+  # dead dive 94%). 질의와 겹치는 순으로 추려 목록으로 보여 준다.
+  # 열 만한 링크를 질의 관련도 순으로 추려 **본문 앞에** 보여 준다.
+  # 0 이면 목록을 붙이지 않는다. 메뉴 밖의 본문 링크도 그대로 열 수 있다.
+  max_link_menu: 30
+
+  # 정제 출력 상한. 추출 작업이라 실제로는 1~2K 면 충분하다. 크게 잡으면
+  # 문서 예산과 합쳐 컨텍스트를 넘기므로 8192 로 둔다.
+  max_tokens: 8192
+  # explorer 는 페이지를 하나씩 받으므로 이 값이 그대로 그 페이지의 상한이다.
+  # 상한을 넘는 문서는 절단 표시가 붙는다. 미노출 부분은 미확인이다.
+  max_document_tokens: 32768
+  # explorer 세션 하나의 컨텍스트 상한(자기 페이지 + 자식 요약 누적).
+  context_limit: 122880
+
+# DepthSearch 전용 정책. RAgent와 프롬프트도 달라지므로 최적화된 방법으로 비교한다.
+system_prompt: |
+  Answer the question using web_search and web_fetch. Ground your answer in the
+  sources you read. web_fetch returns source-labelled reader notes; a reader may
+  follow page links recursively and return the linked pages' notes as well.
+
+  First identify the candidate set and the conditions the answer must satisfy.
+  For a list, ranking or intersection, keep track in your reasoning of each candidate,
+  its required fields, and what remains unknown. Missing evidence is not exclusion.
+  Check coverage: several qualifying examples do not establish the complete list,
+  and an unmeasured candidate may still win a ranking. Resolve the candidate set
+  before spending every search verifying a single early guess.
+
+  Search for one useful entry page or one missing fact at a time. Start with the
+  source/topic and a few distinctive terms, not every entity, filter and comparison
+  in the question. Inspect result titles and snippets before narrowing. If results
+  are off-topic, remove a constraint or change the source/topic anchor. If repeated
+  queries produce no new evidence, reconsider the hypothesis instead of adding
+  speculative details. Prefer indexes, archives, reports and relevant records whose
+  links the reader can follow to check details without another web_search.
+
+  Combine the source-labelled notes yourself. A local reader's status or decision
+  to stop does not settle the whole question. Use useful partial evidence and Next
+  links; a reader failure means extraction failed, not that a candidate failed a
+  condition. Do not repeatedly fetch an already-read index expecting new facts.
+  Follow a relevant source link or search for the specific remaining gap.
+
+  Compare the same entity, year, unit, population and variant. Preserve table headers
+  and field meanings; a total is not a subgroup, and one measurement is not another.
+  Keep observed values separate from any calculation or inference. Recheck arithmetic
+  and the requested ordering from the stated inputs. Do not use unknown values to
+  select a winner, rule out a candidate, or claim complete coverage.
+
+  Answer in the requested format once the needed facts are supported. If incomplete,
+  retain supported partial findings and state the unresolved condition. Keep working
+  plans and evidence tables out of a names-only answer. Use real source URLs for
+  citations. The final answer must be an answer, not a plan to fetch another page.
+
+explorer_prompt: |
+  Read pages for a research assistant. Preserve this source's evidence and follow
+  useful page links to fill missing fields. You do not decide the final answer.
+
+  Extraction and navigation are separate. During extraction, only the supplied page
+  is evidence. The original question specifies the fields to look for; it does not
+  establish facts. During navigation, parent notes and earlier reasoning can guide
+  link selection, but must not be copied into the current page's evidence.
+
+  Extract what this page can establish even if it cannot answer the whole question.
+  Preserve exact names, titles, dates, values, units and relevant lists. For tables,
+  keep each value attached to its entity and header, including year, variant and
+  population. Distinguish different measurements and totals from subgroups. Quote
+  short supporting text. Report missing fields as unknown. If the supplied page is
+  truncated, do not claim its unseen rows or candidates are absent. Describe list
+  coverage and date range so partial evidence cannot be mistaken for a complete set.
+
+  The current-page note is saved before navigation. Follow a page link when its label,
+  surrounding text or an observed same-site URL pattern suggests it can fill a
+  specific missing field. State that field and why the next page should supply it.
+  A relevant index may contain useful links without answer facts. A wrong-year page
+  can help if it links to the required year. Generic footer links on unrelated pages,
+  missing pages and repeated content do not justify expansion. After an unhelpful
+  child, choose a different supported route or stop. You may follow links outside
+  the menu and infer another address within a site already being read.
+
+  Child notes are preserved separately and returned automatically. Never rewrite
+  them as your own evidence. Keep useful Next links in your note even if the local
+  expansion budget is exhausted; unvisited links are not disqualified candidates.
+
+  For extraction return plain text/Markdown in this format:
+  **Final Information**
+  **Page:** Actual title and original URL.
+  **Evidence:** Relevant facts, lists or rows with exact fields and short source quotes.
+  **Coverage:** Which entities, years and conditions this page actually covers;
+  whether the supplied evidence is a full list, a subset, or a truncated excerpt.
+  **Missing:** Requested fields not established by this page.
+  **Next links:** Useful source URLs and the missing field each could establish.
+  **Expand:** yes or no, with a concrete reason.
+  **Status:** partial
+
+  Use answered only if this page supplies all requested facts; partial for useful
+  incomplete evidence; not_found for no relevant evidence, describing the page or
+  access error briefly. During navigation, call web_fetch or reply DONE.

@@ -1,31 +1,47 @@
-# 프롬프트 최적화
-dspy>=3.0.0
-# GEPA reflection LM은 dspy.LM(litellm) 경로로 호출된다.
-litellm>=1.60.0
-tiktoken>=0.7.0
+# 클라이언트 쪽 의존성. vLLM 은 여기 없다 — 서빙 머신에서만 따로 깐다.
+#
+#   conda activate search_gym
+#   pip install -r requirements.txt
+#
+# 서빙 머신(vllm-env)에는 이 파일을 깔지 않는다. scripts/serve.py 는 searchgym
+# 패키지의 지연 import 덕분에 아래 의존성 없이도 돈다.
 
-# 학생 모델은 vLLM의 OpenAI 호환 서버로 띄운다. 클라이언트만 있으면 된다.
-#   pip install vllm    (서빙 머신에서만)
+# --- 학생 모델 호출 ---------------------------------------------------------
+# vLLM 의 OpenAI 호환 서버로 부른다. AsyncOpenAI 가 필요해 1.60 이상이어야 한다.
+# (구버전이 깔려 있으면 `cannot import name 'AsyncOpenAI'` 로 죽는다.)
 openai>=1.60.0
+# 컨텍스트 절단을 서버의 /tokenize 로 재는 데 쓴다.
+httpx>=0.27.0
+pypdf>=5.0.0
+fonttools>=4.0.0  # PDF embedded CFF Type1 character encoding
 
-# 판정 모델 (Gemini structured output)
-google-genai>=1.0.0
-
-# 도구 계층 (Serper 검색 + Jina 페이지 읽기)
-# 클라이언트는 mcp SDK로 붙고, 서버는 FastMCP로 띄운다.
-# mcp 2.0부터 FastMCP가 SDK에서 빠져 별도 패키지가 됐다. searchgym/tools/server.py는
-# mcp.server.fastmcp / mcp.server / fastmcp 세 위치를 순서대로 시도하므로 구버전
-# mcp(1.x)만 있어도 동작한다.
-# server extra가 있어야 FastMCP가 딸려 온다(없으면 import 시점에 안내 메시지만 뜬다).
+# --- 도구 계층 (Serper 검색 + Jina 페이지 읽기) -----------------------------
+# 클라이언트는 mcp SDK 로 붙고, 서버는 FastMCP 로 띄운다.
+# mcp 2.0 부터 FastMCP 가 SDK 에서 빠져 별도 패키지가 됐다. searchgym/tools/server.py
+# 는 mcp.server.fastmcp / mcp.server / fastmcp 세 위치를 순서대로 시도하므로
+# 구버전 mcp(1.x)만 있어도 동작한다.
 # 시스템 cryptography 때문에 설치가 막히면:
 #   pip install "fastmcp-slim[server]" --ignore-installed cryptography
 mcp>=1.9.0
 fastmcp-slim[server]>=2.0.0
 anyio>=4.0.0
 
+# --- 판정 (Gemini structured output) ----------------------------------------
+google-genai>=1.0.0
+
+# --- 설정 · 경로 ------------------------------------------------------------
 pyyaml>=6.0
 python-dotenv>=1.0.0
 
-# MCP 서버를 streamable-http로 띄울 때만 필요
+# --- 프롬프트 최적화 (train.py 에서만 쓴다) ---------------------------------
+# test.py 만 돌릴 거면 아래 셋은 없어도 된다.
+dspy>=3.0.0
+# GEPA reflection LM 은 dspy.LM(litellm) 경로로 호출된다.
+litellm>=1.60.0
+# 교사에게 알려 줄 학생 프롬프트의 토큰 수를 센다(o200k_base).
+tiktoken>=0.7.0
+
+# --- MCP 서버를 streamable-http 로 띄울 때만 --------------------------------
 starlette>=0.37.0
 uvicorn>=0.30.0
+tqdm>=4.66.0  # 실행 진행 막대

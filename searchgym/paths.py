@@ -3,8 +3,8 @@
 실행 디렉터리 하나가 실험 하나다. 이름만 보고 무엇을 돌린 것인지 알 수 있어야
 하므로 `{단계}/{날짜}_{모델}_{벤치}_{태그}` 형태로 짓는다.
 
-    runs/train/20260811-2104_qwen3.5-9b_deepsearchqa_seed0/
-    runs/eval/20260811-2130_gpt-oss-20b_evobrowsecomp_final/
+    runs/test/20260902-2104_depthsearch_qwen3.5-9b_deepsearchqa_seed0/
+    runs/train/20260902-2130_depthsearch_qwen3.5-9b_deepsearchqa_g1/
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-__all__ = ["PROJECT_ROOT", "find_run", "load_env", "resolve", "run_dir", "slug"]
+__all__ = ["PROJECT_ROOT", "find_run", "load_env", "name_parts", "resolve", "run_dir", "slug"]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -51,12 +51,25 @@ def slug(value: str) -> str:
     return _UNSAFE.sub("-", tail).strip("-").lower() or "unnamed"
 
 
-def run_dir(stage: str, model: str, benchmark: str, tag: str = "", root: str | Path = "runs") -> Path:
-    """실행 디렉터리를 만들고 돌려준다. 이미 있으면 뒤에 번호를 붙인다."""
-    stamp = datetime.now().strftime("%Y%m%d-%H%M")
-    parts = [stamp, slug(model), slug(benchmark)]
+def name_parts(method: str, model: str, benchmark: str, tag: str = "") -> list[str]:
+    """실행 디렉터리 이름의 조건 부분. 방법이 맨 앞이라 정렬하면 조건별로 묶인다."""
+    parts = [slug(method), slug(model), slug(benchmark)]
     if tag:
         parts.append(slug(tag))
+    return parts
+
+
+def run_dir(
+    stage: str,
+    method: str,
+    model: str,
+    benchmark: str,
+    tag: str = "",
+    root: str | Path = "runs",
+) -> Path:
+    """실행 디렉터리를 만들고 돌려준다. 이미 있으면 뒤에 번호를 붙인다."""
+    stamp = datetime.now().strftime("%Y%m%d-%H%M")
+    parts = [stamp, *name_parts(method, model, benchmark, tag)]
     base = resolve(root) / stage
     path = base / "_".join(parts)
 
@@ -69,17 +82,19 @@ def run_dir(stage: str, model: str, benchmark: str, tag: str = "", root: str | P
 
 
 def find_run(
-    stage: str, model: str, benchmark: str, tag: str = "", root: str | Path = "runs"
+    stage: str,
+    method: str,
+    model: str,
+    benchmark: str,
+    tag: str = "",
+    root: str | Path = "runs",
 ) -> Path | None:
     """같은 조건으로 돌린 **가장 최근** 실행 디렉터리. 이어서 돌릴 때 쓴다.
 
     이름이 `{날짜}_{나머지}`라 앞의 타임스탬프만 떼면 조건이 남는다. 사전순 최대가
     곧 최신이다(날짜 형식이 고정 폭이라 그렇다).
     """
-    parts = [slug(model), slug(benchmark)]
-    if tag:
-        parts.append(slug(tag))
-    want = "_".join(parts)
+    want = "_".join(name_parts(method, model, benchmark, tag))
 
     base = resolve(root) / stage
     if not base.is_dir():

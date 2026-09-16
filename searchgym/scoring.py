@@ -120,7 +120,7 @@ def score_of(judgement: Judgement, field_name: str) -> float:
 
 
 def aggregate(judgements: Iterable[Judgement]) -> dict[str, Any]:
-    """유효한 판정만 모아 macro 평균과 범주 분포를 낸다."""
+    """전체 문항 macro 평균. 실패/빈 응답은 0점이며 분모에서 빠지지 않는다."""
     items = list(judgements)
     valid = [j for j in items if j.error is None]
     scores = [j.metrics() for j in valid]
@@ -130,8 +130,11 @@ def aggregate(judgements: Iterable[Judgement]) -> dict[str, Any]:
         "n": len(items),
         "judged": len(valid),
         "judge_errors": len(items) - len(valid),
+        "empty_responses": sum(j.error == "empty_response" for j in items),
+        "score_denominator": len(items),
+        "f1_valid_only": round(_mean(s["f1"] for s in scores), 4),
         **{
-            key: round(_mean(s[key] for s in scores), 4)
+            key: round(sum(s[key] for s in scores) / max(1, len(items)), 4)
             for key in ("accuracy", "f1", "precision", "recall")
         },
         "categories": counts,

@@ -10,9 +10,9 @@
       gepa.py       dspy 메트릭과 instruction proposer
       config.py     YAML -> 데이터클래스
 
-**import는 지연시킨다.** 서빙 환경(vllm-env)에는 판정·최적화 쪽 의존성(google-genai,
-dspy)이 없다. 여기서 전부 미리 import하면 `scripts/serve.py` 같은 서빙 전용 도구가
-그 환경에서 죽는다. 실제로 쓰는 것만 그때 가서 불러온다.
+**import는 지연시킨다.** `test.py` 만 돌릴 때는 dspy·litellm 이 필요 없고,
+`scripts/build_splits.py` 는 openai·google-genai 없이도 돌아야 한다. 여기서 전부 미리
+import 하면 그런 경로가 무거운 의존성 때문에 죽는다. 실제로 쓰는 것만 그때 불러온다.
 """
 
 from __future__ import annotations
@@ -21,8 +21,10 @@ import importlib
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # 타입 검사기와 IDE에게만 보이는 경로
-    from .agent import AgentConfig, RunResult, SearchAgent
+    from .agent import METHODS, AgentConfig, RunResult, SearchAgent
     from .benchmarks import BENCHMARKS, Item, load_benchmark
+    from .explorer import Budget, Explorer, ExplorerConfig, ExplorerResult
+    from .llm import LLM, Usage
     from .judge import Judge, JudgeConfig
     from .runner import Record, Runner
     from .scoring import Judgement, aggregate
@@ -30,9 +32,16 @@ if TYPE_CHECKING:  # 타입 검사기와 IDE에게만 보이는 경로
 
 # 공개 이름 -> 정의된 모듈.
 _EXPORTS = {
+    "METHODS": ".agent",
     "AgentConfig": ".agent",
     "RunResult": ".agent",
     "SearchAgent": ".agent",
+    "Budget": ".explorer",
+    "Explorer": ".explorer",
+    "ExplorerConfig": ".explorer",
+    "ExplorerResult": ".explorer",
+    "LLM": ".llm",
+    "Usage": ".llm",
     "BENCHMARKS": ".benchmarks",
     "Item": ".benchmarks",
     "load_benchmark": ".benchmarks",

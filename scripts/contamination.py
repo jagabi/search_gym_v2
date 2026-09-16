@@ -36,9 +36,16 @@ HOSTS = re.compile(r"huggingface\.co/datasets|paperswithcode|openreview|kaggle\.
 
 
 def scan(root: Path) -> dict:
+    """트레이스에서 **모든** URL 출처를 훑는다.
+
+    게이트가 부른 도구만 보면 안 된다. search-o1/depthsearch 는 상위 k개를 자동으로
+    열고(`search.fetched`), depthsearch 는 explorer 가 링크를 따라 더 연다
+    (`expand.node`). 깊이가 깊어질수록 미러에 닿을 확률이 오르므로 여기가 핵심이다.
+    """
     queries = urls = 0
     hits: list[tuple[str, str, str]] = []
-    blocked = 0
+    filtered_results = blocked_pages = 0
+    by_depth: Counter[int] = Counter()
 
     for trace in root.rglob("*.jsonl"):
         if trace.name == "records.jsonl":
@@ -49,21 +56,54 @@ def scan(root: Path) -> dict:
                 event = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if event.get("event") != "tool.result":
-                continue
-            args = event.get("arguments") or {}
-            if query := args.get("query"):
-                queries += 1
-                if BENCHMARK.search(query):
-                    hits.append((run, "query", query[:120]))
-            if url := args.get("url"):
-                urls += 1
-                if BENCHMARK.search(url) or HOSTS.search(url):
-                    hits.append((run, "fetch", url[:120]))
-            if event.get("is_error") and "BLOCKED" in str(event.get("arguments", "")):
-                blocked += 1
+            kind = event.get("event")
 
-    return {"queries": queries, "urls": urls, "hits": hits}
+            # 8-gram 필터가 실제로 걷어낸 횟수. 막혔다는 사실 자체가 보고할 수치다.
+            if kind == "contamination.filtered":
+                filtered_results += int(event.get("removed") or 0)
+                continue
+            if kind == "contamination.blocked_page":
+                blocked_pages += int(event.get("count") or 1)
+                continue
+
+            # 게이트가 직접 부른 도구
+            if kind == "tool.result":
+                args = event.get("arguments") or {}
+                if query := args.get("query"):
+                    queries += 1
+                    if BENCHMARK.search(query):
+                        hits.append((run, "query", query[:120]))
+                if url := args.get("url"):
+                    urls += 1
+                    by_depth[0] += 1
+                    if BENCHMARK.search(url) or HOSTS.search(url):
+                        hits.append((run, "fetch", url[:120]))
+
+            # 검색당 자동 페치 (depth 1)
+            elif kind == "search.fetched":
+                for url in event.get("urls") or []:
+                    urls += 1
+                    by_depth[1] += 1
+                    if BENCHMARK.search(url) or HOSTS.search(url):
+                        hits.append((run, "auto", url[:120]))
+
+            # explorer 의 확장 (depth >= 2)
+            elif kind == "expand.node":
+                url = str(event.get("url") or "")
+                depth = int(event.get("depth") or 2)
+                urls += 1
+                by_depth[depth] += 1
+                if url and (BENCHMARK.search(url) or HOSTS.search(url)):
+                    hits.append((run, f"d{depth}", url[:120]))
+
+    return {
+        "queries": queries,
+        "urls": urls,
+        "hits": hits,
+        "filtered_results": filtered_results,
+        "blocked_pages": blocked_pages,
+        "by_depth": dict(sorted(by_depth.items())),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
         {
             "검사 대상": root,
             "검색 질의": f"{report['queries']:,}건",
-            "연 URL": f"{report['urls']:,}건",
+            "연 URL": f"{report['urls']:,}건  (깊이별 {report['by_depth']})",
+            "8-gram 필터로 지운 검색 결과": f"{report['filtered_results']:,}건",
+            "8-gram 필터로 막은 페이지": f"{report['blocked_pages']:,}건",
             "의심 접근": f"{len(hits)}건 ({len(hits) / total:.2%})" if total else "0건",
             "판정": "깨끗함" if not hits else "유출 시도 있음 — 아래 확인",
         },

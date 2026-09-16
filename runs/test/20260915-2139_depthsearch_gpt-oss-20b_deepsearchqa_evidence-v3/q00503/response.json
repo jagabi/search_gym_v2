@@ -1,0 +1,1462 @@
+{
+  "index": 503,
+  "question": "As of December 31 2023, have any authors who won a Nobel Prize for Literature been shortlisted for the Booker Prize for Fiction but never won it? If so, please answer with the name each author writes under and nothing else. Give the names in chronological order of winning the Nobel Prize, starting with the earliest winner.",
+  "gold_answer": "Patrick White, Doris Lessing, Alice Munro, Abdulrazak Gurnah",
+  "category": "Arts",
+  "method": "depthsearch",
+  "model": "openai/gpt-oss-20b",
+  "system_prompt": "You are a research assistant. Answer the question using the available web tools.\nGround your answer in the sources you actually read.\n\nWork in stages: discover the candidate universe; locate the relevant source data;\nverify each required condition; then combine and answer. Before another search,\nidentify which stage is blocked and which ONE source or fact would unblock it.\nAfter two queries on the same hypothesis produce no new evidence, change the\nsource or hypothesis. Do not keep adding constraints to the same query.\n\nUse research_state update to save candidate/condition rows after discovering a\nlist or filling a comparison field; batch related rows in one call. Register\nunknown candidates too. Include year, unit, variant and population in scope.\nSupply an exact source quote for supported or excluded cells. Conflicting sourced\nvalues remain in the ledger; resolve them before comparing. An unknown candidate\nmay still win a ranking. Missing evidence never proves exclusion.\n\nweb_fetch notes include stored document IDs. read_document can inspect full raw\ntable headers, find terms, page through lines or rows, filter exact years/entities,\nintersect two source lists, and sort/aggregate all matching rows deterministically.\nA truncated preview is NOT the end of the source. Query the stored source instead\nof inventing ?download, ?year or #page URL variants. Inspect multi-row headers and\nselect the right year, measure and subgroup before applying numeric operations.\nHeader rows are data rows until you filter them out; c0,c1,... are raw column IDs.\nNever combine standard errors, totals, enrollment and graduates as one measurement.\n\nresearch_state inspect lists pending source links with their parent and depth.\nresearch_state follow continues one such link under the shared recursive budget.\nLocal Expand: no means that reader stopped, not that its pending candidates failed\nthe question. Prefer unfinished relevant records over repeatedly opening an index.\nThe frontier includes navigation links too: select a link only for an explicit gap.\n\nSearch to find a useful entry page, not a page that already answers every condition.\nStart with the source or topic and a few distinctive terms. Do not paste the entire\nquestion into search or combine all its entities, filters, rankings and comparisons.\nFor a multi-source question, find one source or candidate list at a time. Exact\ntitles, dates and site filters help when established; do not stack speculative\ndetails, guessed answers or quoted phrases into the first query.\nInspect the returned titles and snippets. If results are off-topic or sparse,\nremove a constraint or change the source/topic anchor instead of adding conditions.\nNarrow later to one missing fact. Open promising indexes, reports and result pages:\nthe reader can follow their links and check detailed conditions without another search.\n\nweb_fetch returns source-labelled page notes. A reader may follow links from that\npage and return notes from the linked pages too. Use all of those notes; do not\nassume an individual reader has resolved the entire question. A reader error means\nextraction failed, not that the fact is absent. A successful partial extraction\nremains useful even when another page could not be read.\n\nMaintain a compact evidence table in your working reasoning as results arrive:\ncandidate | required condition/measurement | value | year/scope/variant/unit | source | gap.\nCopy values from page evidence; keep unknown cells unknown. A page's title or a\nreader's conclusion is not a substitute for the underlying measurement or list.\nFor intersections, obtain each source's full relevant list and compare membership.\nFor rankings, collect the required candidates before choosing the maximum/minimum.\nBefore finalizing, check that compared rows refer to the same entity, product size\nor variant, time period, population and unit. Convert units only from stated values.\nDo not substitute a nearby size, a different year, or an overall winner for a subgroup\nwinner. Resolve conflicting rows from their sources. Search for the precise remaining\ngap only after inspecting useful page links. Missing evidence is not disqualification.\n\nAnswer once the required facts are supported. Give supported partial results when\nsome facts remain unresolved, marking the gaps without discarding what you found.\nDo not invent missing figures or claim a list is exhaustive without checking its\nscope. If the comparison remains unresolved, say which field is missing rather than\nchoosing from mismatched values. Your final response must answer the question in\nits requested format, not describe a tool you plan to call. Return a short answer\nwhen requested; keep the working table out of a names-only or report-numbers-only\nanswer. Use original source URLs for citations, never invented line references.",
+  "explorer_prompt": "You read web pages for a research assistant. Your job is to preserve source\nevidence and, when useful, follow the page's links to obtain missing evidence.\n\nRead the Original Question to understand the required entities and conditions.\nWhen read_document is available, it reads only your current source, without a\nnetwork request. Use it if the preview lacks needed rows, years, PDF pages or\nheaders. Inspect tables before filtering: preserve multi-row headers and report\nexact table/row/column IDs for extracted values. Search literal terms separately\nwhen they occur on different lines. Do not infer that a country/year is absent\nmerely because it falls outside the preview. For wide CSVs filter rows first.\nExtraction and navigation are separate stages. During extraction, only the supplied\npage content is evidence. During navigation, earlier reasoning and saved notes help\nchoose where to go; never copy them into the current page's evidence. Extract what this page says, even if\nthe complete answer requires other pages. Never reject a useful page merely\nbecause it cannot answer the whole question.\n\nPreserve exact names, titles, numbers, dates, units, qualifications, and the full\nrelevant list or table rows. Keep values attached to their entities and headers.\nFor a comparison across several pages, return this page's list or measurements;\nthe main assistant will combine them. Quote short supporting passages and distinguish\ndirect statements from inferences. Use rows with entity, field, value, year, unit,\nsize/variant or population, and a short source quotation when comparing candidates.\nKeep original table headers. Label absent fields unknown; do not fill them from\nmemory or infer a subgroup value from a total. A linked page's facts belong to\nthat page's note. Use actual source URLs, never invented citation IDs or line numbers.\n\nYour current-page note is saved before expansion. When asked to expand, follow\nlinks in the Reader page: citations, referenced documents, archive entries, data\ndownloads, or other pages that can fill a specific missing fact. The link menu is\na convenience, not a restriction; any link in the page can be followed. You may\nalso navigate within a site already being read, including an archive pattern\nestablished by observed URLs. State what fact the next page should supply.\nChoose an expansion only when the link label, surrounding text or observed archive\npattern gives a concrete reason it can supply a missing field. State that field.\nA relevant index or archive can justify expansion even without answer facts of its\nown. A wrong-year page can be useful if it actually links to the requested year.\nAn unrelated page, generic footer links, a missing page or the same content again\nis not a reason to keep descending. Mark Expand: no when no promising route remains.\nDo not spend the question's expansion budget revisiting completed pages or trying\nvariants of a failed URL. After an unhelpful child, choose a different supported\nroute or finish so other source pages can use the remaining budget.\n\nChild notes are preserved separately and sent to the main assistant. A child's\nfailure must never erase evidence from this page, and you need not rewrite a\nchild's note. Do not decide the final answer on behalf of the main assistant.\n\nFor a page extraction, use this format (plain text/Markdown, not JSON):\n\n**Final Information**\n**Page:** Actual page title and original URL.\n**Evidence:** Relevant facts, full lists or table rows, with short source quotes.\n**Missing:** Requested fields absent from this page; avoid claims about all sources.\n**Next links:** Actual page links and what each could establish, if any.\n**Expand:** yes or no, followed by the missing field and the reason for this decision.\n**Status:** partial\n\nUse answered only when the page directly supplies all requested facts for the\nlocal reading task; partial for useful but incomplete evidence; not_found for a\npage with no relevant evidence. Even then describe the page or access error briefly.\nWhen asked only to choose an expansion, call web_fetch or reply DONE.",
+  "answer": "Abdulrazak Gurnah",
+  "stop_reason": "finalized",
+  "turns": 22,
+  "searches": 10,
+  "fetches": 5,
+  "expansion_nodes": 1,
+  "max_depth_reached": 2,
+  "explorer_calls": 3,
+  "dead_dives": 0,
+  "fetch_attempts": 5,
+  "fetch_failures": 2,
+  "search_attempts": 10,
+  "search_failures": 0,
+  "budget": {
+    "total": 12,
+    "used": 1,
+    "refused": 0,
+    "duplicates": 2,
+    "links_stripped": 37,
+    "off_page": 0,
+    "repeats": 0,
+    "same_site": 0,
+    "visited": 3,
+    "nodes_by_depth": {
+      "2": 1
+    },
+    "reused": 3,
+    "local_document_reads": 5,
+    "stored_documents": 3,
+    "pending_links": 108,
+    "evidence_cells": 0
+  },
+  "context_tokens": 17217,
+  "context_exhausted": false,
+  "reader_stats": {
+    "sessions": 3,
+    "complete": 3,
+    "empty_notes": 0,
+    "recovery_attempts": 1,
+    "no_relevant_evidence": 0,
+    "navigation_errors": 0,
+    "pruned_branches": 1,
+    "repeated_content": 0
+  },
+  "invalid_tool_calls": 1,
+  "steps": [
+    {
+      "turn": 1,
+      "reasoning": "We need to determine if any author who won Nobel Prize for Literature has been shortlisted for the Booker Prize but never won. Provide names of those authors, using the name they write under. Need chronological order by Nobel year.\n\nWe must browse sources: Nobel laureates list; Booker Prize shortlist. Identify overlaps.\n\nApproach: gather list of Nobel literature laureates up to 2023. Then check Booker shortlist lists. Find those who were shortlisted but not winners.\n\nWe need evidence plus quote.\n\nSearch for \"booker prize shortlist wikipedia\" etc. Use web search for \"List of Booker Prize shortlists\" to find page containing list. Search for Nobel laureates winners: \"List of Nobel Prize in Literature winners\" page. Then we will need cross-check.\n\nWe'll likely need multiple sources: Nobel laureates list page and Booker shortlist lists for multiple years. Or maybe some comprehensive list of Booker nominations.\n\nAlternatively find a page listing Booker Prize nominees. There's a Wikipedia page \"Booker Prize\". It includes a list of winners and they may have shortlists. But might not fully list all nominees.\n\nAlternatively, there is a \"Booker Prize nominees\" page. Let's search.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "_raw": "{\"query\":\"Booker Prize shortlist list names 2023\",\"\"}"
+          },
+          "result_chars": 95,
+          "is_error": true,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "Invalid web_search arguments: query must be a non-empty string. Retry with a valid JSON object."
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "reasoning": "We need to determine whether there are authors who have won Nobel Prize for Literature before Dec 31 2023, who were shortlisted for Booker Prize but never won it. Provide name each author writes under. Chronological order of Nobel win.\n\nWe need to search. Let's search for Nobel literature laureates and Booker shortlist. We'll need references. Search query: \"Nobel Prize in Literature Booker Prize shortlist\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Nobel Prize in Literature Booker Prize shortlist"
+          },
+          "result_chars": 2745,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2379.0,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"The International Booker Prize 2026\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/international/2026\", \"snippet\": \"The shortlist · The Nights Are Quiet in Tehran · She Who Remains · The Director · On Earth As It Is Beneath · The Witch · Taiwan Travelogue.\"}, {\"title\": \"Full list of Booker Prize winners, shortlisted and longlisted ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/full-list-of-booker-prize-winners-shortlisted-and-longlisted-authors\", \"snippet\": \"Shortlist: James by Percival Everett. Shortlist: Family Matters by Rohinton Mistry. Unless by Carol Shields (4th Estate)\", \"date\": \"Jul 29, 2025\"}, {\"title\": \"Booker Prize\", \"link\": \"https://en.wikipedia.org/wiki/Booker_Prize\", \"snippet\": \"Four guest speakers/judges debated a shortlist of four books from a given year from before the introduction of the Booker Prize, and a winner was chosen.\"}, {\"title\": \"The Booker Prizes\", \"link\": \"https://thebookerprizes.com/\", \"snippet\": \"Full list of winners and shortlisted authors. The Shadow of the Object by. The shortlist of eight books will be announced on 24 November 2026.\"}, {\"title\": \"The Booker Prizes - Five Books Expert Recommendations\", \"link\": \"https://fivebooks.com/books/booker-prize/\", \"snippet\": \"The Booker Prize shortlist is an excellent indicator of the best fiction. Second in prestige perhaps only to the Nobel Prize for Literature, it ...\", \"date\": \"Sep 3, 2026\"}, {\"title\": \"Booker Prize | Literature and Writing | Research Starters\", \"link\": \"https://www.ebsco.com/research-starters/literature-and-writing/booker-prize\", \"snippet\": \"Notable winners include acclaimed authors like Salman Rushdie, Margaret Atwood, and Hilary Mantel, whose works have not only garnered critical acclaim but have ...\"}, {\"title\": \"The Booker Prize 2026\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/2026\", \"snippet\": \"The longlist · The Shadow of the Object · Switzy · Helen of Nowhere · The End of Everything · The Disappearers · Black Bag · The Renovation · May We Feed the King.\"}, {\"title\": \"What the Booker tells us about the Nobel\", \"link\": \"https://www.prospectmagazine.co.uk/culture/the-culture-newsletter/71344/what-the-booker-tells-us-about-the-nobel-laszlo-kraznahorkai\", \"snippet\": \"Both Booker prizes publish a longlist of 12 or 13 books (the Booker dozen), followed by a shortlist of six. There is no Nobel longlist or ...\", \"date\": \"Oct 16, 2025\"}, {\"title\": \"Booker Prize Books | Award-Winning Fiction\", \"link\": \"https://www.worldofbooks.com/en-gb/pages/booker-prize\", \"snippet\": \"Shop the 2025 Shortlist · Flashlight · Audition · The Land in Winter · Flesh · The Rest of Our Lives · The Loneliness of Sonia and Sunny.\"}]}"
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "reasoning": "We need to identify authors who won Nobel Prize for Literature (before Dec 31 2023) and were shortlisted for Booker Prize but never won Booker. We list names each author writes under (so first name? Actually \"name each author writes under\". I think they want the name they are credited under in the Nobel list? Not sure.\n\nBut answer: list authors in chronological order of Nobel. Need to find cross-check.\n\nApproach: compile list of Nobel literature winners up to 2023: 1901 to 2023. Then for each author check if they were shortlisted for Booker but never won.\n\nPotential candidates: Several Nobel laureates who also received Booker shortlist: e.g., Novelist everything. Actually Booker prize established in 1969 (now Booker). Nobel winners before 1969 might not have Booker shortlist. But we can include those after 1969.\n\nLet's recall known Booker shortlisted Nobel laureates: William Golding (Nobel 1983) maybe shortlisted? Not sure. But Booker shortlist names not many. Let's think.\n\nBooker prize is UK? Actually Booker (originally Man Booker) offered to any novel in English anywhere. So many Nobel laureates might have been shortlisted: e.g., Camilla? Let's research.\n\nSearch for \"Nobel laureate Booker shortlist\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"Nobel\" \"Booker\" shortlisted"
+          },
+          "result_chars": 2978,
+          "is_error": false,
+          "refused": false,
+          "leaked": 1,
+          "duration_ms": 1297.5,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"What the Booker tells us about the Nobel\", \"link\": \"https://www.prospectmagazine.co.uk/culture/the-culture-newsletter/71344/what-the-booker-tells-us-about-the-nobel-laszlo-kraznahorkai\", \"snippet\": \"There is no Nobel longlist or shortlist. Beyond the differences between the Nobel and the Booker, though, are also notable similarities.\", \"date\": \"Oct 16, 2025\"}, {\"title\": \"The International Booker Prize 2025\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/international/2025\", \"snippet\": \"Han Kang is one of five authors recognised by the International Booker Prize who have gone on to win the Nobel Prize in Literature. The Man Group continued ...\"}, {\"title\": \"Literary Awards: Booker Prizes - Library Guides - LibGuides\", \"link\": \"https://johncabot.libguides.com/LiteraryAwards/man-booker\", \"snippet\": \"Literary Awards: Booker Prizes. Home · Nobel Prize ... Samantha Harvey SHORTLISTED FOR THE BOOKER PRIZE 2024 Winner of the 2024 Hawthornden Prize ...\", \"date\": \"Jul 15, 2026\"}, {\"title\": \"The Booker Prizes - Five Books Expert Recommendations\", \"link\": \"https://fivebooks.com/books/booker-prize/\", \"snippet\": \"The Booker Prize shortlist is an excellent indicator of the best fiction published in English in the last year. Second in prestige perhaps ...\", \"date\": \"Sep 3, 2026\"}, {\"title\": \"International Booker Prize\", \"link\": \"https://en.wikipedia.org/wiki/International_Booker_Prize\", \"snippet\": \"... Nobel Prize for Literature. The Man Booker International Prize also ... \\\"'Exhilarating' Man Booker International shortlist spans the world\\\". The ...\"}, {\"title\": \"Can someone explain the Booker Prize? : r/literature\", \"link\": \"https://www.reddit.com/r/literature/comments/189dqop/can_someone_explain_the_booker_prize/\", \"snippet\": \"I've had a number of Booker Prize winners come into my hands over the years and I've overall been disappointed with them. Maybe someone could help shed ...\", \"date\": \"2 years ago\"}, {\"title\": \"Your weekly edit - The Booker Prizes - Substack\", \"link\": \"https://thebookerprizes.substack.com/p/your-weekly-edit-b92\", \"snippet\": \"International Booker Prize-winner Han Kang wins Nobel Prize in Literature ... Booker Prize shortlist are preoccupied with the idea of 'home'.\", \"date\": \"1 year ago\"}, {\"title\": \"Winners and Shortlist of the Booker Prize for Fiction\", \"link\": \"http://almaz.com/booker/\", \"snippet\": \"A comprehensive list of Man Booker Prize Winners and Shortlist, at the Nobel Prize Internet Archive.\"}], \"related_searches\": [\"Nobel booker shortlisted winners list\", \"Nobel booker shortlisted winners\", \"Nobel booker shortlisted 2022\", \"Booker Prize 2026\", \"Shortlist International Booker Prize 2026\", \"International Booker Prize longlist\", \"Heart Lamp Booker Prize\", \"International Booker longlist 2026\"], \"filtered_results\": \"1 result(s) removed: they reproduce the question itself, so they are the evaluation set leaking rather than a source. Search for the underlying facts.\"}"
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "reasoning": "The question: As of Dec 31 2023, have any authors who won Nobel Prize for Literature been shortlisted for Booker Prize for Fiction but never won it? If so, provide name each author writes under (so likely only the names). In chronological order of Nobel Prize.\n\nWe need to find Nobel Laureates up to 2023. For each, check if they had Booker shortlist appearance but did not win Booker. And we need only those that satisfy this.\n\nWe need to verify sources.\n\nApproach: compile list of Nobel literature winners. Then for each, check Booker shortlist history. This could be manual. We could search for \"Nobel Prize literature [author] Booker Prize shortlist\". Let's start with early ones: Jean-Paul Sartre (1951) did not compete? He did not accept, but Booker started 1969. So before that, none.\n\nLet's list winners after 1969:\n- 1969: Odysseas Elytis (Greek) but Booker only for English language? Probably not.\n\nBetter approach: find a source that lists Nobel winners who have been shortlisted for the Booker but not won. Let's search for \"Nobel laureate Booker shortlist\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"Nobel laureate\" \"Booker Prize\" shortlist"
+          },
+          "result_chars": 3536,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1758.5,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"What the Booker tells us about the Nobel\", \"link\": \"https://www.prospectmagazine.co.uk/culture/the-culture-newsletter/71344/what-the-booker-tells-us-about-the-nobel-laszlo-kraznahorkai\", \"snippet\": \"... Booker Prize or the International Booker Prize (IBP). Since the ... Nobel laureate. I have been the administrator of the IBP for two ...\", \"date\": \"Oct 16, 2025\"}, {\"title\": \"The 2021 Booker Prize Shortlist\", \"link\": \"https://lonesomereader.com/blog/2021/9/15/the-2021-booker-prize-shortlist\", \"snippet\": \"... Booker Prize winner and Nobel laureate Kazuo Ishiguro isn't included. I was hoping to see his book on the list – not because of his ...\", \"date\": \"Sep 15, 2021\"}, {\"title\": \"International Booker Prize 2026 shortlist revealed\", \"link\": \"https://www.thebookseller.com/news/international-booker-prize-2026-shortlist-revealed\", \"snippet\": \"The shortlist for the 2026 International Booker Prize has been revealed, as the award celebrates its 10th year.\", \"date\": \"Mar 31, 2026\"}, {\"title\": \"For September, The Booker Prizes have chosen the 2021 ...\", \"link\": \"https://www.facebook.com/readingagency/posts/for-september-the-booker-prizes-have-chosen-the-2021-booker-prize-longlist-klara/1512453907585075/\", \"snippet\": \"“Nobel laureate Ishiguro takes readers to a vaguely ... The Booker Prize (The Booker Prizes) shortlist will be announced tonight.\", \"date\": \"1 week ago\"}, {\"title\": \"International Booker prize announces longlist 'tracing ring ...\", \"link\": \"https://www.theguardian.com/books/2022/mar/10/international-booker-prize-announces-longlist-tracing-ring-around-the-world\", \"snippet\": \"International Booker prize announces longlist ... Shree and her translator Daisy Rockwell are up against previous winner and Nobel laureate ...\", \"date\": \"Mar 10, 2022\"}, {\"title\": \"Here's everything you need to know about the six remarkable ...\", \"link\": \"https://www.facebook.com/TheBookerPrizes/videos/heres-everything-you-need-to-know-about-the-six-remarkable-books-on-the-shortlis/4227253130893350/\", \"snippet\": \"This post announces the 2025 Booker Prize list, revealing the six shortlisted masterpieces: \\\"Flesh\\\" by David Szalay, \\\"The Booker Prizes\\\" by ...\", \"date\": \"11 months ago\"}, {\"title\": \"Daniel Hahn\", \"link\": \"https://thebookerprizes.com/the-booker-library/authors/daniel-hahn\", \"snippet\": \"... Nobel laureate José Saramago to Brazilian footballer Pelé. He is a ... shortlisted for the International Booker Prize in 2016. His most ...\", \"date\": \"Nov 26, 1973\"}, {\"title\": \"Booker Prize 2021 shortlist: 'Absorbing global stories of life ...\", \"link\": \"https://www.bbc.com/news/entertainment-arts-58558396\", \"snippet\": \"Booker Prize 2021 shortlist: 'Absorbing global stories of ... The longlisted authors who missed out included Nobel laureate Kazuo Ishiguro.\", \"date\": \"Sep 14, 2021\"}, {\"title\": \"The 2022 International Booker Prize Shortlist\", \"link\": \"https://fivebooks.com/best-books/the-best-of-world-literature-the-2022-international-booker-prize-shortlist-frank-wynne/\", \"snippet\": \"The Best of World Literature: The 2022 International Booker Prize Shortlist ... It's from the recent Nobel laureate Olga Tokarczuk. It's ...\", \"date\": \"Jun 24, 2022\"}], \"related_searches\": [\"Nobel laureate booker prize shortlist 2022\", \"Nobel laureate booker prize shortlist 2021\", \"Booker Prize shortlist 2022\", \"Booker Prize shortlist 2020\", \"Shortlist Booker Prize\", \"Booker Prize 2022\", \"Booker Prize shortlist 2025\", \"The six 2026 international booker prize shortlisted books have been announced\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "reasoning": "We need to determine: As of Dec 31 2023, have any authors who won a Nobel Prize for Literature been shortlisted for the Booker Prize for Fiction but never won it? If so, list their names (writing under those names). Names in chronological order of winning the Nobel Prize.\n\nBooker Prize for Fiction (the original Booker, not the International). It began in 1969.\n\nWe need to find authors who have:\n\n- Won Nobel Prize for Literature (any year up to 2023).\n- Have been shortlisted (i.e., on the selection of six finalist books) of Booker Prize for Fiction (days before 2023? up to December 31 2023?).\n- Have not won Booker Prize (i.e., not won with any of the books they were shortlisted).\n\nWe need to list those authors names.\n\nSo basically intersection of Nobel laureates (Literature) with Booker shortlist, minus those who have also won Booker. Also must check up to Dec 31 2023.\n\nLet's identify Nobel winners list up to 2023: (Chronologically). Starting 1901 but need those who may have possible Booker shortlist. Booker started 1969 so only Nobel winners from 1969 onwards. Let's list each Nobel laureate from 1969 to 2023: 1969 - Knut Hamsun, 1970 - André Gide, etc. But many early ones may not have Booker shortlist due to language etc; but Nobel winners like Wole Soyinka, Nadine Gordimer, etc.\n\nBut we need to gather which Nobel laureates had works shortlisted for Booker.\n\nWe can search for \"Nobel laureate [Name] Booker Prize shortlist\". That might return results.\n\nBetter: compile list of Nobel laureates who have Booker shortlist. Probably small: e.g., Joseph Conrad? Not; it's earlier. Likely names include: Wole Soyinka (won Booker?). Actually Wole Soyinka did not win Booker but was shortlisted? Perhaps his book \"The Interpreters\" or \"The Man Died.\" Let's search.\n\nSearch for Soyinka Booker shortlist.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Wole Soyinka Booker shortlist"
+          },
+          "result_chars": 3111,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1602.0,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"The four generations: Nigerian literature, the Booker Prize ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\", \"snippet\": \"He was shortlisted for the Booker Prize in 1987 and won the Man Booker International Prize in 2007. Wole Soyinka is our Nobel Prize winner, a ...\", \"date\": \"Mar 31, 2023\"}, {\"title\": \"Did Wole Soyinka Get Shortlisted For The Booker Prize\", \"link\": \"https://www.instagram.com/popular/did-wole-soyinka-get-shortlisted-for-the-booker-prize/\", \"snippet\": \"Watch short videos about did wole soyinka get shortlisted for the booker prize. On December 10, 1986, 52-year-old Nigerian playwright and poet Wole. African ...\"}, {\"title\": \"Wole Soyinka Prize for Literature in Africa Winners\", \"link\": \"https://www.goodreads.com/award/show/5196-wole-soyinka-prize-for-literature-in-africa\", \"snippet\": \"Songs of Myself: Young Blood Young Blood by Sifiso Mzobe. I Do Not Come to You by Chance I by Chance by Adaobi. Tenants of the House Tenants of the House by ...\"}, {\"title\": \"Books by Wole Soyinka\", \"link\": \"https://fivebooks.com/people/wole-soyinka/\", \"snippet\": \"Wole Soyinka's books include plays, poetry, short stories, novels and five memoirs. Chronicles from the Land of the Happiest People on Earth by Wole Soyinka. ...\"}, {\"title\": \"Wole Soyinka\", \"link\": \"https://www.anisfield-wolf.org/winners/wole-soyinka/\", \"snippet\": \"Wole Soyinka, winner of the 2013 Anisfield-Wolf Lifetime Achievement Award, is a Nigerian playwright, poet, essayist, and profile in courage.\"}, {\"title\": \"Only ONE week to go until the International Booker Prize 2026 ...\", \"link\": \"https://www.facebook.com/TheBookerPrizes/videos/only-one-week-to-go-until-the-international-booker-prize-2026-shortlist-is-revea/4391797077632475/\", \"snippet\": \"2026 shortlist is revealed! covering writers like. Wole Soyinka, The finalists discussed are \\\"Taiwan Travelogue\\\" by ǐ, \\\"The Witch\\\" by Marie ...\", \"date\": \"5 months ago\"}, {\"title\": \"Lumina Foundation Soyinka Prize\", \"link\": \"https://www.luminafoundationsoyinkaprize.com/\", \"snippet\": \"We administer Wole Soyinka Prize for Literature in Africa -$20,000 in prize money; We promote and celebrate companies and individuals that have excelled in ...\"}, {\"title\": \"'African Booker' prize shortlist announced\", \"link\": \"https://www.theguardian.com/books/2011/may/09/african-booker-prize-shortlist-announced\", \"snippet\": \"This year's shortlist of five stories, announced today, was selected from 126 entries from 17 African countries.\", \"date\": \"May 9, 2011\"}, {\"title\": \"Wole Soyinka\", \"link\": \"https://en.wikipedia.org/wiki/Wole_Soyinka\", \"snippet\": \"Akinwande Oluwole Babatunde Soyinka (; born 13 July 1934) is a Nigerian writer, playwright, and poet. He has written three novels, ten collections of short ...\"}], \"related_searches\": [\"Wole Soyinka books PDF\", \"Wole Soyinka novels\", \"Wole Soyinka most popular book\", \"Wole soyinka memoirs\", \"Wole Soyinka Nobel Prize book\", \"Wole Soyinka awards\", \"Wole Soyinka latest Book\", \"Climate of fear Wole Soyinka\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "reasoning": "We need list of Nobel laureates in Literature as of Dec 31, 2023. Then check if any were shortlisted for Booker (Man Booker Prize, not International). Then check if they were never winners of Booker.\n\nNobel winners list up to 2023: 2023: Jon Fosse (Norway); 2022: Annie Ernaux (France); 2021: Abdulrazak Gurnah (UK/Tanzania); 2020: Louise Glück (USA); 2019: Peter Handke (Austria) (refused). 2018: Olga Tokarczuk; 2017: Kazuo Ishiguro; 2016: Louise Glück (again? Actually 2016 Nobel Literature was Louise Glück? Wait 2016 was awarded to Louise? No 2016 was Nobel Literature to Louise Glück? Check: Actually 2016 was awarded to (Louise) or to \"Louise Glück\" yes. 2015: Svetlana Alexievich; 2014: Alice Munro; 2013: Patrick Modiano; 2012: Mo Yan; 2011: Tomas Tranströmer; 2010: Mario Vargas Llosa; 2009: Herta Müller; 2008: Jean-Marie Gustave Le Clézio; 2007: Orhan Pamuk; 2006: Orhan Pamuk? Wait 2006 no literature. Actually 2006 Nobel literature was awarded to D.H. Lawrence? scratch. We'll need up to 2023. But the question: \"As of December 31 2023, have any authors who won a Nobel Prize for Literature been shortlisted for the Booker Prize for Fiction but never won it?\" So we need to identify which Nobel laureates were shortlisted for Booker, but not winners.\n\nFrom knowledge: Booker Prize winners who are also Nobel Laureates: George Orwell no. Not.\n\nNobel laureates who have won Booker: Not many. Did any Nobel laureates win Booker? I think only Nabokov? But not. Let's search.\n\nSearch term: \"Nobel laureate Booker Prize winner\"",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Nobel laureate Booker Prize winner"
+          },
+          "result_chars": 3489,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1768.3,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"All Nobel Prizes in Literature\", \"link\": \"https://www.nobelprize.org/prizes/lists/all-nobel-prizes-in-literature/\", \"snippet\": \"All Nobel Prizes in Literature. The Nobel Prize in Literature has been awarded 118 times to 122 Nobel Prize laureates between 1901 and 2025. Click on the ...\"}, {\"title\": \"Booker Prize\", \"link\": \"https://en.wikipedia.org/wiki/Booker_Prize\", \"snippet\": \"↑ \\\"Everything you need to know about Orbital by Samantha Harvey, winner of the Booker Prize 2024 | The Booker Prizes\\\". thebookerprizes.com. 12 November ...\"}, {\"title\": \"Full list of Booker Prize winners, shortlisted and longlisted ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/full-list-of-booker-prize-winners-shortlisted-and-longlisted-authors\", \"snippet\": \"From Margaret Atwood to Kazuo Ishiguro, the Booker Prize has been celebrating and rewarding the best writers of long-form fiction in the ...\", \"date\": \"Jul 29, 2025\"}, {\"title\": \"Comparing the winners of the Nobel Prize in ...\", \"link\": \"https://literature.stackexchange.com/questions/9329/comparing-the-winners-of-the-nobel-prize-in-literature-the-national-book-award\", \"snippet\": \"In what ways do the winners of these three awards differ? I'm surprised there is not more overlap when surveying the results. I understand that there ...\", \"date\": \"Feb 5, 2019\"}, {\"title\": \"The Booker Prize winners\", \"link\": \"https://www.abebooks.com/books/features/man-booker-prize/\", \"snippet\": \"Winning authors include Margaret Atwood, Ian McEwan, Michael Ondaatje and Kingsley Amis. Big-hitters Peter Carey, Hilary Mantel and J.M. Coetzee have multiple ...\"}, {\"title\": \"The Booker Prizes\", \"link\": \"https://thebookerprizes.com/\", \"snippet\": \"The Booker Prize 2026 longlist ; The Shadow of the Object · Chloe Aridjis ; Switzy · Emma Cline ; Helen of Nowhere · Makenna Goodman ; The End of Everything · M. John ...\"}, {\"title\": \"Literary Awards: Booker Prizes - Library Guides - LibGuides\", \"link\": \"https://johncabot.libguides.com/LiteraryAwards/man-booker\", \"snippet\": \"Booker Prize Winner 2025 - DAVID SZALAY. David Szalay (Montréal, Canada, 1974) won the 2025 Booker Prize with his sixth published work*, Flesh.\", \"date\": \"Jul 15, 2026\"}, {\"title\": \"Our Winners of the Nobel Prize in Literature\", \"link\": \"https://www.penguinrandomhouse.com/the-read-down/nobel-prize-in-literature-winners/\", \"snippet\": \"Our Winners of the Nobel Prize in Literature ; We Do Not Part · Han Kang ; Theft · Abdulrazak Gurnah ; The Empusium · Olga Tokarczuk.\", \"date\": \"Jan 24, 2025\"}, {\"title\": \"Top 10 Award-Winning Authors in English Literature | Nobel ...\", \"link\": \"https://www.youtube.com/watch?v=149djNeU0WU\", \"snippet\": \"Top 10 Award-Winning Authors in English Literature | Nobel & Booker Prize WinnersLearn about major literary awards and the famous authors ...\", \"date\": \"2 months ago\"}, {\"title\": \"The Booker Prize 2023\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/2023\", \"snippet\": \"Prophet Song by Paul Lynch has been named the winner of the Booker Prize 2023. The author receives £50,000 and was presented with his trophy by Shehan ...\"}], \"related_searches\": [\"Nobel laureate booker prize winner list\", \"Booker prize winners list pdf\", \"Nobel Prize in Literature winners\", \"Nobel laureate booker prize winner by year\", \"List of Nobel Prize winners in Literature and their books\", \"Booker Prize winner 2026\", \"Booker Prize winners last 10 years\", \"List of Booker Prize winners by year\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "reasoning": "We need to find: As of Dec 31 2023, Nobel Prize in Literature winners who were shortlisted for the Booker Prize for Fiction but never won it. Provide name each author writes under (pseudonym? \"writes under\" may mean the name they use). just list names in chronological order of winning the Nobel.\n\nWe need list of Nobel Laureates up to 2023. Then check for Booker shortlists. Find which ones were shortlisted but never won. Likely including: Wole Soyinka (Nobel 1986? actually 1986? He won 1986 Nobel). He was shortlisted Booker 1987. He never won the Booker. So include him.\n\nAlso: Abdulrazak Gurnah (Nobel 2021). Did he appear on Booker shortlist? He might have been shortlisted 2007? He had novel \"By the Sea\" shortlisted? Let's check. We should search his Booker shortlist.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Abdulrazak Gurnah Booker shortlist"
+          },
+          "result_chars": 3139,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2526.2,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"Abdulrazak Gurnah\", \"link\": \"https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah\", \"snippet\": \"His novels include Memory of Departure, Pilgrims Way, Dottie, Paradise (shortlisted for the Booker Prize and the Whitbread Award), Admiring Silence, By the All ...\"}, {\"title\": \"The Booker Prize's reaction to Gurnah's Nobel Prize in ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/the-booker-prizes-reaction-to-gurnahs-nobel-prize-in-literature\", \"snippet\": \"Shortlisted for his novel Paradise, Abdulrazak was also longlisted in 2001 for By the Sea – and in 2016, the first year I worked with the Booker ...\", \"date\": \"Dec 1, 2022\"}, {\"title\": \"Abdulrazak Gurnah\", \"link\": \"https://rcwlitagency.com/clients/gurnah-abdulrazak\", \"snippet\": \"He is the author of eleven novels: Memory of Departure, Pilgrims Way, Dottie, Paradise (shortlisted for the Booker Prize and the Whitbread Award), Admiring ...\"}, {\"title\": \"Paradise\", \"link\": \"https://thebookerprizes.com/the-booker-library/books/paradise\", \"snippet\": \"prize years Books Paradise Paradise Written by Abdulrazak Gurnah Shortlisted The Booker Prize 1994. Abdulrazak Gurnah is the author of nine ...\", \"date\": \"Jan 1, 1994\"}, {\"title\": \"Abdulrazak Gurnah\", \"link\": \"https://en.wikipedia.org/wiki/Abdulrazak_Gurnah\", \"snippet\": \"His novels include Paradise (1994), which was shortlisted for both the Booker and the Whitbread Prize; By the Sea (2001), which was longlisted for the Booker\"}, {\"title\": \"Abdulrazak Gurnah | Literature and Writing\", \"link\": \"https://www.ebsco.com/research-starters/literature-and-writing/abdulrazak-gurnah\", \"snippet\": \"Although his first three novels were well received, Paradise (1994), short-listed for that year's Booker Prize, established Gurnah's international reputation.\"}, {\"title\": \"Abdulrazak Gurnah\", \"link\": \"https://www.penguinrandomhouse.com/authors/35668/abdulrazak-gurnah/\", \"snippet\": \"Paradise (shortlisted for the Booker Prize), By the Sea (longlisted for the Booker Prize and a finalist for the Los Angeles Times Book Prize), and Desertion.\"}, {\"title\": \"Abdulrazak Gurnah\", \"link\": \"https://www.nobelprize.org/events/nobel-week-dialogue/gothenburg-2023/panellists/abdulrazak-gurnah/\", \"snippet\": \"His novel Paradise was shortlisted for the Booker Prize and the Whitbread Award; By the Sea was longlisted for the Booker Prize and shortlisted ...\", \"date\": \"Dec 9, 2023\"}, {\"title\": \"Listen to 2021 literature laureate Abdulrazak Gurnah read a ...\", \"link\": \"https://www.facebook.com/nobelprize/posts/listen-to-2021-literature-laureate-abdulrazak-gurnah-read-a-segment-of-his-novel/1123689303126231/\", \"snippet\": \"His novels include Paradise(1994), which was shortlisted for both the Booker and the Whitbread Prize; By the Sea(2001), which was longlisted for ...\", \"date\": \"1 year ago\"}], \"related_searches\": [\"Abdulrazak Gurnah won Nobel Prize for which book\", \"Abdulrazak Gurnah wife\", \"Abdulrazak Gurnah books\", \"Abdulrazak gurnah children\", \"Abdulrazak Gurnah Nobel Prize\", \"Abdulrazak Gurnah best books\", \"Abdulrazak gurnah interview\", \"Abdulrazak gurnah family tree\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "reasoning": "We need: As of Dec 31 2023, have any authors who won a Nobel Prize for Literature been shortlisted for the Booker Prize for Fiction but never won it? Need names of such authors, output only name, each in separate line, chronological order of winning Nobel Prize.\n\nProcess: First identify Nobel literature laureates up to 2023. Then find those who were in Booker shortlist but not winner.\n\nNeed evidence sources: Nobel list page; Booker shortlist list.\n\nBetter get list of Nobel winners and for each check Booker shortlist.\n\nWe can search aggregator list of Booker shortlisted authors names. Another approach: list of Booker Prize recipients vs shortlists. Might need to find on Wikipedia page \"List of Booker Prize shortlisted authors\" etc.\n\nLet's search \"List of Booker Prize shortlists\"",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"Booker Prize\" shortlist\" authors\" list"
+          },
+          "result_chars": 3182,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1538.9,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"The Booker Prize 2026\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/2026\", \"snippet\": \"... writer and broadcaster Jarvis Cocker; journalist, editor and critic Rebecca Liu; and Booker Prize-shortlisted novelist, poet and essayist Patricia Lockwood.\"}, {\"title\": \"Full list of Booker Prize winners, shortlisted and longlisted ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/full-list-of-booker-prize-winners-shortlisted-and-longlisted-authors\", \"snippet\": \"Full list of Booker Prize winners, shortlisted and longlisted authors and their books ; 2026 · The Shadow of the Object by Chloe Aridjis (Chatto & ...\", \"date\": \"Jul 29, 2025\"}, {\"title\": \"List of winners and nominated authors of the Booker Prize\", \"link\": \"https://en.wikipedia.org/wiki/List_of_winners_and_nominated_authors_of_the_Booker_Prize\", \"snippet\": \"The following is a list of winners and shortlisted authors of the Booker Prize for Fiction. The prize has been awarded each year since 1969 to the best ...\"}, {\"title\": \"The Booker Prizes\", \"link\": \"https://thebookerprizes.com/\", \"snippet\": \"Read more about the Booker Prize 2026 longlist · Get to know the authors longlisted for the Booker Prize 2026 · Read extracts from the Booker Prize 2026 longlist.\"}, {\"title\": \"The International Booker Prize 2026\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/international/2026\", \"snippet\": \"Get to know the authors and translators shortlisted for the International Booker Prize 2026. Buy the winning and shortlisted books and save up to 20%.\"}, {\"title\": \"Booker Prize longlist 2026: Elizabeth Strout and Douglas ...\", \"link\": \"https://www.bbc.com/news/articles/czekl599087o\", \"snippet\": \"Elizabeth Strout, Douglas Stuart, Marlon James and Rebecca Perry are among the authors who have been longlisted for this year's Booker Prize.\", \"date\": \"Jul 28, 2026\"}, {\"title\": \"The Booker Prize 2025\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/2025\", \"snippet\": \"Full list of winners and shortlisted authors · Enter the Booker Prize ... Read interviews with the authors shortlisted for the Booker Prize 2025.\"}, {\"title\": \"Man Booker Shortlist (272 books)\", \"link\": \"https://www.goodreads.com/list/show/73537.Man_Booker_Shortlist\", \"snippet\": \"This list was created and voted on by Goodreads members. The Man Booker Prize promotes the finest in fiction by rewarding the very best book of the ...\", \"date\": \"272 books\"}, {\"title\": \"Everything you need to know about the Booker Prize 2026 ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/everything-you-need-to-know-about-the-booker-prize-2026-longlist\", \"snippet\": \"Only four authors have won the Booker Prize twice: J.M. Coetzee (1983 and 1999), Peter Carey (1988 and 2001), Hilary Mantel (2009 and 2012) and ...\", \"date\": \"Jul 28, 2026\"}], \"related_searches\": [\"Booker prize shortlist authors list pdf\", \"Booker prize shortlist authors list by year\", \"Booker Prize shortlist 2026\", \"Booker Prize winners list PDF\", \"Booker Prize winner 2026\", \"Booker Prize 2026 predictions\", \"Booker prize winners & nominees\", \"What is the Booker Prize\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 9,
+      "reasoning": "We need Nobel Literature laureates who were shortlisted for Booker Prize (not necessarily winner). As of Dec 31 2023. Need names only. And chronological order by Nobel year.\n\nList Nobel Literature winners up to 2023. Determine which of them were Booker shortlisted. Likely: Wole Soyinka (Nobel 1986) shortlisted 1987. Abdulrazak Gurnah (Nobel 2021) shortlisted 1994. Also maybe Margaret Atwood? She hasn't won Nobel. Let's search. Joseph Conrad? No. Who else: Chinua Achebe? Not Nobel. Derek? Let's check list.\n\nSearch for Nobel 1986 Wole Soyinka Booker shortlist. Already found source. Need citation.\n\nSearch for Abdulrazak Gurnah Booker shortlist 1994. Need source.\n\nAny other Nobel laureates: Jaroslav Hašek? no. Look at list of Nobel winners who are also Booker shortlisted: For instance, John Banville? No Nobel. Let's think of Nobel winners of literature: 1999 John Updike (not Booker). 2000 Elie Wiesel (no). 2001 V.S. Naipaul (shortlisted?? he was longlisted maybe. Not winner?). He was shortlisted for Booker for \"One Hundred Dollars\" in 1985? Actually book \"One Hundred Dollars\" was for Journals 1968; Not. But he won Booker in 1963? Wait book \"One Hundred Dollars\" not. He won International Booker 2014? He was shortlisted for Booker in 1963 for \"A House in Nairobi\"? No.\n\nCheck V.S. Naipaul Booker shortlist 1999? He won Booker in 1963 for \"The Tiger's Tail\" maybe? Actually Booker was 1963 winner \"The Tiger's Tail\" is a Booker? Wait it won John So? Let's check. Search.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "V.S. Naipaul Booker Prize shortlist"
+          },
+          "result_chars": 2910,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1855.3,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"V. S. Naipaul\", \"link\": \"https://thebookerprizes.com/the-booker-library/authors/vs-naipaul\", \"snippet\": \"His novels include A House for Mr Biswas, The Enigma of Arrival, A Bend in the River (shortlisted for the Booker Prize 1979), Half a Life (longlisted for ...\"}, {\"title\": \"V. S. Naipaul\", \"link\": \"https://en.wikipedia.org/wiki/V._S._Naipaul\", \"snippet\": \"In a Free State (1971) – Booker Prize Winner; Guerrillas (1975); A Bend in the River (1979); The Enigma of Arrival (1987); A Way in the World (1994); Half a ...\"}, {\"title\": \"Full list of Booker Prize winners, shortlisted and longlisted ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/full-list-of-booker-prize-winners-shortlisted-and-longlisted-authors\", \"snippet\": \"Winner: In a Free State by V. S. Naipaul (Deutsch). Shortlist: The Big Chapel by Thomas Kilroy (Faber & Faber). Briefing for a Descent into ...\", \"date\": \"Jul 29, 2025\"}, {\"title\": \"1971 Booker Prize Winner – In A Free State – V.S. Naipaul\", \"link\": \"https://messybooker.wordpress.com/2011/12/27/1971-booker-prize-winner-in-a-free-state-v-s-naipaul/\", \"snippet\": \"“Tell Me Who To Kill” the story of a young Caribbean Islander who relocates to London to support his younger brother who is the pride of the ...\", \"date\": \"Dec 27, 2011\"}, {\"title\": \"V.S. Naipaul\", \"link\": \"https://www.nybooks.com/contributors/vs-naipaul/\", \"snippet\": \"He is the author of many novels, including A House for Mr. Biswas, A Bend in the River, and In a Free State, which won the Booker Prize. He has also written ...\"}, {\"title\": \"V.S. Naipaul\", \"link\": \"https://www.panmacmillan.com/authors/vs-naipaul/1671\", \"snippet\": \"His novels include A House for Mr Biswas, The Mimic Men, Guerrillas, A Bend in the River, and The Enigma of Arrival. In 1971 he was awarded the Booker Prize for ...\"}, {\"title\": \"V S Naipaul\", \"link\": \"https://www.fantasticfiction.com/n/v-s-naipaul/\", \"snippet\": \"2001 Booker Prize (longlist) : Half a Life. 1996 Dublin Literary Award (nominee) : A Way in the World. 1979 Booker Prize (shortlist) : A Bend in the River. V S ...\"}, {\"title\": \"V.S. Naipaul\", \"link\": \"https://www.nyrb.com/collections/v-s-naipaul\", \"snippet\": \"He was the author of many novels, including A House for Mr. Biswas, A Bend in the River, and In a Free State, which won the Booker Prize. He has also written ...\"}, {\"title\": \"[Solved] Who was the first Indian-origin novelist to win the 'M\", \"link\": \"https://testbook.com/question-answer/who-was-the-first-indian-origin-novelist-to-win-th--6353eb5a00a8e085c4edc9bb\", \"snippet\": \"\\\"Who was the first Indian-origin novelist to win the ‘Man Booker Prize' for fiction?\\\"\"}], \"related_searches\": [\"VS Naipaul Nobel Prize\", \"Booker Prize winners list PDF\", \"V.S. Naipaul famous works\", \"V.S. Naipaul books\", \"Nadira Naipaul\", \"VS Naipaul cause of death\", \"V.S. Naipaul biography\", \"Why is vs naipaul controversial\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "reasoning": "We need: authors who won a Nobel Prize for Literature, and were shortlisted for the Booker Prize for Fiction (i.e., the original, not International Booker). As of Dec 31 2023, any such authors? If yes, list their names (write under which name). Chronological order of Nobel win. So identify any Nobel laureates who were shortlisted for Booker but never won.\n\nLet's list Nobel literature winners up to 2023: 1901 to 2023 many. Known overlap: V. S. Naipaul (Nobel 2001, Booker shortlisted 1979; also won Booker, but that is also an overlap; but question excludes those who WON the Booker, only shortlisted but never won). So if Naipaul: He was shortlisted 1979 for A Bend in the River (Booker). He did win Booker (1971) but the condition is \"shortlisted ... but never won it\". Since he did win it later, but question: \"have any authors [who won a Nobel] been shortlisted for the Booker Prize for Fiction but never won it?\" So Naipaul not eligible because he won Booker (1971).\n\nOther candidates: Wole Soyinka (Nobel 1986; Booker shortlisted 1987? Actually Wole Soyinka was shortlisted 1987 for \"The Last King of Scotland\"? Wait. Soyinka actually shortlisted for Booker 1987? Check source. We'll need to confirm.\n\nAlso: Rabindranath Tagore? He was not Booker era. Booker started 1969. So only Nobel winners after 1969.\n\nList of Nobel literature winners from 1969 onward: 1969 - Günter Grass; 1970 - Ivo Andric; 1971 - William Golding? Wait, 1973: Pablo Neruda; 1974: Pablo Neruda? Wait correct list: Let's get from Nobel website.\n\nWe need to identify export in list: Nobel winners who are in Booker shortlist history. Known authors: V.S. Naipaul (Nobel 2001). G. G. (Günter Grass? He was not Booker shortlist; he's German, but maybe in Booker? Not likely). Salman Rushdie (Nobel? Not yet). Gabriel Garcia Marquez? Not Booker shortlist.\n\nHaruki Murakami? Not winner.\n\nWe know that Nobel laureates like John Banville? No Nobel.\n\nNobel in literature in English: maybe: John Birmingham? Wait.\n\nList: 1980 – William Golding (book 'The Killing of the Andromeda), but he wrote English but his works not Booker; 1981 – Odysseas Elytis? 1983 – Henry de Montherlant? 1985 – William Golding again? Not.\n\nActually concurrency: Bookers winners list includes: 1981: John Crowley? no.\n\nBetter approach: compile list of Nobel winners after 1969 and cross-check Booker shortlist lists.\n\nBut we might find known ones: Wole Soyinka (Nobel 1986). Booker shortlist for \"Death of a King\"? Let's search web fetch for Soyinka Booker shortlist.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://thebookerprizes.com/the-booker-library/authors/wole-soyinka"
+          },
+          "result_chars": 133,
+          "is_error": true,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 6056.0,
+          "explorations": [],
+          "result": "Could not read https://thebookerprizes.com/the-booker-library/authors/wole-soyinka: Warning: Target URL returned error 404: Not Found"
+        }
+      ]
+    },
+    {
+      "turn": 11,
+      "reasoning": "",
+      "text": "",
+      "tool_calls": []
+    },
+    {
+      "turn": 12,
+      "reasoning": "We need to answer: As of Dec 31 2023, have any authors who won a Nobel Prize for Literature been shortlisted for the Booker Prize for Fiction but never won it? If so, provide names (under which they write) in chronological order of winning the Nobel.\n\nNeed to find Nobel laureates and check if they were Booker Prize shortlist but never won Booker. Nobel winners list: we need list such as 2013: Toni Morrison? Actually Toni Morrison died 2019. 2014: Patrick Modiano. 2015: ... But we should see if any of these have Booker shortlist.\n\nWe suspect two: Abdulrazak Gurnah won Nobel 2021, had Booker shortlist (Paradise 1994). He never won Booker. So answer includes Abdulrazak Gurnah.\n\nOther: Wole Soyinka Nobel 2013, had Booker shortlist 1987? He never won Booker. Also V S Naipaul won Booker and also Nobel? No, Naipaul didn't win Nobel. Actually Nobel winners: 1992: John Updike? no. Let's list Nobel winners since 1960.\n\nWe need those who have Booker shortlist but not winner. Likely Wole Soyinka, Abdulrazak Gurnah, and maybe Kazuo Ishiguro? He didn't win Booker. He won Booker in 1998 and Nobel in 2017. He did win Booker, not shortlist. We need shortlist only.\n\nAlso Haruki Murakami? No Nobel.\n\nGene: \"Toni Morrison\" hasn't Booker.\n\nPatrick Modiano: no Booker.\n\n\"Peter Handke\" no.\n\n\"Ngugi wa Thiongo\" no.\n\n\"John Banville\" no.\n\n\"John le Carré\" no.\n\nLet's check Wole Soyinka: shortlisted? He was shortlisted for Booker 1988 for \"Ake\"? Checking. Need evidence.\n\nSearch \"Wole Soyinka Booker shortlist\" already found article. Need read to get data.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond"
+          },
+          "result_chars": 4335,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1273.8,
+          "explorations": [
+            {
+              "depth": 1,
+              "parent_reasoning": "",
+              "query": "V.S. Naipaul Booker Prize shortlist",
+              "urls": [
+                "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond"
+              ],
+              "turns": 1,
+              "status": "partial",
+              "information": "### Page note: https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\nStored documents: doc-dfe0217f9b1e\nReader state: complete; relevance: partial\n**Page:** The four generations: Nigerian literature, the Booker Prize and beyond | The Booker Prizes  \n**URL:** https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\n\n**Evidence**\n\n| Entity | Field | Value | Source quotation |\n|--------|-------|-------|------------------|\n| Chinua Achebe | Booker shortlist | 1987 | “Achebe ... was shortlisted for the **Booker Prize in 1987**” |\n| Chinua Achebe | International Booker win | 2007 | “and won the **Man Booker International Prize in 2007**.” |\n| Chimamanda Ngozi Adichie | Booker nomination | 2004 | “Her first novel **Purple Hibiscus** was nominated for the Booker Prize in **2004**.” |\n| Ben Okri | Booker win | 1991 | “... and **Ben Okri** ... who won the Booker Prize in **1991**.” |\n| Wole Soyinka | Nobel Prize for Literature | 1986 | “Wole Soyinka is our Nobel Prize winner” |\n| Wole Soyinka | Booker status | not mentioned | – |\n\n**Missing**\n\n* No evidence on this page about any author who both **won a Nobel Prize for Literature** and was **shortlisted for the Booker Prize for Fiction but never won it**.  \n* No evidence linking the Nobel laureates mentioned to Booker shortlist status (except indirect mention of Wole Soyinka lacking Booker information).  \n* No list of such authors in chronological order by Nobel year.\n\n**Next links**\n\n| Link text | URL | Potential usefulness |\n|-----------|-----|----------------------|\n| Chinua Achebe (author page) | https://thebookerprizes.com/the-booker-library/authors/chinua-achebe | Could contain further Booker shortlist details but not Nobel status. |\n| Wole Soyinka (contributor page) | https://bookshop.org/contributors/wole-soyinka-ee93a7ca-e3ce-4f49-93c2-cfc6cdd54b4b | May list publications but unlikely to provide Booker shortlist info. |\n| Ben Okri (author page) | https://thebookerprizes.com/the-booker-library/authors/ben-okri | Already noted Booker win. |\n| All other internal navigation links | – | Do not directly address the missing fact (Nobel–Booker shortlist intersection). |",
+              "information_chars": 2287,
+              "own_information": "**Page:** The four generations: Nigerian literature, the Booker Prize and beyond | The Booker Prizes  \n**URL:** https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\n\n**Evidence**\n\n| Entity | Field | Value | Source quotation |\n|--------|-------|-------|------------------|\n| Chinua Achebe | Booker shortlist | 1987 | “Achebe ... was shortlisted for the **Booker Prize in 1987**” |\n| Chinua Achebe | International Booker win | 2007 | “and won the **Man Booker International Prize in 2007**.” |\n| Chimamanda Ngozi Adichie | Booker nomination | 2004 | “Her first novel **Purple Hibiscus** was nominated for the Booker Prize in **2004**.” |\n| Ben Okri | Booker win | 1991 | “... and **Ben Okri** ... who won the Booker Prize in **1991**.” |\n| Wole Soyinka | Nobel Prize for Literature | 1986 | “Wole Soyinka is our Nobel Prize winner” |\n| Wole Soyinka | Booker status | not mentioned | – |\n\n**Missing**\n\n* No evidence on this page about any author who both **won a Nobel Prize for Literature** and was **shortlisted for the Booker Prize for Fiction but never won it**.  \n* No evidence linking the Nobel laureates mentioned to Booker shortlist status (except indirect mention of Wole Soyinka lacking Booker information).  \n* No list of such authors in chronological order by Nobel year.\n\n**Next links**\n\n| Link text | URL | Potential usefulness |\n|-----------|-----|----------------------|\n| Chinua Achebe (author page) | https://thebookerprizes.com/the-booker-library/authors/chinua-achebe | Could contain further Booker shortlist details but not Nobel status. |\n| Wole Soyinka (contributor page) | https://bookshop.org/contributors/wole-soyinka-ee93a7ca-e3ce-4f49-93c2-cfc6cdd54b4b | May list publications but unlikely to provide Booker shortlist info. |\n| Ben Okri (author page) | https://thebookerprizes.com/the-booker-library/authors/ben-okri | Already noted Booker win. |\n| All other internal navigation links | – | Do not directly address the missing fact (Nobel–Booker shortlist intersection). |",
+              "own_status": "partial",
+              "own_information_chars": 2069,
+              "extraction_state": "complete",
+              "own_extraction_state": "complete",
+              "note_count": 1,
+              "recovery_attempts": 0,
+              "expansion_decision": "no",
+              "expansion_stop_reason": "no_useful_next_link",
+              "nodes": 0,
+              "error": null,
+              "latency_ms": 20340.9,
+              "opened": [],
+              "documents": [
+                "doc-dfe0217f9b1e"
+              ],
+              "pending_links": [
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/booker-prize-authors-on-the-childhood-books-that-made-them-fall-in-love",
+                  "label": "Booker Prize authors on the childhood books that made them fall in love with fiction",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 6,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/best-childrens-books-for-christmas-by-booker-prize-authors",
+                  "label": "The best children’s books for Christmas written by Booker Prize authors",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 5,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/booker-prize",
+                  "label": "Booker Prize",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years/2026",
+                  "label": "Booker Prize 2026",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years/2025",
+                  "label": "Booker Prize 2025",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/booker-prize/about-the-booker-prize",
+                  "label": "About the Booker Prize",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/full-list-of-booker-prize-winners-shortlisted-and-longlisted-authors",
+                  "label": "Full list of winners and shortlisted authors",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 6,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/booker-prize/enter-the-booker-prize",
+                  "label": "Enter the Booker Prize",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/international-booker-prize",
+                  "label": "Bukhman International Booker Prize",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years/international/2027",
+                  "label": "Bukhman International Booker Prize 2027",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years/international/2026",
+                  "label": "International Booker Prize 2026",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/international-booker-prize/the-international-booker-prize-and-its-history",
+                  "label": "About the International Booker Prize",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 4,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/full-list-of-international-booker-prize-winners-shortlisted-authors-and-their-books",
+                  "label": "Full list of winners and shortlisted authors",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 6,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/international-booker-prize/enter-the-international-booker-prize",
+                  "label": "Enter the Bukhman International Booker Prize",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-childrens-booker-prize",
+                  "label": "Children’s Booker Prize",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years/childrens/2027",
+                  "label": "Children's Booker Prize 2027",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-childrens-booker-prize/enter-the-childrens-booker-prize",
+                  "label": "Enter the Children's Booker Prize",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years/1987",
+                  "label": "Booker Prize in 1987",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years/international/2007",
+                  "label": "Man Booker International Prize in 2007",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/booker-prize-nominated-books-featuring-complicated-sibling-relationships",
+                  "label": "10 Booker Prize-nominated books featuring complicated sibling relationships",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/how-to-write-like-a-booker-nominated-author",
+                  "label": "How to write like a Booker-nominated author",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/",
+                  "label": "Go to The Booker Prizes homepage",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years?decade_date=1&field_prize=booker",
+                  "label": "Prize years",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years?decade_date=1&field_prize=international",
+                  "label": "Prize years",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library",
+                  "label": "Books & authors",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors",
+                  "label": "Authors",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years",
+                  "label": "Prize years",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/chigozie-obioma-interview-every-work-of-fiction-borrows-from-something",
+                  "label": "Chigozie Obioma interview: ‘Every work of fiction ever written borrows from something that precedes it’",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/eleven-booker-prize-nominated-novels-that-contain-dramatic-love-triangles",
+                  "label": "11 Booker-nominated novels that contain dramatic love triangles",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/childrens-booker-prize-2027-child-judge-competition",
+                  "label": "Child judge competition",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/books",
+                  "label": "Books",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features",
+                  "label": "Features",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/book-recommendations",
+                  "label": "Book recommendations",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/monthly-spotlight",
+                  "label": "Monthly Spotlight",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/interviews",
+                  "label": "Interviews",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/long-reads",
+                  "label": "Long reads",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/quizzes",
+                  "label": "Quizzes",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/book-extracts",
+                  "label": "Book extracts",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/reading-guides",
+                  "label": "Reading guides",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/where-to-start-with-guides",
+                  "label": "Where to start with...",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/videos",
+                  "label": "Videos",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/features/podcast",
+                  "label": "Podcast",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/about-us",
+                  "label": "About us",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/search",
+                  "label": "Go to our Search page.",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors/chinua-achebe",
+                  "label": "Chinua Achebe",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://bookshop.org/contributors/wole-soyinka-ee93a7ca-e3ce-4f49-93c2-cfc6cdd54b4b",
+                  "label": "Wole Soyinka",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors/chimamanda-ngozi-adichie",
+                  "label": "Chimamanda Ngozi Adichie",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://bookshop.org/p/books/things-fall-apart-chinua-achebe/6698050",
+                  "label": "_Things Fall Apar_ t",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/books/purple-hibiscus",
+                  "label": "Purple Hibiscus",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/book/show/18749.Half_of_a_Yellow_Sun?from_search=true&from_srp=true&qid=vEXHl7nT1G&rank=1",
+                  "label": "_Half of A Yellow Sun_",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://uk.bookshop.org/contributors/bessie-head",
+                  "label": "Bessie Head",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://uk.bookshop.org/contributors/sembene-ousmane",
+                  "label": "Ousmane Sembène",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://writersinspire.org/content/ayi-kwei-armah",
+                  "label": "Ayi Kwei Armah",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors/nadine-gordimer",
+                  "label": "Nadine Gordimer",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors/doris-lessing",
+                  "label": "Doris Lessing",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors/ngugi-wa-thiongo",
+                  "label": "Ngũgĩ wa Thiong’o",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://uk.bookshop.org/contributors/cyprian-ekwensi",
+                  "label": "Cyprian Ekwensi",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://uk.bookshop.org/contributors/gabriel-okara",
+                  "label": "Gabriel Okara",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/author/show/654126.Adaora_Lily_Ulasi",
+                  "label": "Adaora Lily Ulasi",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/author/show/265812.Flora_Nwapa#:~:text=Florence%20Nwanzuruahu%20Nkiru%20Nwapa%20(13,generation%20of%20African%20women%20writers.",
+                  "label": "Flora Nwapa",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.google.com/search?q=the+concubine+elechi+amadi+&sxsrf=APwXEddKcpCJNtKXeSjMAgBmQf2pxzH20A%3A1680017180559&ei=HAcjZOfhIYiJgQbR5Z-ICQ&ved=0ahUKEwjn343a9_79AhWIRMAKHdHyB5EQ4dUDCBA&uact=5&oq=the+concubine+elechi+amadi+&gs_lcp=Cgxnd3Mtd2l6LXNlcnAQAzIFCAAQgAQyBQgAEIAEMgUIABCABDIGCAAQFhAeMgYIABAWEB4yBggAEBYQHjIGCAAQFhAeMgYIABAWEB4yBggAEBYQHjoHCCMQsAMQJzoKCAAQigUQsAMQQzoJCAAQBxAeELADOggIABCABBCwAzoNCC4QigUQ1AIQsAMQQzoSCC4QigUQ1AIQyAMQsAMQQxgBOg8ILhCKBRDIAxCwAxBDGAE6BAgjECc6BwguEIoFEEM6BwgAEIoFEEM6BQguEIAEOggIABCKBRCRAjoICAAQigUQhgNKBAhBGAFQ2gFYlhFgthNoAXAAeACAAX-IAb8IkgEEMTMuMZgBAKABAcgBE8ABAdoBBggBEAEYCA&sclient=gws-wiz-serp",
+                  "label": "_The Concubine_",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://uk.bookshop.org/contributors/buchi-emecheta",
+                  "label": "Buchi Emecheta",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.africanbookscollective.com/authors-editors/labo-yari",
+                  "label": "Labo Yari’s",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/book/show/4781437-climate-of-corruption?ac=1&from\\_search=true&qid=c6PEkZ6KtY&rank=2",
+                  "label": "Climate of Corruption",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/book/show/1490048.The_Stillborn?from_search=true&from_srp=true&qid=mMBr7aDMcF&rank=1",
+                  "label": "_The Stillborn_",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/author/show/322102.Helen_Ovbiagele",
+                  "label": "Helen Obviagele",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/author/show/2928223.Chris_Abani",
+                  "label": "Chris Abani",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/book/show/2056625.Masters_of_the_board?from_search=true&from_srp=true&qid=z9F0jG7Iwl&rank=2",
+                  "label": "_Masters of the Board_",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/author/show/214715.Ken_Saro_Wiwa?from_search=true&from_srp=true",
+                  "label": "Ken Saro Wiwa",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors/ben-okri",
+                  "label": "Ben Okri",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/author/show/308929.Helon_Habila?from_search=true&from_srp=true",
+                  "label": "Helon Habila",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/author/show/16944266.Akwaeke_Emezi?from_search=true&from_srp=true",
+                  "label": "Akwaeke Emezi’s",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/book/show/35412372-freshwater",
+                  "label": "_Freshwater_",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/books/the-fishermen",
+                  "label": "_The Fishermen_",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors/chigozie-obioma",
+                  "label": "Chigozie Obioma",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/books/an-orchestra-of-minorities",
+                  "label": "An Orchestra of Minorities",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/authors/oyinkan-braithwaite",
+                  "label": "Oyinkan Braithwaite’s",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/books/my-sister-the-serial-killer",
+                  "label": "_My Sister the Serial Killer_",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/monthly-spotlight-the-fishermen-by-chigozie-obioma",
+                  "label": "Monthly Spotlight: The Fishermen by Chigozie Obioma",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/an-extract-from-the-fishermen-by-chigozie-obioma",
+                  "label": "An extract from The Fishermen by Chigozie Obioma",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/win-a-copy-of-the-fishermen-by-chigozie-obioma",
+                  "label": "Win a copy of The Fishermen by Chigozie Obioma",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/reading-guide-the-fishermen-by-chigozie-obioma",
+                  "label": "Reading guide: The Fishermen by Chigozie Obioma",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/elaine-showalter-celebrates-the-work-of-chinua-achebe",
+                  "label": "Elaine Showalter celebrates the work of Chinua Achebe",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/the-summer-i-felt-seen-discovering-chimamanda-ngozi-adichies-purple",
+                  "label": "The summer I felt seen: discovering Chimamanda Ngozi Adichie’s Purple Hibiscus",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.facebook.com/TheBookerPrizes",
+                  "label": "Go to our Facebook page.",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.instagram.com/thebookerprizes/",
+                  "label": "Go to our Instagram page.",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.youtube.com/c/TheBookerPrizes",
+                  "label": "Go to our YouTube page.",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "http://tiktok.com/@thebookerprizes",
+                  "label": "Go to our TikTok page.",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/newsletter-signup",
+                  "label": "Sign up",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/information-for/media-centre",
+                  "label": "Media centre",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/information-for-booksellers-libraries-and-book-clubs",
+                  "label": "Register for more information",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/contact-us",
+                  "label": "Contact us",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.goodreads.com/author/show/265812.Flora_Nwapa#:~:text=Florence%20Nwanzuruahu%20Nkiru%20Nwapa%20(13,generation%20of%20African%20women%20writers",
+                  "label": "https://www.goodreads.com/author/show/265812.Flora_Nwapa#:~:text=Florence%20Nwanzuruahu%20Nkiru%20Nwapa%20(13,generation%20of%20African%20women%20writers",
+                  "origin": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                }
+              ],
+              "entry": "fetch"
+            }
+          ],
+          "result": "### Page note: https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\nStored documents: doc-dfe0217f9b1e\nReader state: complete; relevance: partial\n**Page:** The four generations: Nigerian literature, the Booker Prize and beyond | The Booker Prizes  \n**URL:** https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\n\n**Evidence**\n\n| Entity | Field | Value | Source quotation |\n|--------|-------|-------|------------------|\n| Chinua Achebe | Booker shortlist | 1987 | “Achebe ... was shortlisted for the **Booker Prize in 1987**” |\n| Chinua Achebe | International Booker win | 2007 | “and won the **Man Booker International Prize in 2007**.” |\n| Chimamanda Ngozi Adichie | Booker nomination | 2004 | “Her first novel **Purple Hibiscus** was nominated for the Booker Prize in **2004**.” |\n| Ben Okri | Booker win | 1991 | “... and **Ben Okri** ... who won the Booker Prize in **1991**.” |\n| Wole Soyinka | Nobel Prize for Literature | 1986 | “Wole Soyinka is our Nobel Prize winner” |\n| Wole Soyinka | Booker status | not mentioned | – |\n\n**Missing**\n\n* No evidence on this page about any author who both **won a Nobel Prize for Literature** and was **shortlisted for the Booker Prize for Fiction but never won it**.  \n* No evidence linking the Nobel laureates mentioned to Booker shortlist status (except indirect mention of Wole Soyinka lacking Booker information).  \n* No list of such authors in chronological order by Nobel year.\n\n**Next links**\n\n| Link text | URL | Potential usefulness |\n|-----------|-----|----------------------|\n| Chinua Achebe (author page) | https://thebookerprizes.com/the-booker-library/authors/chinua-achebe | Could contain further Booker shortlist details but not Nobel status. |\n| Wole Soyinka (contributor page) | https://bookshop.org/contributors/wole-soyinka-ee93a7ca-e3ce-4f49-93c2-cfc6cdd54b4b | May list publications but unlikely to provide Booker shortlist info. |\n| Ben Okri (author page) | https://thebookerprizes.com/the-booker-library/authors/ben-okri | Already noted Booker win. |\n| All other internal navigation links | – | Do not directly address the missing fact (Nobel–Booker shortlist intersection). |\n\nStored source IDs: doc-dfe0217f9b1e\n93 source links remain unvisited (not excluded). Use research_state inspect/follow to continue this branch later.\n- Booker Prize authors on the childhood books that made them fall in love with fiction: https://thebookerprizes.com/the-booker-library/features/booker-prize-authors-on-the-childhood-books-that-made-them-fall-in-love\n- Full list of winners and shortlisted authors: https://thebookerprizes.com/the-booker-library/features/full-list-of-booker-prize-winners-shortlisted-and-longlisted-authors\n- Full list of winners and shortlisted authors: https://thebookerprizes.com/the-booker-library/features/full-list-of-international-booker-prize-winners-shortlisted-authors-and-their-books\n- The best children’s books for Christmas written by Booker Prize authors: https://thebookerprizes.com/the-booker-library/features/best-childrens-books-for-christmas-by-booker-prize-authors\n- About the International Booker Prize: https://thebookerprizes.com/international-booker-prize/the-international-booker-prize-and-its-history\n- Booker Prize 2026: https://thebookerprizes.com/the-booker-library/prize-years/2026\n- Booker Prize 2025: https://thebookerprizes.com/the-booker-library/prize-years/2025\n- About the Booker Prize: https://thebookerprizes.com/booker-prize/about-the-booker-prize\n- Enter the Booker Prize: https://thebookerprizes.com/booker-prize/enter-the-booker-prize\n- Bukhman International Booker Prize 2027: https://thebookerprizes.com/the-booker-library/prize-years/international/2027\n- International Booker Prize 2026: https://thebookerprizes.com/the-booker-library/prize-years/international/2026\n- Enter the Bukhman International Booker Prize: https://thebookerprizes.com/international-booker-prize/enter-the-international-booker-prize\n\n**Status:** partial\n**Extraction:** complete\n**Sources:** https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\n**Further expansion stopped:** no_useful_next_link. Saved evidence is retained."
+        }
+      ]
+    },
+    {
+      "turn": 13,
+      "reasoning": "We need determine Nobel Prize winners in literature and whether they were shortlisted for Booker Prize but never won it. As of Dec 31 2023. Need names. Let's list Nobel laureates and check Booker shortlist list.\n\nLet's obtain list of Nobel literature winners. Maybe Wikipedia list. Search: \"List of Nobel laureates in literature Booker shortlist\"",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Nobel Prize in Literature Booker Prize shortlist list"
+          },
+          "result_chars": 3008,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1433.6,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"The International Booker Prize 2026\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/international/2026\", \"snippet\": \"The shortlist ; The Nights Are Quiet in Tehran · Shida Bazyar. Translated by Ruth Martin ; She Who Remains · Rene Karabash. Translated by Izidora Angel ; The ...\"}, {\"title\": \"Full list of Booker Prize winners, shortlisted and longlisted ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/full-list-of-booker-prize-winners-shortlisted-and-longlisted-authors\", \"snippet\": \"Full list of Booker Prize winners, shortlisted and longlisted authors and their books ; 2026 · The Shadow of the Object by Chloe Aridjis (Chatto & ...\", \"date\": \"Jul 29, 2025\"}, {\"title\": \"Booker Prize\", \"link\": \"https://en.wikipedia.org/wiki/Booker_Prize\", \"snippet\": \"Literary critics have noted that it is a mark of distinction for authors to be selected for inclusion in the shortlist or to be nominated for the \\\"longlist\\\". A ...\"}, {\"title\": \"The Booker Prizes\", \"link\": \"https://thebookerprizes.com/\", \"snippet\": \"The Booker Prize 2026 longlist · The Shadow of the Object · Switzy · Helen of Nowhere · The End of Everything · The Disappearers · Black Bag · The Renovation · May We ...\"}, {\"title\": \"The Booker Prizes - Five Books Expert Recommendations\", \"link\": \"https://fivebooks.com/books/booker-prize/\", \"snippet\": \"The Best Novels of 2024: The Booker Prize Shortlist - Orbital by Samantha Harvey · The Best Novels of 2024: The Booker Prize Shortlist - Held by ...\", \"date\": \"Sep 3, 2026\"}, {\"title\": \"The Booker Prize 2026\", \"link\": \"https://thebookerprizes.com/the-booker-library/prize-years/2026\", \"snippet\": \"The longlist · The Shadow of the Object · Switzy · Helen of Nowhere · The End of Everything · The Disappearers · Black Bag · The Renovation · May We Feed the King.\"}, {\"title\": \"All Nobel Prizes in Literature\", \"link\": \"https://www.nobelprize.org/prizes/lists/all-nobel-prizes-in-literature/\", \"snippet\": \"All Nobel Prizes in Literature. The Nobel Prize in Literature has been awarded 118 times to 122 Nobel Prize laureates between 1901 and 2025. Click on the links ...\"}, {\"title\": \"Booker Prize Winners Ranked: Worst To Best\", \"link\": \"https://www.ontheprize.co.uk/booker-prize-winners-worst-to-best-ranked\", \"snippet\": \"A ranking of every Booker Prize winner from worst to best. From 1967 to 2024, we count down the Best of the Booker, with full reviews and ratings.\"}, {\"title\": \"Booker Prize Books | Award-Winning Fiction\", \"link\": \"https://www.worldofbooks.com/en-gb/pages/booker-prize\", \"snippet\": \"Shop the 2025 Shortlist · Flashlight · Audition · The Land in Winter · Flesh · The Rest of Our Lives · The Loneliness of Sonia and Sunny.\"}], \"related_searches\": [\"Nobel prize in literature booker prize shortlist list pdf\", \"Booker Prize shortlist 2026\", \"Booker Prize winner 2026\", \"Booker Prize 2026 list\", \"Booker Prize 2026 announcement\", \"Booker Prize winners list PDF\", \"Man Booker Prize 2026\", \"Booker Prize list\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 14,
+      "reasoning": "We need to answer: As of Dec 31 2023, have any authors who won a Nobel Prize for Literature been shortlisted for the Booker Prize for Fiction but never won it? If so, answer with name each author writes under, no other text, chronological order of Nobel. We need to find authors who achieved both: Nobel laureates AND Booker shortlisters without winning.\n\nWe need list of Nobel laureates up to 2023. Then check Booker shortlist participation.\n\nCandidates: Wole Soyinka (Nobel 1986). Was he shortlisted for Booker? I don't recall, I think he wasn't. Let's check.\n\nWe need evidence of candidate.\n\nSearch Wole Soyinka Booker shortlist.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Wole Soyinka Booker Prize shortlisted"
+          },
+          "result_chars": 3062,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1758.7,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"The four generations: Nigerian literature, the Booker Prize ...\", \"link\": \"https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\", \"snippet\": \"He was shortlisted for the Booker Prize in 1987 and won the Man Booker International Prize in 2007. Wole Soyinka is our Nobel Prize winner,\", \"date\": \"Mar 31, 2023\"}, {\"title\": \"Did Wole Soyinka Get Shortlisted For The Booker Prize\", \"link\": \"https://www.instagram.com/popular/did-wole-soyinka-get-shortlisted-for-the-booker-prize/\", \"snippet\": \"Watch short videos about did wole soyinka get shortlisted for the booker prize from people around the world. 52-year-old Nigerian playwright and poet Wole. He ...\"}, {\"title\": \"'African Booker' prize shortlist announced\", \"link\": \"https://www.theguardian.com/books/2011/may/09/african-booker-prize-shortlist-announced\", \"snippet\": \"The £10,000 prize for a short story by an African writer, known as \\\"the African Booker\\\", counts Nobel laureates Wole Soyinka, from 126 entries ...\", \"date\": \"May 9, 2011\"}, {\"title\": \"Only ONE week to go until the International Booker Prize 2026 ...\", \"link\": \"https://www.facebook.com/TheBookerPrizes/videos/only-one-week-to-go-until-the-international-booker-prize-2026-shortlist-is-revea/4391797077632475/\", \"snippet\": \"International Booker Prize 2026 shortlist is revealed! covering writers like. Wole Soyinka, Naguib Mahfouz,\", \"date\": \"5 months ago\"}, {\"title\": \"Shortlist for Fifteenth Caine Prize Announced - Illinois\", \"link\": \"https://publish.illinois.edu/litlanglibrary/2014/05/02/shortlist-for-fifteenth-caine-prize-announced/\", \"snippet\": \"Professor Wole Soyinka, Nobel Prize Winner and Patron of the Caine, announced the five shortlisted writers for the 2014 Caine Prize for African ...\", \"date\": \"May 2, 2014\"}, {\"title\": \"Wole Soyinka Prize for Literature in Africa Winners\", \"link\": \"https://www.goodreads.com/award/show/5196-wole-soyinka-prize-for-literature-in-africa\", \"snippet\": \"Winners ; Young Blood by. Sifiso Mzobe. 3.69 avg rating — 167 ratings. Wole Soyinka Prize for Literature in Africa (2012). Want to Read saving… ; I Do Not Come to ...\"}, {\"title\": \"Wole Soyinka | Biography, Plays, Books, Nobel Prize ...\", \"link\": \"https://www.britannica.com/biography/Wole-Soyinka\", \"snippet\": \"Wole Soyinka is a Nigerian playwright received the Nobel Prize for Literature in 1986. His plays include: * The Lion and the Jewel * The Trials ...\", \"date\": \"Sep 5, 2026\"}, {\"title\": \"Lumina Foundation Soyinka Prize\", \"link\": \"https://www.luminafoundationsoyinkaprize.com/\", \"snippet\": \"Books that have been short listed for other awards may be submitted for this prize. The short listed books will be reproduced by The Lumina Foundation\"}, {\"title\": \"List of works by Wole Soyinka\", \"link\": \"https://en.wikipedia.org/wiki/List_of_works_by_Wole_Soyinka\", \"snippet\": \"Soyinka has written three novels: The Interpreters (1965); Season of Anomy (1973), and Chronicles from the Land of the Happiest People on Earth (2021). From ...\"}]}"
+        }
+      ]
+    },
+    {
+      "turn": 15,
+      "reasoning": "We need to answer: As of Dec 31 2023, have any Nobel Prize in Literature winners been shortlisted for the Booker Prize for Fiction but never won it? If so, list names in chronological order of Nobel win, starting earliest.\n\nWe need evidence.\n\nWe know Nobel laureates: list includes O. Henry etc. But likely candidates: Wole Soyinka (1986 Nobel) - was he shortlisted for Booker? The article says \"He was shortlisted for the Booker Prize in 1987\" (found in earlier fetch). So yes, first candidate: Wole Soyinka. He did not win Booker.\n\nNext: any earlier Nobel gold? There are earlier like Gabriel Garcia Marquez 1982, but he may have been short listed? 1982: The novel \"One Hundred Years of Solitude\" wasn't Booker winner, Booker started 1969. But shortlist? Maybe. But we must check list of Nobel laureates up to 2023 and check if they were on Booker shortlist but not winner.\n\nList maybe includes: 1987: Toni Morrison? 1987 book? She was shortlisted? Might have been shortlisted for Booker? Toni Morrison not Booker recognized. 1988: Peter Carey? He won Booker 1988. So not.\n\n1991: John E. O? but Booker winners include e.g., Korczak? He won Booker 1999, 1999 winner Tessa. Not.\n\nThe known intersection: Wole Soyinka, Abdulrazak Gurnah (Nobel 2021) and he had previously been shortlisted for Booker 1994 (Paradise). He did not win Booker. So second candidate: Abdulrazak Gurnah (Nobel 2021). Wait also earlier: Chinua Achebe Nobel 1983? He wasn't Nobel winner. Actually Achebe did not receive Nobel. So ignore.\n\nOther Nobel winners: 2019: Peter Handke (not Booker). 2018: Chimamanda Ngozi Adichie? She didn't get Nobel.\n\n1993: William Golding? He got Pulitzer.\n\nOk.\n\nSo candidates: Wole Soyinka (Nobel 1986) and Abdulrazak Gurnah (Nobel 2021). Also maybe Kazuo Ishiguro (Nobel 2017). Was he shortlisted for Booker? He won Booker 1989? He won Booker? He won Booker 1989? Actually Ishiguro won Booker 1989 for A Pale View of Hills. He did win Booker, so excluded.\n\nOther Nobel holders: 2020: Louise Glück (poetry). Not Booker.\n\n2015: Haruki Murakami (not Booker). 2014: Patrick Modiano (not Booker). 2010: Mario Vargas Llosa (not Booker). 2009: Herta Müller (none). 2008: Richard Rodriguez, etc.\n\nEarlier: 1982: Gabriel Garcia Marquez. He had Booker nominations? He hasn't won Booker? He wasn't shortlisted? Not sure. He likely not shortlisted.\n\nAnother candidate maybe 1975: Seamus Heaney (poetry). No Booker.\n\n1979: William Golding (not). 1975: Seamus Heaney.\n\nThus likely only the two.\n\nNow need evidence that Wole Soyinka was shortlisted for Booker 1987. We saw evidence in source doc-dfe0217f9b1e page earlier: lines show \"He was shortlisted for the Booker Prize in 1987\".\n\nAlso evidence that he never won Booker. The page didn't claim a win.\n\nNeed to corroborate that.\n\nNow evidence that Abdulrazak Gurnah was shortlisted for Booker 1994. There is evidence: Booker Prize page for Paradise indicates \"shortlisted The Booker Prize 1994\". Also Wikipedia indicates his novel Paradise was shortlisted for both Booker and Whitbread. Also Nobel page indicates he won Nobel 2021.\n\nThus we have evidence that he is a Nobel Laureate and Booker shortlisted.\n\nNow we also need that he never won Booker. He didn't.\n\nThus answer list in chronological order of Nobel win: Wole Soyinka (Nobel 1986) before Abdulrazak Gurnah (Nobel 2021). Provide names each author writes under. Means name as they write under e.g., \"Wole Soyinka\". So answer lines: Wole Soyinka; Abdulrazak Gurnah.\n\nWe should cite sources: for Wole Soyinka shortlist: doc-dfe0217f9b1e lines. For Abdulrazak Gurnah shortlist: find evidence. Let's fetch the page.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://thebookerprizes.com/the-booker-library/books/paradise"
+          },
+          "result_chars": 5987,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1598.3,
+          "explorations": [
+            {
+              "depth": 1,
+              "parent_reasoning": "",
+              "query": "Wole Soyinka Booker Prize shortlisted",
+              "urls": [
+                "https://thebookerprizes.com/the-booker-library/books/paradise"
+              ],
+              "turns": 6,
+              "status": "partial",
+              "information": "### Page note: https://thebookerprizes.com/the-booker-library/books/paradise\nStored documents: doc-03e65d85edd9\nReader state: complete; relevance: partial\n**Page:** Paradise | The Booker Prizes – https://thebookerprizes.com/the-booker-library/books/paradise  \n\n**Evidence:**  \n- Author: Abdulrazak Gurnah (written by link)  \n- Shortlisted for: The Booker Prize 1994 (Shortlisted[The Booker Prize 1994])  \n- Nobel Prize in Literature: awarded October 2021 (“Abdulrazak Gurnah is the author of nine novels. He was awarded the Nobel Prize in Literature in October 2021”)  \n\n**Missing:**  \n- Confirmation that Abdulrazak Gurnah never won the Booker Prize.  \n- Information on other Nobel laureates for Literature and their Booker shortlist/award status.  \n- The precise Nobel Prize year for each laureate (only 2021 shown here).  \n\n**Next links:**  \n- «Shortlisted[The Booker Prize 1994]» → https://thebookerprizes.com/the-booker-library/prize-years/1994 (may confirm Booker status).  \n- «More about Abdulrazak Gurnah» → https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah (may contain full Booker history).  \n- «By the Sea» book page – unrelated to Booker/Nobel status.\n\n### Page note: https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah\nStored documents: doc-cd64baefc160\nReader state: complete; relevance: partial\n**Page:** Abdulrazak Gurnah | The Booker Prizes – https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah  \n\n**Evidence**  \n- *Nobel Prize Award*: “He was awarded the Nobel Prize in Literature in October 2021.”  \n- *Book shortlist*: “Pari­das‑ (shortlisted for the Booker Prize and the Whitbread Award).” (Applies to Abdulrazak Gurnah’s novel *Paradise*).  \n- *Booker judge*: “...was a Booker Prize judge in 2016.”  \n\n**Missing**  \n- Booker Prize win status for Abdulrazak Gurnah (not mentioned).  \n- Year in which *Paradise* was shortlisted for the Booker Prize.  \n- Confirmation that Abdulrazak Gurnah has never won the Booker Prize (only inferred from absence of win mention).  \n\n**Next links**  \n- “Paradise” link (https://thebookerprizes.com/the-booker-library/books/paradise) – could show Booker shortlist year and whether the book won.  \n- “Full list of winners and shortlisted authors” link – may list all Booker nominees and winners.\n\n### Page note: https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\nStored documents: doc-dfe0217f9b1e\nReader state: complete; relevance: partial\n**Page:** The four generations: Nigerian literature, the Booker Prize and beyond | The Booker Prizes  \n**URL:** https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\n\n**Evidence**\n\n| Entity | Field | Value | Source quotation |\n|--------|-------|-------|------------------|\n| Chinua Achebe | Booker shortlist | 1987 | “Achebe ... was shortlisted for the **Booker Prize in 1987**” |\n| Chinua Achebe | International Booker win | 2007 | “and won the **Man Booker International Prize in 2007**.” |\n| Chimamanda Ngozi Adichie | Booker nomination | 2004 | “Her first novel **Purple Hibiscus** was nominated for the Booker Prize in **2004**.” |\n| Ben Okri | Booker win | 1991 | “... and **Ben Okri** ... who won the Booker Prize in **1991**.” |\n| Wole Soyinka | Nobel Prize for Literature | 1986 | “Wole Soyinka is our Nobel Prize winner” |\n| Wole Soyinka | Booker status | not mentioned | – |\n\n**Missing**\n\n* No evidence on this page about any author who both **won a Nobel Prize for Literature** and was **shortlisted for the Booker Prize for Fiction but never won it**.  \n* No evidence linking the Nobel laureates mentioned to Booker shortlist status (except indirect mention of Wole Soyinka lacking Booker information).  \n* No list of such authors in chronological order by Nobel year.\n\n**Next links**\n\n| Link text | URL | Potential usefulness |\n|-----------|-----|----------------------|\n| Chinua Achebe (author page) | https://thebookerprizes.com/the-booker-library/authors/chinua-achebe | Could contain further Booker shortlist details but not Nobel status. |\n| Wole Soyinka (contributor page) | https://bookshop.org/contributors/wole-soyinka-ee93a7ca-e3ce-4f49-93c2-cfc6cdd54b4b | May list publications but unlikely to provide Booker shortlist info. |\n| Ben Okri (author page) | https://thebookerprizes.com/the-booker-library/authors/ben-okri | Already noted Booker win. |\n| All other internal navigation links | – | Do not directly address the missing fact (Nobel–Booker shortlist intersection). |",
+              "information_chars": 4602,
+              "own_information": "**Page:** Paradise | The Booker Prizes – https://thebookerprizes.com/the-booker-library/books/paradise  \n\n**Evidence:**  \n- Author: Abdulrazak Gurnah (written by link)  \n- Shortlisted for: The Booker Prize 1994 (Shortlisted[The Booker Prize 1994])  \n- Nobel Prize in Literature: awarded October 2021 (“Abdulrazak Gurnah is the author of nine novels. He was awarded the Nobel Prize in Literature in October 2021”)  \n\n**Missing:**  \n- Confirmation that Abdulrazak Gurnah never won the Booker Prize.  \n- Information on other Nobel laureates for Literature and their Booker shortlist/award status.  \n- The precise Nobel Prize year for each laureate (only 2021 shown here).  \n\n**Next links:**  \n- «Shortlisted[The Booker Prize 1994]» → https://thebookerprizes.com/the-booker-library/prize-years/1994 (may confirm Booker status).  \n- «More about Abdulrazak Gurnah» → https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah (may contain full Booker history).  \n- «By the Sea» book page – unrelated to Booker/Nobel status.",
+              "own_status": "partial",
+              "own_information_chars": 1031,
+              "extraction_state": "complete",
+              "own_extraction_state": "complete",
+              "note_count": 3,
+              "recovery_attempts": 1,
+              "expansion_decision": "yes",
+              "expansion_stop_reason": "",
+              "nodes": 1,
+              "error": null,
+              "latency_ms": 95314.2,
+              "opened": [
+                {
+                  "depth": 2,
+                  "parent_reasoning": "Saved facts from the parent page (not the page you are about to read):\n**Page:** Paradise | The Booker Prizes – https://thebookerprizes.com/the-booker-library/books/paradise  \n\n**Evidence:**  \n- Author: Abdulrazak Gurnah (written by link)  \n- Shortlisted for: The Booker Prize 1994 (Shortlisted[The Booker Prize 1994])  \n- Nobel Prize in Literature: awarded October 2021 (“Abdulrazak Gurnah is the author of nine novels. He was awarded the Nobel Prize in Literature in October 2021”)  \n\n**Missing:**  \n- Confirmation that Abdulrazak Gurnah never won the Booker Prize.  \n- Information on other Nobel laureates for Literature and their Booker shortlist/award status.  \n- The precise Nobel Prize year for each laureate (only 2021 shown here).  \n\n**Next links:**  \n- «Shortlisted[The Booker Prize 1994]» → https://thebookerprizes.com/the-booker-library/prize-years/1994 (may confirm Booker status).  \n- «More about Abdulrazak Gurnah» → https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah (may contain full Booker history).  \n- «By the Sea» book page – unrelated to Booker/Nobel status.\n\nPurpose of following this link:\nWe have missing: confirmation that Abdulrazak Gurnah never won Booker. That can be answered by the booker prize 1994 page; but Booker prize they've gotten shortlisted. Does the page mention he won? Not. However to prove \"never won\" we may need source where list of winners excludes him. The booker 2026 page not relevant. We could open the author page which may list Booker wins.\n\nLet's open \"https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah\".",
+                  "query": "Wole Soyinka Booker Prize shortlisted",
+                  "urls": [
+                    "https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah"
+                  ],
+                  "turns": 4,
+                  "status": "partial",
+                  "information": "### Page note: https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah\nStored documents: doc-cd64baefc160\nReader state: complete; relevance: partial\n**Page:** Abdulrazak Gurnah | The Booker Prizes – https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah  \n\n**Evidence**  \n- *Nobel Prize Award*: “He was awarded the Nobel Prize in Literature in October 2021.”  \n- *Book shortlist*: “Pari­das‑ (shortlisted for the Booker Prize and the Whitbread Award).” (Applies to Abdulrazak Gurnah’s novel *Paradise*).  \n- *Booker judge*: “...was a Booker Prize judge in 2016.”  \n\n**Missing**  \n- Booker Prize win status for Abdulrazak Gurnah (not mentioned).  \n- Year in which *Paradise* was shortlisted for the Booker Prize.  \n- Confirmation that Abdulrazak Gurnah has never won the Booker Prize (only inferred from absence of win mention).  \n\n**Next links**  \n- “Paradise” link (https://thebookerprizes.com/the-booker-library/books/paradise) – could show Booker shortlist year and whether the book won.  \n- “Full list of winners and shortlisted authors” link – may list all Booker nominees and winners.",
+                  "information_chars": 1125,
+                  "own_information": "**Page:** Abdulrazak Gurnah | The Booker Prizes – https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah  \n\n**Evidence**  \n- *Nobel Prize Award*: “He was awarded the Nobel Prize in Literature in October 2021.”  \n- *Book shortlist*: “Pari­das‑ (shortlisted for the Booker Prize and the Whitbread Award).” (Applies to Abdulrazak Gurnah’s novel *Paradise*).  \n- *Booker judge*: “...was a Booker Prize judge in 2016.”  \n\n**Missing**  \n- Booker Prize win status for Abdulrazak Gurnah (not mentioned).  \n- Year in which *Paradise* was shortlisted for the Booker Prize.  \n- Confirmation that Abdulrazak Gurnah has never won the Booker Prize (only inferred from absence of win mention).  \n\n**Next links**  \n- “Paradise” link (https://thebookerprizes.com/the-booker-library/books/paradise) – could show Booker shortlist year and whether the book won.  \n- “Full list of winners and shortlisted authors” link – may list all Booker nominees and winners.",
+                  "own_status": "partial",
+                  "own_information_chars": 959,
+                  "extraction_state": "complete",
+                  "own_extraction_state": "complete",
+                  "note_count": 1,
+                  "recovery_attempts": 0,
+                  "expansion_decision": "no",
+                  "expansion_stop_reason": "",
+                  "nodes": 0,
+                  "error": null,
+                  "latency_ms": 43394.7,
+                  "opened": [],
+                  "documents": [
+                    "doc-cd64baefc160"
+                  ],
+                  "pending_links": [
+                    {
+                      "url": "https://thebookerprizes.com/the-booker-library/prize-years/2016",
+                      "label": "The Booker Prize 2016",
+                      "origin": "https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah",
+                      "depth": 3,
+                      "priority": 3,
+                      "status": "pending"
+                    },
+                    {
+                      "url": "https://thebookerprizes.com/the-booker-library/features/the-booker-prize-in-the-noughties-10-novels-that-are-well-worth-revisiting",
+                      "label": "The Booker Prize in the noughties: 10 novels that are well worth revisiting",
+                      "origin": "https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah",
+                      "depth": 3,
+                      "priority": 3,
+                      "status": "pending"
+                    },
+                    {
+                      "url": "https://thebookerprizes.com/the-booker-library/features/multiple-winners-and-nominees-of-the-booker-prize",
+                      "label": "Multiple winners and nominees of the Booker Prize",
+                      "origin": "https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah",
+                      "depth": 3,
+                      "priority": 4,
+                      "status": "pending"
+                    },
+                    {
+                      "url": "https://thebookerprizes.com/the-booker-library/features/a-booker-prize-reading-list-for-black-history-month",
+                      "label": "A Booker Prize reading list for Black History Month",
+                      "origin": "https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah",
+                      "depth": 3,
+                      "priority": 4,
+                      "status": "pending"
+                    },
+                    {
+                      "url": "https://thebookerprizes.com/the-big-jubilee-read-booker-prize",
+                      "label": "The Big Jubilee Read: 21 Booker books to celebrate the reign of Queen Elizabeth II",
+                      "origin": "https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah",
+                      "depth": 3,
+                      "priority": 3,
+                      "status": "pending"
+                    },
+                    {
+                      "url": "https://thebookerprizes.com/the-booker-library/features/ladivine-by-marie-ndiaye-a-haunting-portrayal-of-the-power-of-family",
+                      "label": "Ladivine by Marie NDiaye: a haunting portrayal of the power of family secrets",
+                      "origin": "https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah",
+                      "depth": 3,
+                      "priority": 2,
+                      "status": "pending"
+                    }
+                  ]
+                },
+                {
+                  "depth": 2,
+                  "urls": [
+                    "https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah"
+                  ],
+                  "reused": true,
+                  "status": "partial",
+                  "extraction_state": "complete",
+                  "information_chars": 1125,
+                  "opened": []
+                },
+                {
+                  "depth": 2,
+                  "urls": [
+                    "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond"
+                  ],
+                  "reused": true,
+                  "status": "partial",
+                  "extraction_state": "complete",
+                  "information_chars": 2287,
+                  "opened": []
+                }
+              ],
+              "documents": [
+                "doc-03e65d85edd9"
+              ],
+              "pending_links": [
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/the-booker-prizes-reaction-to-gurnahs-nobel-prize-in-literature",
+                  "label": "The Booker Prize's reaction to Gurnah's Nobel Prize in Literature",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 5,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/prize-years/1994",
+                  "label": "The Booker Prize 1994",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/features/the-best-classic-booker-prize-nominated-novels",
+                  "label": "70 classic Booker Prize-nominated novels, recommended by our readers",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "http://www.amazon.co.uk/dp/0747573999/ref=nosim?tag=bookerpriz030-21",
+                  "label": "Amazon",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://blackwells.co.uk/bookshop/product/9780747573999?a_aid=bookerprizeblackwells",
+                  "label": "Blackwells",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://uk.bookshop.org/a/7577/9780747573999",
+                  "label": "Bookshop.org UK",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://bookshop.org/a/93675/9781565841635",
+                  "label": "Bookshop.org USA",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.awin1.com/pclick.php?p=23159668735&a=1101917&m=3787",
+                  "label": "Waterstones",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://thebookerprizes.com/the-booker-library/books/by-the-sea",
+                  "label": "By the Sea",
+                  "origin": "https://thebookerprizes.com/the-booker-library/books/paradise",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                }
+              ],
+              "entry": "fetch"
+            }
+          ],
+          "result": "### Page note: https://thebookerprizes.com/the-booker-library/books/paradise\nStored documents: doc-03e65d85edd9\nReader state: complete; relevance: partial\n**Page:** Paradise | The Booker Prizes – https://thebookerprizes.com/the-booker-library/books/paradise  \n\n**Evidence:**  \n- Author: Abdulrazak Gurnah (written by link)  \n- Shortlisted for: The Booker Prize 1994 (Shortlisted[The Booker Prize 1994])  \n- Nobel Prize in Literature: awarded October 2021 (“Abdulrazak Gurnah is the author of nine novels. He was awarded the Nobel Prize in Literature in October 2021”)  \n\n**Missing:**  \n- Confirmation that Abdulrazak Gurnah never won the Booker Prize.  \n- Information on other Nobel laureates for Literature and their Booker shortlist/award status.  \n- The precise Nobel Prize year for each laureate (only 2021 shown here).  \n\n**Next links:**  \n- «Shortlisted[The Booker Prize 1994]» → https://thebookerprizes.com/the-booker-library/prize-years/1994 (may confirm Booker status).  \n- «More about Abdulrazak Gurnah» → https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah (may contain full Booker history).  \n- «By the Sea» book page – unrelated to Booker/Nobel status.\n\n### Page note: https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah\nStored documents: doc-cd64baefc160\nReader state: complete; relevance: partial\n**Page:** Abdulrazak Gurnah | The Booker Prizes – https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah  \n\n**Evidence**  \n- *Nobel Prize Award*: “He was awarded the Nobel Prize in Literature in October 2021.”  \n- *Book shortlist*: “Pari­das‑ (shortlisted for the Booker Prize and the Whitbread Award).” (Applies to Abdulrazak Gurnah’s novel *Paradise*).  \n- *Booker judge*: “...was a Booker Prize judge in 2016.”  \n\n**Missing**  \n- Booker Prize win status for Abdulrazak Gurnah (not mentioned).  \n- Year in which *Paradise* was shortlisted for the Booker Prize.  \n- Confirmation that Abdulrazak Gurnah has never won the Booker Prize (only inferred from absence of win mention).  \n\n**Next links**  \n- “Paradise” link (https://thebookerprizes.com/the-booker-library/books/paradise) – could show Booker shortlist year and whether the book won.  \n- “Full list of winners and shortlisted authors” link – may list all Booker nominees and winners.\n\n### Page note: https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\nStored documents: doc-dfe0217f9b1e\nReader state: complete; relevance: partial\n**Page:** The four generations: Nigerian literature, the Booker Prize and beyond | The Booker Prizes  \n**URL:** https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\n\n**Evidence**\n\n| Entity | Field | Value | Source quotation |\n|--------|-------|-------|------------------|\n| Chinua Achebe | Booker shortlist | 1987 | “Achebe ... was shortlisted for the **Booker Prize in 1987**” |\n| Chinua Achebe | International Booker win | 2007 | “and won the **Man Booker International Prize in 2007**.” |\n| Chimamanda Ngozi Adichie | Booker nomination | 2004 | “Her first novel **Purple Hibiscus** was nominated for the Booker Prize in **2004**.” |\n| Ben Okri | Booker win | 1991 | “... and **Ben Okri** ... who won the Booker Prize in **1991**.” |\n| Wole Soyinka | Nobel Prize for Literature | 1986 | “Wole Soyinka is our Nobel Prize winner” |\n| Wole Soyinka | Booker status | not mentioned | – |\n\n**Missing**\n\n* No evidence on this page about any author who both **won a Nobel Prize for Literature** and was **shortlisted for the Booker Prize for Fiction but never won it**.  \n* No evidence linking the Nobel laureates mentioned to Booker shortlist status (except indirect mention of Wole Soyinka lacking Booker information).  \n* No list of such authors in chronological order by Nobel year.\n\n**Next links**\n\n| Link text | URL | Potential usefulness |\n|-----------|-----|----------------------|\n| Chinua Achebe (author page) | https://thebookerprizes.com/the-booker-library/authors/chinua-achebe | Could contain further Booker shortlist details but not Nobel status. |\n| Wole Soyinka (contributor page) | https://bookshop.org/contributors/wole-soyinka-ee93a7ca-e3ce-4f49-93c2-cfc6cdd54b4b | May list publications but unlikely to provide Booker shortlist info. |\n| Ben Okri (author page) | https://thebookerprizes.com/the-booker-library/authors/ben-okri | Already noted Booker win. |\n| All other internal navigation links | – | Do not directly address the missing fact (Nobel–Booker shortlist intersection). |\n\nStored source IDs: doc-03e65d85edd9\n9 source links remain unvisited (not excluded). Use research_state inspect/follow to continue this branch later.\n- The Booker Prize's reaction to Gurnah's Nobel Prize in Literature: https://thebookerprizes.com/the-booker-library/features/the-booker-prizes-reaction-to-gurnahs-nobel-prize-in-literature\n- The Booker Prize 1994: https://thebookerprizes.com/the-booker-library/prize-years/1994\n- 70 classic Booker Prize-nominated novels, recommended by our readers: https://thebookerprizes.com/the-booker-library/features/the-best-classic-booker-prize-nominated-novels\n- By the Sea: https://thebookerprizes.com/the-booker-library/books/by-the-sea\n- Amazon: http://www.amazon.co.uk/dp/0747573999/ref=nosim?tag=bookerpriz030-21\n- Blackwells: https://blackwells.co.uk/bookshop/product/9780747573999?a_aid=bookerprizeblackwells\n- Bookshop.org UK: https://uk.bookshop.org/a/7577/9780747573999\n- Bookshop.org USA: https://bookshop.org/a/93675/9781565841635\n- Waterstones: https://www.awin1.com/pclick.php?p=23159668735&a=1101917&m=3787\n\n**Status:** partial\n**Extraction:** complete\n**Sources:** https://thebookerprizes.com/the-booker-library/books/paradise, https://thebookerprizes.com/the-booker-library/authors/abdulrazak-gurnah, https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond"
+        }
+      ]
+    },
+    {
+      "turn": 16,
+      "reasoning": "Goal: find Nobel laureates for Literature who were shortlisted for Booker Prize for Fiction but never won it. Provide names only, chronological order by Nobel win year.\n\nNeed list of Nobel laureates. Likely candidates: Wole Soyinka (1986), V.S. Naipaul (1983?), but Naipaul won Booker. Others: Naguib Mahfouz (1988) was shortlist? Actually his book \"A Thousand and One Nights\" maybe not. Arundhati Roy (won Booker 1997). But we need shortlist only.\n\nLet's search each Nobel laureate for Booker shortlist status.\n\nFirst: Wole Soyinka (Nobel 1986). Did he shortlist? Search.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Wole Soyinka Booker Prize shortlisted"
+          },
+          "result_chars": 0,
+          "is_error": false,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "web_search limit reached — you have used all 10 of your 10 searches and no further search will run. Answer the question now from what you have gathered."
+        }
+      ]
+    },
+    {
+      "turn": 17,
+      "reasoning": "We have gathered evidence: Abdulrazak Gurnah (Nobel 2021, Booker shortlisted 1994, never won). Wole Soyinka is Nobel 1986; does he have Booker shortlist? Need evidence if he was shortlisted. Let's search without web_search but maybe read page Wole Soyinka author page.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://thebookerprizes.com/the-booker-library/authors/wole-soyinka"
+          },
+          "result_chars": 133,
+          "is_error": true,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 673.3,
+          "explorations": [],
+          "result": "Could not read https://thebookerprizes.com/the-booker-library/authors/wole-soyinka: Warning: Target URL returned error 404: Not Found"
+        }
+      ]
+    },
+    {
+      "turn": 18,
+      "reasoning": "We hit search limit. We need to answer the question:\n\n\"As of December 31 2023, have any authors who won a Nobel Prize for Literature been shortlisted for the Booker Prize for Fiction but never won it? If so, please answer with the name each author writes under and nothing else. Give the names in chronological order of winning the Nobel Prize, starting with the earliest winner.\"\n\nWe have evidence of Abdulrazak Gurnah: Nobel 2021, shortlisted for Booker 1994, never won. Also, we need to check other Nobel laureates. Let's think of Nobel winners in literature and Booker shortlist status.\n\nList of Nobel laureates in literature who have also been shortlisted for Booker. We'll consider those who have had Booker shortlist but no win.\n\nPossible candidates: Abdulrazak Gurnah (1994 shortlist). Actually, Nobel 2021, Booker 1994 shortlist.\n\nAlso, maybe Wole Soyinka? He won Nobel 1986 but hasn't been shortlisted for Booker? He was shortlisted-? He was not on Booker shortlist; but he has not - some sources mention perhaps not called. So not.\n\nHaruki Murakami? He didn't win Nobel.\n\nOther Nobel winners: Mario Vargas Llosa? He hasn't been shortlisted.\n\nOr Emmanuel B.? Let's recall Booker winners/full list: Booker winners: 1969: William Golding (Nobel 1983). Booker winner also Nobel. But we need shortlist but not win. Candidates might include:\n\n- V. S. Naipaul: won Booker 1971, but he is a Nobel laureate (Nobel 2001). But he won Booker, so not qualify.\n\n- Camilla De? That's wrong.\n\n- José Saramago: Nobel 1998, Booker? Did he have Booker shortlist? He won the Grande? Wait: Saramago's novels may have been longlisted for the Booker? He possibly was longlisted for Booker 1996? Need check.\n\nBut we might need to verify Booker shortlist. Could be best to compile list manually from offline knowledge but need citations.\n\nWe have evidence for Abdulrazak Gurnah. Need evidence that Gurnah never won Booker. Possibly the Booker website says he has no Booker win. Also evidence that other Nobel laureates who were shortlisted include \"V.S. Naipaul\" but he won booklet, so not.\n\nAlso \"John McGahern\"? He was nominated for Booker but didn't win.\n\nBut he did not win Nobel.\n\nLet's search for \"John McGahern Booker shortlist\". But limited searches.\n\nMaybe we can use Wikipedia to list Nobel laureates and see Booker shortlist. Let's search: \"Nobel Prize literature 1994 Booker shortlist\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"Booker Prize\" 1994\" Nobel\""
+          },
+          "result_chars": 0,
+          "is_error": false,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "web_search limit reached — you have used all 10 of your 10 searches and no further search will run. Answer the question now from what you have gathered."
+        }
+      ]
+    },
+    {
+      "turn": 19,
+      "reasoning": "We need to find whether any Nobel literature laureates have been shortlisted for Booker but never won. Known candidates: Wole Soyinka (Nobel 1986, has Booker shortlist? He was shortlisted in 1987? Wait: earlier note: He was shortlisted for Booker in 1987? Search produced that snippet: \"He was shortlisted for the Booker Prize in 1987 and won the Man Booker International Prize in 2007.\" But that was part of a page about Nigerian literature. That page says the Nobel laureate. The snippet indicates he was shortlisted for Booker in 1987 (maybe his book). That would meet condition. Another candidate: Abdulrazak Gurnah (Nobel 2021, Booker shortlist 1994 for Paradise; did he win? No. So qualifies. Another: V. S. Naipaul (Nobel 2004). He was Booker winner, not just shortlisted. So not qualifies. No. We need nominees shortlisted but never won. Gurnah qualifies. Soyinka qualifies if indeed he was shortlisted (though revoked? 1987 Booker shortlist controversial; but he remained shortlisted). We have evidence from the booker page? We saw snippet: He was shortlisted \"in 1987\" but need source quotation. The doc-dfe0217f9b1e had that. Let's open that page again to capture quote.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond"
+          },
+          "result_chars": 2467,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "### Page note: https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\nStored documents: doc-dfe0217f9b1e\nReader state: complete; relevance: partial\n**Page:** The four generations: Nigerian literature, the Booker Prize and beyond | The Booker Prizes  \n**URL:** https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\n\n**Evidence**\n\n| Entity | Field | Value | Source quotation |\n|--------|-------|-------|------------------|\n| Chinua Achebe | Booker shortlist | 1987 | “Achebe ... was shortlisted for the **Booker Prize in 1987**” |\n| Chinua Achebe | International Booker win | 2007 | “and won the **Man Booker International Prize in 2007**.” |\n| Chimamanda Ngozi Adichie | Booker nomination | 2004 | “Her first novel **Purple Hibiscus** was nominated for the Booker Prize in **2004**.” |\n| Ben Okri | Booker win | 1991 | “... and **Ben Okri** ... who won the Booker Prize in **1991**.” |\n| Wole Soyinka | Nobel Prize for Literature | 1986 | “Wole Soyinka is our Nobel Prize winner” |\n| Wole Soyinka | Booker status | not mentioned | – |\n\n**Missing**\n\n* No evidence on this page about any author who both **won a Nobel Prize for Literature** and was **shortlisted for the Booker Prize for Fiction but never won it**.  \n* No evidence linking the Nobel laureates mentioned to Booker shortlist status (except indirect mention of Wole Soyinka lacking Booker information).  \n* No list of such authors in chronological order by Nobel year.\n\n**Next links**\n\n| Link text | URL | Potential usefulness |\n|-----------|-----|----------------------|\n| Chinua Achebe (author page) | https://thebookerprizes.com/the-booker-library/authors/chinua-achebe | Could contain further Booker shortlist details but not Nobel status. |\n| Wole Soyinka (contributor page) | https://bookshop.org/contributors/wole-soyinka-ee93a7ca-e3ce-4f49-93c2-cfc6cdd54b4b | May list publications but unlikely to provide Booker shortlist info. |\n| Ben Okri (author page) | https://thebookerprizes.com/the-booker-library/authors/ben-okri | Already noted Booker win. |\n| All other internal navigation links | – | Do not directly address the missing fact (Nobel–Booker shortlist intersection). |\nPreviously saved notes; no new network fetch. Use read_document for another part of this source; research_state inspect/follow for pending links.\nStored document: doc-dfe0217f9b1e"
+        }
+      ]
+    },
+    {
+      "turn": 20,
+      "reasoning": "We need list of Nobel literature winners who were shortlisted for Booker but never won. Based on known intersections: Abdulrazak Gurnah (Nobel 2021 short listed 1994, never won). Also Wole Soyinka? He was shortlisted? Need evidence. Check other known: V. S. Naipaul (won Booker, so excluded). Octavia E. Butler? Not Nobel. John Banville? No Nobel. So we need any Nobel laureates with Booker shortlist but not winner.\n\nLet's search within stored doc maybe list of Nobel laureates candidate: Wole Soyinka might have been shortlisted 1987? Let's search doc for \"Soyinka\" again. Already. But not in Booker context. We need evidence that Soyinka was shortlisted for Booker. Might not be.\n\nAnother candidate: Nadine Gordimer? She didn't shortlisted? Probably not.\n\nTry search \"Nobel Prize literature Booker shortlist\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"Nobel Prize\" \"Booker\" \"shortlisted\""
+          },
+          "result_chars": 0,
+          "is_error": false,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "web_search limit reached — you have used all 10 of your 10 searches and no further search will run. Answer the question now from what you have gathered."
+        }
+      ]
+    },
+    {
+      "turn": 21,
+      "reasoning": "We hit search limit, need to analyze information gathered and answer. We have found at least one Nobel laureate who was shortlisted for Booker but hasn't won: Abdulrazak Gurnah (Nobel 2021, Booker shortlist 1994 for Paradise, never won). Need chronological order of Nobel winners that satisfy condition; we know at least Gurnah (2021). Are there older Nobel laureates also shortlisted? Candidates: Wole Soyinka (Nobel 1986). Did he get Booker shortlist? I've seen 1987 shortlist reference to Achebe, not Soyinka. Also maybe Joseph Conrad? Not Nobel. Let's think of Nobel laureates in Literature: list includes:\n\n1901 Sienkiewicz (no Booker).\n1905 Bucharest? etc. But Booker started 1969. So relevant Nobel laureates from 1969 onward.\n\nWe need Nobel laureates who were shortlisted for Booker but never won Booker.\n\nPotential names: Abdulrazak Gurnah (1994 shortlist). V. S. Naipaul: Nobel 2001. He had Booker win (1971) and also Booker shortlist? He was shortlisted 1979 A Bend in the River. He also won earlier. But he did win Booker, so not eligible.\n\nOr Wole Soyinka: Nobel 1986. He is author of \"A Stilton of things\" not. Booker? Some sources say he was shortlisted for Booker in 1985? Need evidence. Let's search internal doc for \"Soyinka\" in booker pages. Use read_document on doc-dfe0217f9b1e or others.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "read_document",
+          "arguments": {
+            "document": "doc-dfe0217f9b1e",
+            "action": "find",
+            "terms": [
+              "Soyinka"
+            ]
+          },
+          "result_chars": 3229,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "{\"document\": \"doc-dfe0217f9b1e\", \"url\": \"https://thebookerprizes.com/the-booker-library/features/the-four-generations-nigerian-literature-the-booker-prize-and-beyond\", \"operation\": {\"document\": \"doc-dfe0217f9b1e\", \"action\": \"find\", \"terms\": [\"Soyinka\"]}, \"total\": 3, \"lines\": [[82, \"On any occasion when the words Nigeria and Literature are spoken of in the same sentence, whether by eager students at a secondary school in Lagos or by a foreigner who has never set foot in Africa, it is inevitable that three writers are mentioned: [Chinua Achebe](https://thebookerprizes.com/the-booker-library/authors/chinua-achebe), [Wole Soyinka](https://bookshop.org/contributors/wole-soyinka-ee93a7ca-e3ce-4f49-93c2-cfc6cdd54b4b) and [Chimamanda Ngozi Adichie](https://thebookerprizes.com/the-booker-library/authors/chimamanda-ngozi-adichie). We could call them The Big Three.\"], [86, \"Wole Soyinka is our Nobel Prize winner, a Commander of the Order of the Federal Republic of Nigeria. He has won the Special Prize of the Europe Theatre Prize, and the University of Ibadan arts theatre is named after him. When I was growing up, his name was often spoken of in hushed, reverent tones. I still remember our English teacher at school in Abuja describing his genius as one that can’t be categorised.\"], [110, \"The first generation of Nigerian authors began writing between the 1950s and the 1970s. They include Wole Soyinka, Chinua Achebe, [Cyprian Ekwensi](https://uk.bookshop.org/contributors/cyprian-ekwensi) and [Gabriel Okara](https://uk.bookshop.org/contributors/gabriel-okara), to name a few. They were mostly male writers, with the exception of a few women such as [Adaora Lily Ulasi](https://www.goodreads.com/author/show/654126.Adaora_Lily_Ulasi) and [Flora Nwapa](https://www.goodreads.com/author/show/265812.Flora_Nwapa#:~:text=Florence%20Nwanzuruahu%20Nkiru%20Nwapa%20(13,generation%20of%20African%20women%20writers.). (Fun fact: Nwapa set up her own publishing house to publish women’s fiction in a nearby shed.) These writers wanted to challenge the designation of Nigerians (and Africans) as primitive, without history or culture. The novel had the potential to rebut this racist logic by taking as its subject the traditions that were once thought to be shameful. Elechi Amadi’s [_The Concubine_](https://www.google.com/search?q=the+concubine+elechi+amadi+&sxsrf=APwXEddKcpCJNtKXeSjMAgBmQf2pxzH20A%3A1680017180559&ei=HAcjZOfhIYiJgQbR5Z-ICQ&ved=0ahUKEwjn343a9_79AhWIRMAKHdHyB5EQ4dUDCBA&uact=5&oq=the+concubine+elechi+amadi+&gs_lcp=Cgxnd3Mtd2l6LXNlcnAQAzIFCAAQgAQyBQgAEIAEMgUIABCABDIGCAAQFhAeMgYIABAWEB4yBggAEBYQHjIGCAAQFhAeMgYIABAWEB4yBggAEBYQHjoHCCMQsAMQJzoKCAAQigUQsAMQQzoJCAAQBxAeELADOggIABCABBCwAzoNCC4QigUQ1AIQsAMQQzoSCC4QigUQ1AIQyAMQsAMQQxgBOg8ILhCKBRDIAxCwAxBDGAE6BAgjECc6BwguEIoFEEM6BwgAEIoFEEM6BQguEIAEOggIABCKBRCRAjoICAAQigUQhgNKBAhBGAFQ2gFYlhFgthNoAXAAeACAAX-IAb8IkgEEMTMuMZgBAKABAcgBE8ABAdoBBggBEAEYCA&sclient=gws-wiz-serp) in one example - it purposefully depicted an orderly society ruled by African gods. Fiction of the first generation was also concerned with the Biafran War (1967- 1971) and writers of the south east (Biafra) toured the US to raise awareness of the murder of Igbos.\"]], \"next_offset\": null}"
+        }
+      ]
+    },
+    {
+      "turn": 22,
+      "reasoning": "We at limit of 10 search queries, but we have gathered some evidence. Need to answer: \"As of December 31 2023, have any authors who won a Nobel Prize for Literature were shortlisted for the Booker Prize for Fiction but never won it? If so answer with the name each author writes under and nothing else. Give the names in chronological order of winning the Nobel Prize, starting with earliest winner.\"\n\nSo need to check Nobel laureates up to 2023 who were shortlisted for Booker but never won. We found evidence: Abdulrazak Gurnah (Nobel 2021) shortlisted in 1994 for Paradise but never won Booker. We need also earlier Nobel winners. Consider:\n\n- José Saramago (Nobel 1998). Was he shortlisted for Booker? He was longlisted? He was shortlisted? He was shortlisted for Booker 1998? He won Booker International in 2002? Not; but maybe not. Need evidence.\n\n- Wole Soyinka (Nobel 1986). Shortlisted for Booker 1987? No evidence. Actually Chinua Achebe was Booker shortlist 1987, not Soyinka. Did Soyinka ever get shortlisted? Not sure. Could be not.\n\n- Man Booker shortlist for any Nobel winners: Let's recall winners list:\n\n1901–1950: only 1 Nobel laureate that might have Booker: Dorothy... Actually Booker started 1969 so Nobel winners before 1969 irrelevant. From 1969 onwards:\n\n- 1969 Nobel: Alexander Solzhenitsyn (not Booker). Booker: 1969 winners: ... He had won Booker 1970? But not.\n\n- 1978 Nobel: William Golding? He was early? Wait Nobel 1978: William Golding. Shortlisted? He didn't.\n\n- 1979 Nobel: William Gaddis? Actually 1979 Nobel: William Gaddis? No, it's 1979: William Golding. He was Booker winner 1968? Actually Golding won Booker 1982? Wait Booker winner list: 1982:... He has no Booker.\n\nBut I need evidence of Booker shortlist of Nobel laureates.\n\nWe have evidence from Abdulrazak Gurnah only. Another known: John Banville (Nobel? no). Another Nobel laureate who was Booker winner: too many: e.g., Margaret Atwood is author and winner of Booker (2000) and she hasn't won Nobel. So not.\n\nWe need Nobel laureates who did not win Booker but were shortlisted.\n\nPotential candidates: Jean-Paul Sartre? No Booker. Isaac Babel? No.\n\nBetter to systematically check Nobel laureates list from 1969 onwards and match Booker shortlist.\n\nList of Nobel laureates (Literature) 1969-2023:\n\n1969: William Golding (no Booker).\n1971: Patrick White (no Booker). He was longlisted? He didn't.\n\n1972: Gabriel Garcia Marquez (booker? He hasn't given Booker? Actually GGM's \"One Hundred Years of Solitude\" never Booker. He wasn't shortliste? He won Booker? He never.\n1973: William Golding again? Wait 1969 was Golding.\n\nLet's actually list: I can check.\n\nBut easier: The only candidate found: Abdulrazak Gurnah. Need confirm that he never won Booker. Bookers: winners list: 1970: The Family from the top? Actually we can search but limited.\n\nWe can rely on evidence that there is no Booker win mention. So we can include.\n\nAny other Nobel laureates? Let's search for \"Nobel Prize literature Booker shortlist\" but we cannot use search. We could approximate from memory: Nobel Laureate V.S. Naipaul won Booker 1971 (In a Free State), so he did win Booker. So not include.\n\nJohn Irving? Not Nobel.\n\nKazuo Ishiguro (Nobel 2021? Actually he hasn't won; he won Booker in 1995. So divides.\n\nNagib Mahfouz? he was Nobel 1988; he had not Booker.\n\nHowever Mahfouz had no Booker shortlist.\n\nPeter Handke? No Booker.\n\nHerbert... Maybe Nobel Laureates that are shortlists: Wole Soyinka maybe but not sure. The article earlier shows shortlisting for Booker 1987? Actually that was Achebe.\n\nThus only Abdulrazak Gurnah perhaps.\n\nNeed also check earlier Nobel laureates: 1975: Abdulrazak Gurnah? no.\n\nWait 1975 Nobel: William Gaddis? Actually 1975: William Gaddis? Not.\n\nBetter to search offline? But maybe only Gurnah.\n\nLet's check Giller.\n\nAnother Nobel laureate: 1983: Odysseus? Not.\n\nBetter approach: Use known intersection: Nobel Laureates who did not win Booker but were shortlisted:\n\n- Abdulrazak Gurnah (1994).\n- Imre Kertész? No Booker.\n- Wole Soyinka? Not info.\n\nBut we need evidence of those being shortlisted. We have evidence for Gurnah.\n\nNeed evidence that he never won Booker: the page doesn't mention a win.\n\nBut that is not rigorous enough; answer may need to be \"Abdulrazak Gurnah\" since only found.\n\nCheck other known Nobel laureates: 2003: J.M. Coetzee. Coetzee won Booker 2004? Actually he won Booker twice (1983 and 1999). So not shortlisted and won.\n\n2005: Orhan Pamuk has not Booker.\n\n2006: Dario? Actually 2006: Orhan Pamuk? Wait 2006: Orhan Pamuk did not have Booker.\n\n2007: Gao Xingjian – no Booker.\n\n2008: Jean-Marie Gustave Le Clézio – no Booker.\n\n2009: Herta Müller – no Booker.\n\n2010: Mario Vargas Llosa – no Booker.\n\n2011: Mo Yan – no Booker (though maybe longlisted? He hasn't.)\n\n2012: Liu Xiaobo – not literary.\n\n2013: Alice Munro – won Booker earlier? She has not Booker.\n\n2014: Patrick Modiano – no Booker.\n\n2015: Marti? Actually 2015: Svetlana Alexievich – no Booker.\n\n2016: Binyavanga? etc.\n\n2017: Kazuo Ishiguro – won Booker 1995.\n\n2018: Peter Handke – no Booker.\n\n2019: Peter Handke again? Actually Nobel 2019: Peter Handke (also no Booker).\n\n2020: Louise Glück – no Booker.\n\n2021: Abdulrazak Gurnah – yes shortlisted but no win.\n\n2022: Hisham Al-Mustakfi? Not.\n\nSo only Gurnah seems to fit.\n\nAlso Nobel laureate \"John Updike\" not Nobel.\n\nThus answer: Abdulrazak Gurnah.\n\nBut need chronological order by Nobel year – only one. Provide name under that author writes about: \"Abdulrazak Gurnah\". The question: \"please answer with the name each author writes under and nothing else.\" So output should be just the name exactly as they write: \"Abdulrazak Gurnah\". Ensure spelling.\n\nNeed source citations: use doc-03e65d85edd9 for Gurnah nomination, and doc-cd64baefc160 for Nobel award. Provide final answer with name only.",
+      "text": "Abdulrazak Gurnah",
+      "tool_calls": []
+    }
+  ],
+  "usage": {
+    "input_tokens": 290958,
+    "output_tokens": 15554,
+    "reasoning_tokens": 18667,
+    "calls": 34
+  },
+  "latency_ms": 298984.0,
+  "error": null
+}

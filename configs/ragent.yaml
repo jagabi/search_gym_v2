@@ -1,0 +1,89 @@
+# RAgent — Search-o1 논문(§4.2)의 "RAG Agent" 베이스라인.
+#
+#   "we first retrieve the top-10 snippets during reasoning. The model then decides
+#    which URLs to obtain for the full documents when necessary."
+#
+# 모델이 검색 결과를 보고 열 URL을 직접 고르고, 페치 원문(jina 마크다운)이 정제 없이
+# 그대로 메인 컨텍스트에 들어간다. explorer가 없다.
+
+agent:
+  base_url: http://127.0.0.1:8000/v1
+  max_tokens: 8192              # 한 턴의 출력 상한. thinking 토큰이 여기서 나간다
+  max_turns: 40
+  timeout_s: 600
+
+  # 검색 예산. 세 방법이 같은 값을 써야 비교가 성립한다.
+  #
+  # 20 으로 올려 봤다가 10 으로 되돌렸다. 상한은 확실히 풀렸는데(소진율 0.67->0.23)
+  # f1 이 0.383 -> 0.336 으로 떨어졌다. 검색을 많이 할수록 나쁘기 때문이다 —
+  #
+  #     검색 3-5회   0.711
+  #     검색 6-9회   0.351
+  #     검색 10회+   0.199
+  #
+  # 그리고 모델은 **주는 만큼 쓴다**(상한 10 -> 평균 8.7, 상한 20 -> 평균 12.2).
+  # 답을 찾아서 멈추는 것이 아니라 예산이 남아서 계속 찾는다. 그래서 손잡이는
+  # 예산이 아니라 "언제 멈추는가"이고, 그쪽은 시스템 프롬프트에서 건다.
+  max_searches: 10
+  max_fetches: 0                # 0 = 무제한. 모델이 고르는 쪽이라 굳이 막지 않는다
+  search_results: 10            # 모델에게 보여줄 검색 결과 수
+
+  # 페치한 페이지 하나의 토큰 상한. **세 방법 공통** — 같은 분량의 웹을 봐야
+  # 비교가 성립한다. 도구 서버는 토크나이저가 없어 자 단위로밖에 못 자르므로
+  # 토큰 절단은 에이전트가 한 번만 한다.
+  fetch_max_tokens: 32768
+
+  # 대화 컨텍스트 상한. **팟의 --max-model-len 에서 max_tokens 를 뺀 값이어야 한다.**
+  #   131072(--max-model-len) - 8192(max_tokens) = 122880
+  # 이 둘은 항상 같이 움직인다. 팟을 65536 으로 내리면 여기도 57344 로 내린다.
+  context_limit: 122880
+  # 프로토콜 복구 재시도 상한. **세 방법이 같아야 한다** — 모델이 툴콜을 평문
+  # JSON 으로 흘리는 것은 방법의 성질이 아니라 gpt-oss 의 버릇이라, 베이스라인만
+  # 낮게 두면 방법 차이가 아니라 구현 차이로 점수가 갈린다.
+  # 검색·페치 예산이 남아 있을 때만 발동하고 턴만 더 쓴다(예산 밖으로 새지 않는다).
+  max_tool_recoveries: 2
+
+# 메인 추론 모델의 시스템 프롬프트.
+# **Search-o1 논문 Appendix A.3 의 "Instruction for RAG Agent" 를 옮긴 것이다.**
+#
+# 논문은 <|begin_search_query|> 같은 특수토큰 프로토콜을 쓰지만 우리는 OpenAI
+# 함수 호출로 도구를 준다. **그 부분만 우리 방식으로 바꾸고 나머지(예시·리마인더·
+# 검색 상한 안내)는 논문 구성을 그대로 따른다.**
+#
+# 검색 상한 숫자는 논문의 {MAX_SEARCH_LIMIT} 자리다. 치환 기능이 없으므로 글로
+# 박혀 있다 — **agent.max_searches 와 항상 같이 움직여야 한다.**
+system_prompt: |
+  You are a reasoning assistant with the ability to perform web searches and retrieve
+  webpage content to help you answer the user's question accurately. You have special
+  tools:
+
+  - To perform a search: call the `web_search` function with your query.
+    The system will call the web search API with your query and return the search
+    results. The search results will include a list of webpages with titles, URLs and
+    snippets (but not full content).
+  - To retrieve full page content: after receiving the search results, if you need
+    more detailed information from specific URLs, call the `web_fetch` function with
+    the URL. The system will fetch the full page content and return it.
+
+  You can repeat the search process multiple times if necessary. The maximum number
+  of search attempts is limited to 10.
+
+  Once you have all the information you need, continue your reasoning.
+
+  Example:
+
+  Question: "..."
+  Assistant thinking steps:
+  - I need to find out ...
+  Assistant: calls `web_search` with the query.
+  (System returns search results without full page content)
+  Assistant thinks: The search results mention several URLs. I want full details from
+  one of them.
+  Assistant: calls `web_fetch` with that URL.
+  (System returns full page content)
+  Now the assistant has enough information and can continue reasoning.
+
+  Remember:
+  - Call `web_search` to request a web search.
+  - Call `web_fetch` to request full page content.
+  - When done retrieving information, continue your reasoning.

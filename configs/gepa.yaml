@@ -1,0 +1,246 @@
+# GEPA 학습 설정.
+#
+#   python train.py                        # conf.yaml 의 method/model 로
+#   python train.py --method depthsearch
+#
+# 최적화 대상은 두 컴포넌트다.
+#   agent      메인 추론 모델의 시스템 프롬프트  (검색 정책)
+#   explorer   explorer 의 시스템 프롬프트       (추출 + 확장 정책)
+#
+# depthsearch 가 아니면 explorer 컴포넌트는 자동으로 빠진다 — ragent 는 explorer 가
+# 없고, search-o1 은 확장 결정이 없어 agent 만 최적화한다.
+#
+# GEPA 는 모듈을 라운드로빈으로 고른다(Alg.1 line 8). 컴포넌트가 둘이면 각각이
+# 절반의 반복만 받으므로 예산도 대략 2배가 필요하다.
+
+data:
+  benchmark: deepsearchqa
+  trainset: data/deepsearchqa/train.json
+  valset: data/deepsearchqa/validation.json
+
+# ---------------------------------------------------------------------------
+# 교사: reflection LM. dspy.LM(litellm) 로 넘어가므로 "<provider>/<model>" 형식.
+# ---------------------------------------------------------------------------
+teacher:
+  model: anthropic/claude-opus-5
+  # 추론 토큰까지 포함한 출력 상한. 모자라면 제안이 코드펜스를 못 닫고 잘려 버려진다.
+  max_tokens: 32768
+  extra:
+    reasoning_effort: high
+  # 학생 프롬프트의 토큰 상한(tiktoken o200k_base). reflection_prompt 의 <budget>이
+  # "현재 N토큰 / 상한 M토큰"으로 치환된다.
+  prompt_token_budget: 1024
+
+# ---------------------------------------------------------------------------
+# 컴포넌트별 메타 프롬프트. <curr_param> 현재 프롬프트 · <side_info> 피드백 (둘 다 필수)
+# ---------------------------------------------------------------------------
+components:
+
+  agent:
+    reflection_prompt: |
+      You are improving the SYSTEM PROMPT of an autonomous web-search agent. It answers
+      research questions by issuing search queries; each query returns a digest written
+      by a separate reader that opened the top pages for it. The agent never sees raw
+      pages. Its whole behaviour comes from this prompt.
+
+      Current system prompt:
+      <curr_param>
+
+      Questions it was given, the answers it produced, and feedback on what went right
+      or wrong -- including the queries it issued:
+      <side_info>
+
+      ## What good search looks like
+
+      Judge the traces against this, and teach only what they justify.
+
+      - **Search the page, not the question.** Use words that would appear in the title
+        of the page holding the answer. A year range, region, threshold or candidate
+        list is something to CHECK ON THE PAGE -- never a term to put in the query.
+      - **Calibrate the opening query to what you already know.** Unfamiliar domain:
+        open with the 2-3 plainest words naming the thing, let the results teach you the
+        vocabulary, widen one step at a time. Familiar domain: a specific query is fine
+        immediately. The costly default is the opposite -- the question quoted back with
+        source, region, years and every candidate in one long string. It returns hits,
+        which is why the agent keeps doing it, but the wrong ones: no page is titled that.
+      - **Change something when a query fails.** A near-duplicate of a query that just
+        failed is a wasted turn; harvest better terms from what came back.
+      - **The search budget is finite.** Running out of searches before answering is a
+        failure. Spend them on distinct sub-questions, not on re-phrasings.
+      - **Decide.** Reason to a conclusion from what was gathered. "I could not find it"
+        scores zero. So do "none qualify" and "no such case exists" -- these are refusals
+        in disguise. If one criterion cannot be checked, name what the rest best supports.
+
+      ## How to revise
+
+      - **This is not your only chance.** More rounds follow. Find the single most
+        damaging failure here, fix that one, stop. One or two changes.
+      - **Your reader is an LLM, and piling on instructions is not how you get
+        compliance.** If a rule is already there and did not land, repeating it in a new
+        sentence only dilutes it. Rewrite the existing one -- different words, imperative
+        instead of explanation, or move it earlier. Add a new rule only for a failure no
+        existing rule covers.
+      - **Shorter wins.** Make room by merging and compressing, never by appending.
+      - The agent will face fields you never see. Carry no fact, figure, name, site or
+        topic from the examples.
+      - The judge reads for meaning, so spend nothing on output formatting, and never
+        write a rule that makes the agent hedge, refuse, or drop a candidate.
+      - <budget>
+
+      Write it as light markdown -- short "##" headings, bullets, bold where earned -- so
+      a later round can sharpen one rule without disturbing the others. Provide the
+      complete new system prompt inside a fenced code block.
+
+  explorer:
+    reflection_prompt: |
+      You are improving the SYSTEM PROMPT of a **page reader** inside a web-search system.
+
+      A reasoning model issues a search query. The top pages are fetched and handed to
+      this reader, which extracts what the query needs and returns a short digest -- the
+      reasoning model never sees the pages themselves. The reader may also open one more
+      page with web_fetch(url), following a link on the page it is reading, up to a
+      budget of expansion nodes shared by the whole question. It runs again at each new
+      depth with this same prompt, and the next reader is given the reasoning this one
+      produced right before opening the link.
+
+      Current system prompt:
+      <curr_param>
+
+      Traces of what it read, what it returned, whether it opened further pages, and how
+      the whole run ended:
+      <side_info>
+
+      ## What this reader has to get right
+
+      Judge the traces against this, and teach only what they justify.
+
+      - **Nothing survives that it drops.** The reasoning model sees only the digest.
+        Exact dates, figures, names and titles must be carried verbatim; a paraphrase
+        that loses the number loses the answer.
+      - **Extraction, not conclusion.** It supplies knowledge. Answering the question
+        itself, or refusing on the question's behalf, is out of role.
+      - **Opening a page must be the exception.** A footnote, a reference, an index
+        entry, a linked record the page names -- worth opening. "Looks related", "might
+        have more", or "this page was useless so let me try another" -- not. The budget
+        is shared by the whole question, so a page that changes nothing is taken from a
+        later step that needed it. Watch the traces for a reader that opens on every
+        invocation and burns the budget in the first search.
+      - **Its reasoning is the only context the next reader gets.** The thinking it
+        does right before opening a link is handed down verbatim. Vague reasoning there
+        produces a useless digest two levels down.
+      - **Stop when the query is settled.** Continuing after the answer is in hand is
+        pure cost.
+      - **The status it reports steers the whole system.** Calling a partial find
+        "answered" makes the reasoning model stop early; calling a real find "not_found"
+        throws the work away.
+
+      ## How to revise
+
+      - **This is not your only chance.** Find the single most damaging failure here,
+        fix that one, stop. One or two changes.
+      - **Repeating a rule that did not land only dilutes it.** Rewrite the existing one
+        instead -- different words, imperative instead of explanation, or move it earlier.
+      - **Shorter wins.** Merge and compress rather than appending.
+      - It will read pages in fields you never see. Carry no fact, site or topic from the
+        examples.
+      - Keep the output format section intact -- the system parses "**Final Information**"
+        and "**Status:**" out of what it writes.
+      - <budget>
+
+      Write it as light markdown. Provide the complete new system prompt inside a fenced
+      code block.
+
+# ---------------------------------------------------------------------------
+# 교사에게 줄 피드백 문구. GEPA 는 여기 적힌 텍스트만 보고 프롬프트를 고친다.
+#
+# 공통      {question} {gold_answer} {answer} {score} {precision} {recall} {f1}
+#           {verdict} {failure_mode} {missed_parts} {excessive_answers}
+#           {searches} {queries} {trajectory} {stop_reason} {turns} {latency_s} {error}
+# 확장 관련 {expansion_nodes} {max_depth_reached} {explorer_calls} {dead_dives}
+#           {budget_exhausted} {explorer_log}
+#
+# 주의: str.format 으로 채워진다. 중괄호를 글자 그대로 쓰려면 두 번 겹쳐 쓴다.
+# ---------------------------------------------------------------------------
+feedback:
+  score: f1
+  max_answer_chars: 4000
+  max_trajectory_chars: 4000
+
+  template: |
+    A web-search agent answered the question below. Read the trace as evidence about
+    the system prompt you are optimizing.
+
+    ## Question
+    {question}
+
+    ## Correct answer
+    {gold_answer}
+
+    ## The agent's answer
+    {answer}
+
+    ## Grade: {score:.2f}
+    {failure_mode}
+
+    {verdict}
+
+    Expected answer parts it missed:
+    {missed_parts}
+
+    ## What the agent actually did
+    - searches: {searches}, turns: {turns}
+    - expansion nodes used: {expansion_nodes}, deepest level reached: {max_depth_reached}
+    - how it ended: {stop_reason}
+    - run error: {error}
+
+    ===
+    {trajectory}
+    ===
+
+  explorer_template: |
+    A page reader ran inside a web-search system solving the question below. Read the
+    trace as evidence about the reader's system prompt you are optimizing.
+
+    ## Question the whole system was solving
+    {question}
+
+    ## Correct answer
+    {gold_answer}
+
+    ## What the system finally answered
+    {answer}
+
+    ## Grade: {score:.2f}
+    {failure_mode}
+
+    Expected answer parts the system missed:
+    {missed_parts}
+
+    ## The reader's own behaviour
+    - reader invocations: {explorer_calls}
+    - expansion nodes used: {expansion_nodes} (budget exhausted: {budget_exhausted})
+    - deepest level reached: {max_depth_reached}
+    - pages opened that changed nothing downstream: {dead_dives}
+
+    ===
+    {explorer_log}
+    ===
+
+# ---------------------------------------------------------------------------
+# GEPA 예산
+# ---------------------------------------------------------------------------
+gepa:
+  # auto(light|medium|heavy) 대신 직접 건다. rollout 하나가 논문 설정보다 훨씬
+  # 비싸기 때문이다. track_stats 가 남기는 val_scores 곡선을 보고 다음 값을 정한다.
+  auto: null
+  extra:
+    max_metric_calls: 800
+  # 미니배치 점수 합이 부모보다 커야 후보가 통과한다(동점은 기각).
+  reflection_minibatch_size: 7
+  # metric 하나가 에이전트 하나를 돌린다. run.workers 와 함께 1이어야 진짜 시리얼.
+  num_threads: 1
+  track_stats: true
+  failure_score: 0.0
+  # crossover. 논문 Table 1 에서 Qwen3-8B 는 merge 로 오히려 떨어졌다
+  # (IFBench 38.61 -> 28.23). 오픈 소형 모델에는 쓰지 않는다.
+  merge: false

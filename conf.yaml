@@ -1,0 +1,56 @@
+# 무엇을 돌릴지만 고른다. 세부 설정은 configs/<method>.yaml 에 있다.
+#
+#   python test.py                      # 이 파일 그대로
+#   python test.py --method search-o1   # 방법만 바꿔서
+#   python test.py --limit 5            # 소규모 확인
+#   python train.py                     # GEPA (configs/gepa.yaml)
+
+# ---------------------------------------------------------------------------
+# 방법. configs/<이름>.yaml 을 읽는다.
+#
+#   ragent      web_search + web_fetch. 페치 원문이 그대로 메인 컨텍스트에 들어간다.
+#               Search-o1 논문의 "RAG Agent" 베이스라인.
+#   search-o1   web_search만. 검색당 상위 k개를 자동 페치해 explorer가 요약해 넣는다.
+#   depthsearch search-o1 + explorer가 페치 도구를 들고 재귀한다.
+# ---------------------------------------------------------------------------
+method: depthsearch
+
+# 학생 모델. serving.py 의 프로파일 키 (qwen | gpt-oss | gemma)
+#
+# 모델은 RunPod 등의 기성 vLLM 이미지로 팟에서 돌린다. 팟의 실행 인자에 아래 셋이
+# 반드시 있어야 툴콜과 사고가 파싱된다 — 없으면 조용히 망가진다.
+#     --enable-auto-tool-choice
+#     --tool-call-parser <프로파일 값>      qwen3_coder / openai / gemma4
+#     --reasoning-parser <프로파일 값>      qwen3 / openai_gptoss / gemma4
+# 확인:  python tests/model.py
+model: gpt-oss
+
+# vLLM 엔드포인트. 비우면 configs/<method>.yaml 의 agent.base_url 을 쓴다.
+# 배포 사실이라 방법과 무관하므로 여기서 한 번에 덮어쓴다.
+#   SSH 터널   http://127.0.0.1:8000/v1        (권장 — 프록시 타임아웃·공개 노출 회피)
+#   RunPod 프록시  https://<pod>-8000.proxy.runpod.net/v1
+base_url: https://4dc0c9266gp81p-8000.proxy.runpod.net/v1
+
+# 팟이 서빙하는 모델 이름이 프로파일의 repo 와 다를 때만 채운다(기성 이미지는
+# --served-model-name 을 우리가 못 정할 수 있다). tests/model.py 가 서버가 아는
+# 이름 목록을 찍어 준다. 비우면 프로파일의 repo 를 그대로 보낸다.
+served_model_name: ""
+
+# ---------------------------------------------------------------------------
+# 돌릴 문항. 300문항 test는 마지막에만 쓰고 평소에는 validation으로 돈다.
+# ---------------------------------------------------------------------------
+benchmark:
+  name: deepsearchqa
+  path: data/deepsearchqa/validation.json
+  limit: null                   # null = 전부
+
+judge:
+  model: gemini-3.6-flash
+  thinking_level: low
+
+run:
+  tag: ""
+  output_dir: runs
+  seed: 0
+  cache: true
+  workers: 4                    # 팟의 --max-num-seqs 와 맞춘다. 더 올리려면 팟도 같이 올린다

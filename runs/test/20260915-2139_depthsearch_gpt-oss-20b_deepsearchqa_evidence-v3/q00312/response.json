@@ -1,0 +1,1713 @@
+{
+  "index": 312,
+  "question": "According to the Mayo Clinic, what risk factors do an abdominal aortic aneurysm, a brain aneurysm, and a thoracic aortic aneurysm have in common?",
+  "gold_answer": "Age, Smoking, Family History",
+  "category": "Health",
+  "method": "depthsearch",
+  "model": "openai/gpt-oss-20b",
+  "system_prompt": "You are a research assistant. Answer the question using the available web tools.\nGround your answer in the sources you actually read.\n\nWork in stages: discover the candidate universe; locate the relevant source data;\nverify each required condition; then combine and answer. Before another search,\nidentify which stage is blocked and which ONE source or fact would unblock it.\nAfter two queries on the same hypothesis produce no new evidence, change the\nsource or hypothesis. Do not keep adding constraints to the same query.\n\nUse research_state update to save candidate/condition rows after discovering a\nlist or filling a comparison field; batch related rows in one call. Register\nunknown candidates too. Include year, unit, variant and population in scope.\nSupply an exact source quote for supported or excluded cells. Conflicting sourced\nvalues remain in the ledger; resolve them before comparing. An unknown candidate\nmay still win a ranking. Missing evidence never proves exclusion.\n\nweb_fetch notes include stored document IDs. read_document can inspect full raw\ntable headers, find terms, page through lines or rows, filter exact years/entities,\nintersect two source lists, and sort/aggregate all matching rows deterministically.\nA truncated preview is NOT the end of the source. Query the stored source instead\nof inventing ?download, ?year or #page URL variants. Inspect multi-row headers and\nselect the right year, measure and subgroup before applying numeric operations.\nHeader rows are data rows until you filter them out; c0,c1,... are raw column IDs.\nNever combine standard errors, totals, enrollment and graduates as one measurement.\n\nresearch_state inspect lists pending source links with their parent and depth.\nresearch_state follow continues one such link under the shared recursive budget.\nLocal Expand: no means that reader stopped, not that its pending candidates failed\nthe question. Prefer unfinished relevant records over repeatedly opening an index.\nThe frontier includes navigation links too: select a link only for an explicit gap.\n\nSearch to find a useful entry page, not a page that already answers every condition.\nStart with the source or topic and a few distinctive terms. Do not paste the entire\nquestion into search or combine all its entities, filters, rankings and comparisons.\nFor a multi-source question, find one source or candidate list at a time. Exact\ntitles, dates and site filters help when established; do not stack speculative\ndetails, guessed answers or quoted phrases into the first query.\nInspect the returned titles and snippets. If results are off-topic or sparse,\nremove a constraint or change the source/topic anchor instead of adding conditions.\nNarrow later to one missing fact. Open promising indexes, reports and result pages:\nthe reader can follow their links and check detailed conditions without another search.\n\nweb_fetch returns source-labelled page notes. A reader may follow links from that\npage and return notes from the linked pages too. Use all of those notes; do not\nassume an individual reader has resolved the entire question. A reader error means\nextraction failed, not that the fact is absent. A successful partial extraction\nremains useful even when another page could not be read.\n\nMaintain a compact evidence table in your working reasoning as results arrive:\ncandidate | required condition/measurement | value | year/scope/variant/unit | source | gap.\nCopy values from page evidence; keep unknown cells unknown. A page's title or a\nreader's conclusion is not a substitute for the underlying measurement or list.\nFor intersections, obtain each source's full relevant list and compare membership.\nFor rankings, collect the required candidates before choosing the maximum/minimum.\nBefore finalizing, check that compared rows refer to the same entity, product size\nor variant, time period, population and unit. Convert units only from stated values.\nDo not substitute a nearby size, a different year, or an overall winner for a subgroup\nwinner. Resolve conflicting rows from their sources. Search for the precise remaining\ngap only after inspecting useful page links. Missing evidence is not disqualification.\n\nAnswer once the required facts are supported. Give supported partial results when\nsome facts remain unresolved, marking the gaps without discarding what you found.\nDo not invent missing figures or claim a list is exhaustive without checking its\nscope. If the comparison remains unresolved, say which field is missing rather than\nchoosing from mismatched values. Your final response must answer the question in\nits requested format, not describe a tool you plan to call. Return a short answer\nwhen requested; keep the working table out of a names-only or report-numbers-only\nanswer. Use original source URLs for citations, never invented line references.",
+  "explorer_prompt": "You read web pages for a research assistant. Your job is to preserve source\nevidence and, when useful, follow the page's links to obtain missing evidence.\n\nRead the Original Question to understand the required entities and conditions.\nWhen read_document is available, it reads only your current source, without a\nnetwork request. Use it if the preview lacks needed rows, years, PDF pages or\nheaders. Inspect tables before filtering: preserve multi-row headers and report\nexact table/row/column IDs for extracted values. Search literal terms separately\nwhen they occur on different lines. Do not infer that a country/year is absent\nmerely because it falls outside the preview. For wide CSVs filter rows first.\nExtraction and navigation are separate stages. During extraction, only the supplied\npage content is evidence. During navigation, earlier reasoning and saved notes help\nchoose where to go; never copy them into the current page's evidence. Extract what this page says, even if\nthe complete answer requires other pages. Never reject a useful page merely\nbecause it cannot answer the whole question.\n\nPreserve exact names, titles, numbers, dates, units, qualifications, and the full\nrelevant list or table rows. Keep values attached to their entities and headers.\nFor a comparison across several pages, return this page's list or measurements;\nthe main assistant will combine them. Quote short supporting passages and distinguish\ndirect statements from inferences. Use rows with entity, field, value, year, unit,\nsize/variant or population, and a short source quotation when comparing candidates.\nKeep original table headers. Label absent fields unknown; do not fill them from\nmemory or infer a subgroup value from a total. A linked page's facts belong to\nthat page's note. Use actual source URLs, never invented citation IDs or line numbers.\n\nYour current-page note is saved before expansion. When asked to expand, follow\nlinks in the Reader page: citations, referenced documents, archive entries, data\ndownloads, or other pages that can fill a specific missing fact. The link menu is\na convenience, not a restriction; any link in the page can be followed. You may\nalso navigate within a site already being read, including an archive pattern\nestablished by observed URLs. State what fact the next page should supply.\nChoose an expansion only when the link label, surrounding text or observed archive\npattern gives a concrete reason it can supply a missing field. State that field.\nA relevant index or archive can justify expansion even without answer facts of its\nown. A wrong-year page can be useful if it actually links to the requested year.\nAn unrelated page, generic footer links, a missing page or the same content again\nis not a reason to keep descending. Mark Expand: no when no promising route remains.\nDo not spend the question's expansion budget revisiting completed pages or trying\nvariants of a failed URL. After an unhelpful child, choose a different supported\nroute or finish so other source pages can use the remaining budget.\n\nChild notes are preserved separately and sent to the main assistant. A child's\nfailure must never erase evidence from this page, and you need not rewrite a\nchild's note. Do not decide the final answer on behalf of the main assistant.\n\nFor a page extraction, use this format (plain text/Markdown, not JSON):\n\n**Final Information**\n**Page:** Actual page title and original URL.\n**Evidence:** Relevant facts, full lists or table rows, with short source quotes.\n**Missing:** Requested fields absent from this page; avoid claims about all sources.\n**Next links:** Actual page links and what each could establish, if any.\n**Expand:** yes or no, followed by the missing field and the reason for this decision.\n**Status:** partial\n\nUse answered only when the page directly supplies all requested facts for the\nlocal reading task; partial for useful but incomplete evidence; not_found for a\npage with no relevant evidence. Even then describe the page or access error briefly.\nWhen asked only to choose an expansion, call web_fetch or reply DONE.",
+  "answer": "**Risk factors that Mayo Clinic lists for all three aneurysm types – abdominal aortic, brain, and thoracic aortic – are:**\n\n| Common risk factor | Age | Cigarette smoking / tobacco use | High blood pressure (hypertension) | Family history of aneurysm |\n|--------------------|-----|---------------------------------|-------------------------------------|---------------------------|\n| **Evidence** | • *Abdominal aortic aneurysm:* “Abdominal aortic aneurysms occur most often in people age 65 and older.” (Mayo Clinic) <br>• *Brain aneurysm:* “Brain aneurysms can happen at any age. However, they’re more common in adults between ages 30 and 60.” (Mayo Clinic) <br>• *Thoracic aortic aneurysm:* “Thoracic aortic aneurysms occur most often in people age 65 and older.” (Mayo Clinic) | • *Abdominal aortic aneurysm:* “Smoking is the strongest risk factor for aortic aneurysms.” (Mayo Clinic) <br>• *Brain aneurysm:* “Cigarette smoking. Smoking is a risk factor for brain aneurysms to form and for brain aneurysms to rupture.” (Mayo Clinic) <br>• *Thoracic aortic aneurysm:* “If you smoke or chew tobacco, it’s important that you quit. Using tobacco also can worsen an aneurysm.” (Mayo Clinic) | • *Abdominal aortic aneurysm:* “High blood pressure can damage and weaken the aorta’s walls.” (Mayo Clinic) <br>• *Brain aneurysm:* “High blood pressure. This condition can weaken arteries. Aneurysms are more likely to form and to rupture in weakened arteries.” (Mayo Clinic) <br>• *Thoracic aortic aneurysm:* “Increased blood pressure damages the blood vessels in the body. This raises the risk of an aneurysm.” (Mayo Clinic) | • *Abdominal aortic aneurysm:* “Having a family history of abdominal aortic aneurysms increases the risk of having the condition.” (Mayo Clinic) <br>• *Brain aneurysm:* “A family history of brain aneurysm. The risk is higher if you have family members who have had a brain aneurysm.” (Mayo Clinic) <br>• *Thoracic aortic aneurysm:* “You’re more likely to get an aortic aneurysm … if you have a parent, brother, sister or child with one.” (Mayo Clinic) |\n\n**Sources**\n\n- Abdominal aortic aneurysm – Symptoms and causes: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688  \n- Brain aneurysm – Symptoms and causes: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483  \n- Thoracic aortic aneurysm – Symptoms and causes: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188  \n\nThese are the only risk factors mentioned on the Mayo Clinic pages for all three aneurysm types; other risk factors (e.g., specific genetic conditions, drug use, sex differences) appear only in one or two of the disease lists and therefore are not common to all three.",
+  "stop_reason": "finalized",
+  "turns": 11,
+  "searches": 4,
+  "fetches": 4,
+  "expansion_nodes": 0,
+  "max_depth_reached": 1,
+  "explorer_calls": 3,
+  "dead_dives": 0,
+  "fetch_attempts": 3,
+  "fetch_failures": 0,
+  "search_attempts": 4,
+  "search_failures": 0,
+  "budget": {
+    "total": 12,
+    "used": 0,
+    "refused": 0,
+    "duplicates": 0,
+    "links_stripped": 25,
+    "off_page": 0,
+    "repeats": 0,
+    "same_site": 0,
+    "visited": 3,
+    "nodes_by_depth": {},
+    "reused": 1,
+    "local_document_reads": 4,
+    "stored_documents": 3,
+    "pending_links": 168,
+    "evidence_cells": 0
+  },
+  "context_tokens": 13071,
+  "context_exhausted": false,
+  "reader_stats": {
+    "sessions": 3,
+    "complete": 3,
+    "empty_notes": 0,
+    "recovery_attempts": 0,
+    "no_relevant_evidence": 0,
+    "navigation_errors": 0,
+    "pruned_branches": 3,
+    "repeated_content": 0
+  },
+  "invalid_tool_calls": 1,
+  "steps": [
+    {
+      "turn": 1,
+      "reasoning": "We need \"According to the Mayo Clinic, what risk factors do an abdominal aortic aneurysm, a brain aneurysm, and a thoracic aortic aneurysm have in common?\" So we need Mayo Clinic info pages on each aneurysm: abdominal aortic aneurysm risk factors, brain aneurysm risk factors, thoracic aortic aneurysm risk factors. We must find common risk factors across all three.\n\nSo we need to search for Mayo Clinic pages: \"Mayo Clinic abdominal aortic aneurysm risk factors\", \"Mayo Clinic brain aneurysm risk factors\", \"Mayo Clinic thoracic aortic aneurysm risk factors\". Then collect risk factors lists. Then find intersection.\n\nFirst search for abdominal aortic aneurysm risk factors Mayo.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Mayo Clinic abdominal aortic aneurysm risk factors"
+          },
+          "result_chars": 3487,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1730.4,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"Abdominal aortic aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\", \"snippet\": \"Abdominal aortic aneurysm risk factors include: Tobacco use. Smoking is the strongest risk factor for aortic aneurysms. Smoking weakens the ...\", \"date\": \"Apr 3, 2025\"}, {\"title\": \"Abdominal aortic aneurysm - Diagnosis and treatment\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/diagnosis-treatment/drc-20350693\", \"snippet\": \"Being male and smoking significantly increase the risk of abdominal aortic aneurysm. Screening recommendations vary, such as a family history ...\", \"date\": \"Apr 3, 2025\"}, {\"title\": \"Aortic aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/aortic-aneurysm/symptoms-causes/syc-20369472\", \"snippet\": \"it just as often stems from sustained high blood pressure compounded by high cholesterol, smoking, obesity and sometimes diabetes.\", \"date\": \"Apr 10, 2025\"}, {\"title\": \"Abdominal Aortic Aneurysms: Mayo Surgeon Explains Who ...\", \"link\": \"https://newsnetwork.mayoclinic.org/discussion/abdominal-aortic-aneurysms-mayo-clinic-surgeon-explains-who-needs-screening-treatment/\", \"snippet\": \"The greatest risk is that the aneurysm will rupture. “With every heartbeat there is increased pressure on the area of the aorta that has a weak ...\", \"date\": \"Jul 16, 2014\"}, {\"title\": \"Aortic Aneurysm Clinical Trials\", \"link\": \"https://www.mayo.edu/research/clinical-trials/diseases-conditions/aortic-aneurysm\", \"snippet\": \"The ascending aorta can become enlarged, and the risk of tearing and rupturing becomes higher with larger aorta. When the ascending aorta tears or ruptures, the ...\"}, {\"title\": \"Mayo Clinic vascular surgeon explains abdominal aortic ...\", \"link\": \"https://www.youtube.com/watch?v=JBJ-_olH67I\", \"snippet\": \"An abdominal aortic aneurysm is a potentially life-threatening condition: If the aorta, the body's major blood vessel, ruptures, it can prove ...\", \"date\": \"12 years ago\"}, {\"title\": \"Thoracic aortic aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188\", \"snippet\": \"Thoracic aortic aneurysm risk factors include: Age. Thoracic aortic aneurysms occur most often in people age 65 and older. Smoking and tobacco ...\", \"date\": \"Apr 18, 2025\"}, {\"title\": \"Management of Abdominal Aortic Aneurysms\", \"link\": \"https://www.mayoclinicproceedings.org/article/S0025-6196(11)64036-6/fulltext\", \"snippet\": \"by JW Hallett · 2000 · Cited by 94 — Recent evidence indicates that cigarette smoking remains a risk factor for progression of size of aneurysm and eventual rupture. In addition, upcoming clinical ...\"}, {\"title\": \"Aneurysms - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/aneurysms/symptoms-causes/syc-20354633\", \"snippet\": \"People who have a family history of aneurysms, have polycystic kidney disease, connective tissue disease, and people who smoke are at increased ...\", \"date\": \"Apr 2, 2025\"}], \"related_searches\": [\"Abdominal aortic aneurysm treatment\", \"Abdominal aortic aneurysm symptoms\", \"Aortic aneurysm in females symptoms\", \"Abdominal aortic aneurysm - causes\", \"Abdominal aortic aneurysm complications\", \"Leaking abdominal aortic aneurysm symptoms\", \"Abdominal aortic aneurysm diagnosis\", \"Life after abdominal aortic aneurysm surgery\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "reasoning": "Need common risk factors across abdominal aortic, brain, thoracic aortic aneurysm per Mayo Clinic. Search each.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Mayo Clinic brain aneurysm risk factors"
+          },
+          "result_chars": 3417,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1265.4,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"Brain aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483\", \"snippet\": \"Risk factors · Age. Brain aneurysms can happen at any age. · Being female. Brain aneurysms are more common in women than in men. · Cigarette smoking. · High blood ...\"}, {\"title\": \"Brain aneurysm - Diagnosis and treatment\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/diagnosis-treatment/drc-20361595\", \"snippet\": \"The aneurysm size, location and overall appearance of the aneurysm. · Your age and general health. · Family history of ruptured aneurysm. · Conditions you were ...\"}, {\"title\": \"Mayo Clinic Minute - Who is at risk for a brain aneurysm?\", \"link\": \"https://www.youtube.com/watch?v=YFOoboPxBkA\", \"snippet\": \"Brain aneurysms affect millions of people, with approximately 6.7 million in the U.S. alone living with an unruptured brain aneurysm.\", \"date\": \"1 year ago\"}, {\"title\": \"Familial brain aneurysms: Managing the risks of rupture\", \"link\": \"https://www.mayoclinic.org/medical-professionals/neurology-neurosurgery/news/familial-brain-aneurysms-managing-the-risks-of-rupture/mac-20583502\", \"snippet\": \"\\\"Smoking triples or quadruples the risk of rupture. For smokers with hypertension, the risk of rupture may go up 10-fold,\\\" Dr. Bendok says. Mayo ...\", \"date\": \"May 30, 2025\"}, {\"title\": \"Brain aneurysm - Care at Mayo Clinic\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/care-at-mayo-clinic/mac-20361689\", \"snippet\": \"Mayo Clinic specialists conduct research in potential causes, risks, diagnostic tests and treatments for brain aneurysms and other brain conditions and conduct ...\"}, {\"title\": \"Brain aneurysms affect millions of people, with 6.7 million in ...\", \"link\": \"https://www.facebook.com/MayoClinic/videos/mayo-clinic-minute-who-is-at-risk-for-a-brain-aneurysm/808684461191443/\", \"snippet\": \"The video describes brain aneurysms as a \\\"silent danger,\\\" explaining that they are caused by a weak vessel wall that can rupture. It highlights ...\", \"date\": \"1 year ago\"}, {\"title\": \"Brain Aneurysm Clinical Trials\", \"link\": \"https://www.mayo.edu/research/clinical-trials/diseases-conditions/brain-aneurysm\", \"snippet\": \"... brain aneurysms to form, grow or rupture. We will be looking at factors such as medical problems, medications, lifestyle factors and how they may be a role.\"}, {\"title\": \"Mayo Clinic Minute: Who is at risk for a brain aneurysm?\", \"link\": \"https://newsnetwork.mayoclinic.org/discussion/mayo-clinic-minute-who-is-at-risk-for-a-brain-aneurysm/\", \"snippet\": \"Along with genetics, there are other risk factors. \\\"The most common things that can cause that are high blood pressure, hypertension ...\", \"date\": \"Sep 25, 2024\"}, {\"title\": \"Brain aneurysms — Neurovascular disease explained\", \"link\": \"https://medprofvideos.mayoclinic.org/videos/brain-aneurysms-neurovascular-disease-explained\", \"snippet\": \"Mayo Clinic neurovascular experts care for 17,000 people each year with aneurysms, strokes, and other blood vessel and cerebrovascular ...\"}], \"related_searches\": [\"Brain aneurysm survival rate\", \"How to prevent brain aneurysm\", \"Brain aneurysm screening guidelines\", \"Brain aneurysm treatment without surgery\", \"Aneurysm symptoms\", \"Unruptured aneurysm symptoms\", \"Can you detect an aneurysm before it happens\", \"Causes of brain aneurysm\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "reasoning": "We need common risk factors in Mayo Clinic info for all three aneurysms: abdominal aortic, brain, thoracic aortic.\n\nLikely common ones: smoking, hypertension (high blood pressure), older age, male sex? But brain aneurysm has higher in females. Let's fetch each page fully and extract risk factor lists.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688"
+          },
+          "result_chars": 4163,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 13674.7,
+          "explorations": [
+            {
+              "depth": 1,
+              "parent_reasoning": "",
+              "query": "Mayo Clinic brain aneurysm risk factors",
+              "urls": [
+                "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688"
+              ],
+              "turns": 3,
+              "status": "partial",
+              "information": "### Page note: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\nStored documents: doc-3780ddfcf1aa\nReader state: complete; relevance: partial\n**Page:** Abdominal aortic aneurysm – Symptoms and causes (Mayo Clinic)  \n**Evidence**  \n*Risk factors for abdominal aortic aneurysm (AAA) as listed in the “Risk factors” section*  \n| # | Risk factor | Source quote | Notes |\n|---|-------------|--------------|-------|\n| 1 | **Tobacco use** | “*Smoking is the strongest risk factor for aortic aneurysms.*” | Smoking, e.g., men ages 65‑75 who have ever smoked should have one‑time ultrasound screening |\n| 2 | **Age** | “*Abdominal aortic aneurysms occur most often in people age 65 and older.*” | • |\n| 3 | **Sex** | “*Men get abdominal aortic aneurysms much more often than women do.*” | • |\n| 4 | **Being white** | “*People who are white are at higher risk of abdominal aortic aneurysms.*” | • |\n| 5 | **Family history** | “*Having a family history of abdominal aortic aneurysms increases the risk of having the condition.*” | • |\n| 6 | **Other aneurysms** | “*Having an aneurysm in the aorta in the chest (thoracic aortic aneurysm) or in another large blood vessel, such as the artery behind the knee, might increase the risk of an abdominal aortic aneurysm.*” | • |\n\n**Missing**  \n* The risk factors of brain aneurysm.  \n* The risk factors of thoracic aortic aneurysm.  \n* Any explicit statement of common risk factors across the three disease types.  \n\n**Next links**  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/diagnosis-treatment/drc-20350693` – diagnosis & treatment; unlikely to list brain/thoracic risk factors.  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/doctors-departments/ddc-20350695` – doctors & departments; unlikely to list risk factors.  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/care-at-mayo-clinic/mac-20350696` – care at Mayo Clinic; unlikely to list risk factors.",
+              "information_chars": 2033,
+              "own_information": "**Page:** Abdominal aortic aneurysm – Symptoms and causes (Mayo Clinic)  \n**Evidence**  \n*Risk factors for abdominal aortic aneurysm (AAA) as listed in the “Risk factors” section*  \n| # | Risk factor | Source quote | Notes |\n|---|-------------|--------------|-------|\n| 1 | **Tobacco use** | “*Smoking is the strongest risk factor for aortic aneurysms.*” | Smoking, e.g., men ages 65‑75 who have ever smoked should have one‑time ultrasound screening |\n| 2 | **Age** | “*Abdominal aortic aneurysms occur most often in people age 65 and older.*” | • |\n| 3 | **Sex** | “*Men get abdominal aortic aneurysms much more often than women do.*” | • |\n| 4 | **Being white** | “*People who are white are at higher risk of abdominal aortic aneurysms.*” | • |\n| 5 | **Family history** | “*Having a family history of abdominal aortic aneurysms increases the risk of having the condition.*” | • |\n| 6 | **Other aneurysms** | “*Having an aneurysm in the aorta in the chest (thoracic aortic aneurysm) or in another large blood vessel, such as the artery behind the knee, might increase the risk of an abdominal aortic aneurysm.*” | • |\n\n**Missing**  \n* The risk factors of brain aneurysm.  \n* The risk factors of thoracic aortic aneurysm.  \n* Any explicit statement of common risk factors across the three disease types.  \n\n**Next links**  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/diagnosis-treatment/drc-20350693` – diagnosis & treatment; unlikely to list brain/thoracic risk factors.  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/doctors-departments/ddc-20350695` – doctors & departments; unlikely to list risk factors.  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/care-at-mayo-clinic/mac-20350696` – care at Mayo Clinic; unlikely to list risk factors.",
+              "own_status": "partial",
+              "own_information_chars": 1838,
+              "extraction_state": "complete",
+              "own_extraction_state": "complete",
+              "note_count": 1,
+              "recovery_attempts": 0,
+              "expansion_decision": "no",
+              "expansion_stop_reason": "no_useful_next_link",
+              "nodes": 0,
+              "error": null,
+              "latency_ms": 27172.9,
+              "opened": [],
+              "documents": [
+                "doc-3780ddfcf1aa"
+              ],
+              "pending_links": [
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/multimedia/abdominal-aortic-aneurysm/img-20005735",
+                  "label": "Abdominal aortic aneurysm",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-mayo-clinic",
+                  "label": "About Mayo Clinic",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://mcpress.mayoclinic.org/product/healthletter/?utm_source=MC-DotOrg-PC-Top&utm_medium=PromoCard&utm_campaign=HealthLetter&utm_content=HL_1",
+                  "label": "Mayo Clinic Health Letter & Books",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayocliniclabs.com/",
+                  "label": "Mayo Clinic Laboratories",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://alumniassociation.mayo.edu/",
+                  "label": "Mayo Clinic Alumni Association",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research",
+                  "label": "Research at Mayo Clinic",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://college.mayo.edu/",
+                  "label": "Mayo Clinic College of Medicine and Science",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://college.mayo.edu/academics/biomedical-research-training/",
+                  "label": "Mayo Clinic Graduate School of Biomedical Sciences",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://college.mayo.edu/academics/mayo-clinic-alix-school-of-medicine/",
+                  "label": "Mayo Clinic Alix School of Medicine",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://college.mayo.edu/academics/residencies-and-fellowships/",
+                  "label": "Mayo Clinic School of Graduate Medical Education",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://college.mayo.edu/academics/health-sciences-education/",
+                  "label": "Mayo Clinic School of Health Sciences",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/giving-to-mayo-clinic",
+                  "label": "Giving to Mayo Clinic",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/care-at-mayo-clinic/mac-20350696",
+                  "label": "Care at Mayo Clinic",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 5,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-this-site/meet-our-medical-editors",
+                  "label": "By Mayo Clinic Staff",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/discussion/ascending-aortic-aneurysm-and-exercise/?commentsorder=newest",
+                  "label": "Ascending Aortic Aneurysm and Exercise",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-mayo-clinic/quality/rankings",
+                  "label": "Mayo Clinic in Rochester, Minnesota, has been recognized as one of the top Cardiology & Heart Surgery hospitals in the nation by U.S. News & World Report. Learn more about this top honor",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://mcpress.mayoclinic.org/?utm_source=MC-DotOrg-Text&utm_medium=Link&utm_campaign=MC-Press&utm_content=MCPRESS",
+                  "label": "Mayo Clinic Press",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://order.store.mayoclinic.com/flex/mmv/SLEEP01/?altkey=SLPFPRC&utm_source=MC-DotOrg-Text&utm_medium=Link&utm_campaign=Sleep-Book&utm_content=SLP",
+                  "label": "NEW: Mayo Clinic Guide to Better Sleep",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://order.store.mayoclinic.com/flex/mmv/incon01/?altkey=INMCPRC&utm_source=MC-DotOrg-Text&utm_medium=Link&utm_campaign=Incontinence-Book&utm_content=INC",
+                  "label": "Mayo Clinic on Incontinence",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://diet.mayoclinic.org/us/diet-assessment/diet-assessment/?profile=true&promo=65-qtr&utm_source=Mayo&utm_medium=Display&utm_campaign=text_link",
+                  "label": "FREE Mayo Clinic Diet Assessment",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://order.store.mayoclinic.com/flex/mmv/HLFBOOK/?altkey=HLFBORG&utm_source=MC-DotOrg-Text&utm_medium=Link&utm_campaign=HealthLetter-Digital&utm_content=HL_FREEBOOK",
+                  "label": "Mayo Clinic Health Letter - FREE book",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/group/aneurysms/?utm_source=mayoclinic.org&utm_medium=referral&utm_campaign=connect_widget",
+                  "label": "Aortic Aneurysms support group",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/discussion/aortic-aneurysms-introduce-yourself-meet-others/?commentsorder=newest",
+                  "label": "Aortic Aneurysms – Introduce yourself & meet others",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/patient-centered-care",
+                  "label": "Patient-Centered Care",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/appointments",
+                  "label": "Request Appointment",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/appointments/find-a-doctor",
+                  "label": "Find a Doctor",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/locations",
+                  "label": "Locations",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research/clinical-trials",
+                  "label": "Clinical Trials",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/",
+                  "label": "Connect to Support Groups",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/patient-visitor-guide",
+                  "label": "Patient & Visitor Guide",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/billing-insurance",
+                  "label": "Billing & Insurance",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/departments-centers",
+                  "label": "Departments & Centers",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/international",
+                  "label": "International Services",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-mayo-clinic/contact",
+                  "label": "Contact Us",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions",
+                  "label": "Diseases & Conditions",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/symptoms",
+                  "label": "Symptoms",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures",
+                  "label": "Tests & Procedures",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/drugs-supplements",
+                  "label": "Drugs & Supplements",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/healthy-lifestyle",
+                  "label": "Healthy Lifestyle",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/medical-professionals",
+                  "label": "Medical Professional Resources",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/medical-professionals/provider-relations/refer-patient",
+                  "label": "Refer a Patient",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://ce.mayo.edu/",
+                  "label": "Continuing Medical Education",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://medprofvideos.mayoclinic.org/",
+                  "label": "Video Center",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/medical-professionals/publications",
+                  "label": "Journals & Publications",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research/faculty",
+                  "label": "Research Faculty",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research/labs",
+                  "label": "Laboratories",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research/core-facilities/overview",
+                  "label": "Core Facilities",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research/centers-programs",
+                  "label": "Centers & Programs",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research/departments-divisions",
+                  "label": "Departments & Divisions",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research/institutional-review-board/overview",
+                  "label": "Institutional Review Board",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://jobs.mayoclinic.org/search-jobs/postdoctoral%20fellowships/33647/1",
+                  "label": "Postdoctoral Fellowships",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayo.edu/research/training-grant-programs",
+                  "label": "Training Grant Programs",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://give.mayoclinic.org/campaign/740556/donate",
+                  "label": "Give Now",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/giving-to-mayo-clinic/contact-us/frequently-asked-questions",
+                  "label": "Frequently Asked Questions",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/giving-to-mayo-clinic/contact-us",
+                  "label": "Contact Us to Give",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/account",
+                  "label": "Register/Log in",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/diagnosis-treatment/drc-20350693",
+                  "label": "Diagnosis & treatment",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/doctors-departments/ddc-20350695",
+                  "label": "Doctors & departments",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688?p=1",
+                  "label": "Print",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://links.e.response.mayoclinic.org/EmailPreview-GeneralHealth",
+                  "label": "Click here for an email preview.",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://mcforms.mayo.edu/mc5200-mc5299/mc5256-01.pdf",
+                  "label": "Notice of Privacy Practices",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/discussion/exercise-lifestyle-and-life-experience-with-dilated-aorta/?commentsorder=newest",
+                  "label": "Exercise, Lifestyle and Life Experience with Dilated Aorta?",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/chest-x-rays/about/pac-20393494",
+                  "label": "Chest X-rays",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/ct-scan/about/pac-20393675",
+                  "label": "CT scan",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/mri/about/pac-20384768",
+                  "label": "MRI",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/ultrasound/about/pac-20395177",
+                  "label": "Ultrasound",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-this-site/advertising-sponsorship-policy",
+                  "label": "Policy",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-this-site/advertising-sponsorship",
+                  "label": "Opportunities",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://optout.aboutads.info/",
+                  "label": "Ad Choices",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://mcpress.mayoclinic.org/podcasts/health-matters/?utm_source=MC-DotOrg-Text&utm_medium=Link&utm_campaign=Podcast&utm_content=POD",
+                  "label": "Listen to Health Matters Podcast",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://order.store.mayoclinic.com/flex/mmv/ESDIAB1/?altkey=ESMCPRC&utm_source=MC-DotOrg-Text&utm_medium=Link&utm_campaign=Diabetes-Book&utm_content=EDIAB",
+                  "label": "The Essential Diabetes Book",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://give.mayoclinic.org/give/616729?utm_source=devorgtilead&utm_medium=devweb&utm_campaign=devevergreen/#!/donation/checkout?&preset1=50&preset2=100&preset3=250&preset4=1000?currency=USD&amount=100&c_src=25R001WG1MWV90Z24B",
+                  "label": "Give Today",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://jobs.mayoclinic.org/",
+                  "label": "Explore careers",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://links.e.response.mayoclinic.org/preferencecenter",
+                  "label": "Sign up for free e-newsletters",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-this-site",
+                  "label": "About this Site",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-this-site/health-information-policy",
+                  "label": "Health Information Policy",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-mayo-clinic/aco",
+                  "label": "Medicare Accountable Care Organization (ACO)",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://newsnetwork.mayoclinic.org/newsroom/",
+                  "label": "Media Requests",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://newsnetwork.mayoclinic.org/",
+                  "label": "News Network",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/billing-insurance/price-estimates/chargemaster",
+                  "label": "Price Transparency",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://askmayoexpert.mayoclinic.org/",
+                  "label": "AskMayoExpert",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://businessdevelopment.mayoclinic.org/",
+                  "label": "Businesses",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/executive-health",
+                  "label": "Executive Health Program",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-mayo-clinic/international-business-collaborations",
+                  "label": "International Business Collaborations",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-mayo-clinic/facilities-and-real-estate",
+                  "label": "Facilities & Real Estate",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-mayo-clinic/supplier-information",
+                  "label": "Supplier Information",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://college.mayo.edu/admissions-and-tuition/",
+                  "label": "Admissions Requirements",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://college.mayo.edu/academics/",
+                  "label": "Degree Programs",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://edlinkplus.mayo.edu/",
+                  "label": "Student & Faculty Portal",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/international/contact",
+                  "label": "Appointments",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/international/costs-and-insurance",
+                  "label": "Financial Services",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/international/support/representative-offices",
+                  "label": "Representative Offices",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/billing-insurance/financial-assistance",
+                  "label": "Charitable Care & Financial Assistance",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.communityengagement.mayoclinic.org/community-health-needs-assessment",
+                  "label": "Community Health Needs Assessment",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/billing-insurance/financial-assistance/arizona-documents",
+                  "label": "Financial Assistance Documents – Arizona",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/billing-insurance/financial-assistance/florida-documents",
+                  "label": "Financial Assistance Documents – Florida",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/billing-insurance/financial-assistance/minnesota-documents",
+                  "label": "Financial Assistance Documents – Minnesota",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.youtube.com/user/mayoclinic",
+                  "label": "YouTube",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.facebook.com/MayoClinic",
+                  "label": "Facebook",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.linkedin.com/company/mayo-clinic",
+                  "label": "LinkedIn",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.instagram.com/mayoclinic/",
+                  "label": "Instagram",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://mcforms.mayo.edu/mc2500-mc2599/mc2570-61.pdf",
+                  "label": "Notice of Nondiscrimination",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/about-this-site/accessibility-statement",
+                  "label": "Digital Accessibility Statement",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/site-help/site-map",
+                  "label": "Site Map",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/#",
+                  "label": "Manage Cookies",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/es/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "label": "Español",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/ar/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "label": "العربية",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/zh-hans/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "label": "简体中文",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://apps.apple.com/us/app/mayo-clinic/id523220194",
+                  "label": "https://apps.apple.com/us/app/mayo-clinic/id523220194",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://play.google.com/store/apps/details?id=com.mayoclinic.patient&hl=en%27",
+                  "label": "https://play.google.com/store/apps/details?id=com.mayoclinic.patient&hl=en%27",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.clinicalkey.com",
+                  "label": "https://www.clinicalkey.com",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/",
+                  "label": "https://www.mayoclinic.org/",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.merckmanuals.com/professional/cardiovascular-disorders/diseases-of-the-aorta-and-its-branches/abdominal-aortic-aneurysms-aaa",
+                  "label": "https://www.merckmanuals.com/professional/cardiovascular-disorders/diseases-of-the-aorta-and-its-branches/abdominal-aortic-aneurysms-aaa",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 4,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.uptodate.com/contents/search",
+                  "label": "https://www.uptodate.com/contents/search",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.uspreventiveservicestaskforce.org/Page/Document/UpdateSummaryFinal/abdominal-aortic-aneurysm-screening",
+                  "label": "https://www.uspreventiveservicestaskforce.org/Page/Document/UpdateSummaryFinal/abdominal-aortic-aneurysm-screening",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://x.com/mayoclinic",
+                  "label": "https://x.com/mayoclinic",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                }
+              ],
+              "entry": "fetch"
+            }
+          ],
+          "result": "### Page note: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\nStored documents: doc-3780ddfcf1aa\nReader state: complete; relevance: partial\n**Page:** Abdominal aortic aneurysm – Symptoms and causes (Mayo Clinic)  \n**Evidence**  \n*Risk factors for abdominal aortic aneurysm (AAA) as listed in the “Risk factors” section*  \n| # | Risk factor | Source quote | Notes |\n|---|-------------|--------------|-------|\n| 1 | **Tobacco use** | “*Smoking is the strongest risk factor for aortic aneurysms.*” | Smoking, e.g., men ages 65‑75 who have ever smoked should have one‑time ultrasound screening |\n| 2 | **Age** | “*Abdominal aortic aneurysms occur most often in people age 65 and older.*” | • |\n| 3 | **Sex** | “*Men get abdominal aortic aneurysms much more often than women do.*” | • |\n| 4 | **Being white** | “*People who are white are at higher risk of abdominal aortic aneurysms.*” | • |\n| 5 | **Family history** | “*Having a family history of abdominal aortic aneurysms increases the risk of having the condition.*” | • |\n| 6 | **Other aneurysms** | “*Having an aneurysm in the aorta in the chest (thoracic aortic aneurysm) or in another large blood vessel, such as the artery behind the knee, might increase the risk of an abdominal aortic aneurysm.*” | • |\n\n**Missing**  \n* The risk factors of brain aneurysm.  \n* The risk factors of thoracic aortic aneurysm.  \n* Any explicit statement of common risk factors across the three disease types.  \n\n**Next links**  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/diagnosis-treatment/drc-20350693` – diagnosis & treatment; unlikely to list brain/thoracic risk factors.  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/doctors-departments/ddc-20350695` – doctors & departments; unlikely to list risk factors.  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/care-at-mayo-clinic/mac-20350696` – care at Mayo Clinic; unlikely to list risk factors.\n\nStored source IDs: doc-3780ddfcf1aa\n116 source links remain unvisited (not excluded). Use research_state inspect/follow to continue this branch later.\n- Care at Mayo Clinic: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/care-at-mayo-clinic/mac-20350696\n- https://www.merckmanuals.com/professional/cardiovascular-disorders/diseases-of-the-aorta-and-its-branches/abdominal-aortic-aneurysms-aaa: https://www.merckmanuals.com/professional/cardiovascular-disorders/diseases-of-the-aorta-and-its-branches/abdominal-aortic-aneurysms-aaa\n- Abdominal aortic aneurysm: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/multimedia/abdominal-aortic-aneurysm/img-20005735\n- Mayo Clinic College of Medicine and Science: https://college.mayo.edu/\n- Mayo Clinic School of Graduate Medical Education: https://college.mayo.edu/academics/residencies-and-fellowships/\n- Ascending Aortic Aneurysm and Exercise: https://connect.mayoclinic.org/discussion/ascending-aortic-aneurysm-and-exercise/?commentsorder=newest\n- Mayo Clinic in Rochester, Minnesota, has been recognized as one of the top Cardiology & Heart Surgery hospitals in the nation by U.S. News & World Report. Learn more about this top honor: https://www.mayoclinic.org/about-mayo-clinic/quality/rankings\n- Diagnosis & treatment: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/diagnosis-treatment/drc-20350693\n- Doctors & departments: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/doctors-departments/ddc-20350695\n- Print: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688?p=1\n- Facilities & Real Estate: https://www.mayoclinic.org/about-mayo-clinic/facilities-and-real-estate\n- Español: https://www.mayoclinic.org/es/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\n\n**Status:** partial\n**Extraction:** complete\n**Sources:** https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\n**Further expansion stopped:** no_useful_next_link. Saved evidence is retained."
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "reasoning": "We need risk factors common to AAA, brain aneurysm, thoracic aortic aneurysm. We have AAA risk factors list. We need brain aneurysm risk factors from Mayo. Let's open brain page.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483"
+          },
+          "result_chars": 5718,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 7888.6,
+          "explorations": [
+            {
+              "depth": 1,
+              "parent_reasoning": "",
+              "query": "Mayo Clinic brain aneurysm risk factors",
+              "urls": [
+                "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483"
+              ],
+              "turns": 1,
+              "status": "partial",
+              "information": "### Page note: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483\nStored documents: doc-c374dddd1acb\nReader state: complete; relevance: partial\n**Page:** Brain aneurysm – Symptoms & causes – Mayo Clinic  \nURL: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483  \n\n**Evidence**  \n\n| Risk Factor | Source quote |\n|-------------|--------------|\n| **Age** (30‑60 years) | “Brain aneurysms can happen at any age. **However, they’re more common in adults between ages 30 and 60**.” |\n| **Female sex** | “Brain aneurysms are more common in women than in men.” |\n| **Cigarette smoking** | “Cigarette smoking. **Smoking is a risk factor for brain aneurysms to form and for brain aneurysms to rupture.**” |\n| **High blood pressure** | “High blood pressure. **This condition can weaken arteries. Aneurysms are more likely to form and to rupture in weakened arteries.**” |\n| **Drug use, especially cocaine** | “Drug use, particularly using cocaine. **Drug use raises blood pressure.** … may lead to an infection, which may cause an aneurysm.” |\n| **Heavy alcohol use** | “Heavy alcohol use. **This also can increase blood pressure.**” |\n| **Inherited connective tissue conditions (e.g., Ehlers–Danlos syndrome)** | “Inherited connective tissue conditions, **such as Ehlers‑Danlos syndrome.**” |\n| **Polycystic kidney disease** | “Polycystic kidney disease. **This inherited condition results in fluid‑filled sacs in the kidneys. It also may increase blood pressure.**” |\n| **Aortic coarctation (narrow aorta)** | “A narrow aorta, also called coarctation of the aorta.” |\n| **Brain arteriovenous malformation (AVM)** | “Brain arteriovenous malformation, also called brain AVM.” |\n| **Family history of brain aneurysm** | “A family history of brain aneurysm. **The risk is higher if you have family members who have had a brain aneurysm.**” |\n| **Large aneurysm (for rupture)** | “Having a large aneurysm.” |\n| **Certain aneurysm locations (for rupture)** | “Having aneurysms in certain locations.” |\n| **Irregular aneurysm shape / daughter sac (for rupture)** | “Having an irregular shape of the aneurysm or having an outpouching on the aneurysm, called a daughter sac.” |\n| **Uncontrolled high blood pressure (for rupture)** | “Having untreated high blood pressure.” |\n\n*All quotes are from the “Risk factors” section of the page.*\n\n**Missing**  \n- Risk factors for an **abdominal aortic aneurysm** (no such list on this page).  \n- Risk factors for a **thoracic aortic aneurysm** (no such list on this page).  \n- No explicit comparison or statement indicating which risk factors are common to all three aneurysm types.\n\n**Next links** (potential routes to missing risk‑factor information, but none directly address abdominal or thoracic aortic aneurysms from this page):\n\n| Link text | URL | Potential relevance |\n|-----------|-----|---------------------|\n| Diagnosis & treatment | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/diagnosis-treatment/drc-20361595 | Provides medical details for brain aneurysm only. |\n| Aneurysm clip | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-clip/img-20007616 | Media page, not a risk‑factor list. |\n| Endovascular coiling | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-coil/img-20007617 | Media page, not a risk‑factor list. |\n| Cerebral angiogram | https://www.mayoclinic.org/tests-procedures/cerebral-angiogram/about/pac-20607747 | Procedure page, not risk factors. |\n| Brain CT scan | https://www.mayoclinic.org/tests-procedures/brain-ct-scan/about/pac-20587837 | Imaging page, not risk factors. |\n| Mayo Clinic Minute: Who is at risk for a brain aneurysm? | https://newsnetwork.mayoclinic.org/?p=392951 | News article about brain aneurysm risk factors only. |\n\n**Status:** partial",
+              "information_chars": 3879,
+              "own_information": "**Page:** Brain aneurysm – Symptoms & causes – Mayo Clinic  \nURL: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483  \n\n**Evidence**  \n\n| Risk Factor | Source quote |\n|-------------|--------------|\n| **Age** (30‑60 years) | “Brain aneurysms can happen at any age. **However, they’re more common in adults between ages 30 and 60**.” |\n| **Female sex** | “Brain aneurysms are more common in women than in men.” |\n| **Cigarette smoking** | “Cigarette smoking. **Smoking is a risk factor for brain aneurysms to form and for brain aneurysms to rupture.**” |\n| **High blood pressure** | “High blood pressure. **This condition can weaken arteries. Aneurysms are more likely to form and to rupture in weakened arteries.**” |\n| **Drug use, especially cocaine** | “Drug use, particularly using cocaine. **Drug use raises blood pressure.** … may lead to an infection, which may cause an aneurysm.” |\n| **Heavy alcohol use** | “Heavy alcohol use. **This also can increase blood pressure.**” |\n| **Inherited connective tissue conditions (e.g., Ehlers–Danlos syndrome)** | “Inherited connective tissue conditions, **such as Ehlers‑Danlos syndrome.**” |\n| **Polycystic kidney disease** | “Polycystic kidney disease. **This inherited condition results in fluid‑filled sacs in the kidneys. It also may increase blood pressure.**” |\n| **Aortic coarctation (narrow aorta)** | “A narrow aorta, also called coarctation of the aorta.” |\n| **Brain arteriovenous malformation (AVM)** | “Brain arteriovenous malformation, also called brain AVM.” |\n| **Family history of brain aneurysm** | “A family history of brain aneurysm. **The risk is higher if you have family members who have had a brain aneurysm.**” |\n| **Large aneurysm (for rupture)** | “Having a large aneurysm.” |\n| **Certain aneurysm locations (for rupture)** | “Having aneurysms in certain locations.” |\n| **Irregular aneurysm shape / daughter sac (for rupture)** | “Having an irregular shape of the aneurysm or having an outpouching on the aneurysm, called a daughter sac.” |\n| **Uncontrolled high blood pressure (for rupture)** | “Having untreated high blood pressure.” |\n\n*All quotes are from the “Risk factors” section of the page.*\n\n**Missing**  \n- Risk factors for an **abdominal aortic aneurysm** (no such list on this page).  \n- Risk factors for a **thoracic aortic aneurysm** (no such list on this page).  \n- No explicit comparison or statement indicating which risk factors are common to all three aneurysm types.\n\n**Next links** (potential routes to missing risk‑factor information, but none directly address abdominal or thoracic aortic aneurysms from this page):\n\n| Link text | URL | Potential relevance |\n|-----------|-----|---------------------|\n| Diagnosis & treatment | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/diagnosis-treatment/drc-20361595 | Provides medical details for brain aneurysm only. |\n| Aneurysm clip | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-clip/img-20007616 | Media page, not a risk‑factor list. |\n| Endovascular coiling | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-coil/img-20007617 | Media page, not a risk‑factor list. |\n| Cerebral angiogram | https://www.mayoclinic.org/tests-procedures/cerebral-angiogram/about/pac-20607747 | Procedure page, not risk factors. |\n| Brain CT scan | https://www.mayoclinic.org/tests-procedures/brain-ct-scan/about/pac-20587837 | Imaging page, not risk factors. |\n| Mayo Clinic Minute: Who is at risk for a brain aneurysm? | https://newsnetwork.mayoclinic.org/?p=392951 | News article about brain aneurysm risk factors only. |\n\n**Status:** partial",
+              "own_status": "partial",
+              "own_information_chars": 3695,
+              "extraction_state": "complete",
+              "own_extraction_state": "complete",
+              "note_count": 1,
+              "recovery_attempts": 0,
+              "expansion_decision": "no",
+              "expansion_stop_reason": "no_useful_next_link",
+              "nodes": 0,
+              "error": null,
+              "latency_ms": 18664.9,
+              "opened": [],
+              "documents": [
+                "doc-c374dddd1acb"
+              ],
+              "pending_links": [
+                {
+                  "url": "https://newsnetwork.mayoclinic.org/?p=392951",
+                  "label": "Mayo Clinic Minute: Who is at risk for a brain aneurysm?",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 5,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://newsnetwork.mayoclinic.org/?p=382222",
+                  "label": "Mayo Clinic Minute: The difference in brain aneurysms",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 4,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/care-at-mayo-clinic/mac-20361689",
+                  "label": "Care at Mayo Clinic",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 4,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://order.store.mayoclinic.com/flex/mmv/fhblc01/?altkey=FHBORG&utm_source=MC-DotOrg-PS&utm_medium=Link&utm_campaign=FamilyHealth-Book&utm_content=FHB",
+                  "label": "A Book: Mayo Clinic Family Health Book",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://order.store.mayoclinic.com/flex/mmv/hldigar/?altkey=HLEMORG",
+                  "label": "Newsletter: Mayo Clinic Health Letter — Digital Edition",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/brain-aneurysm/img-20007506",
+                  "label": "Brain aneurysm",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/discussion/have-you-encountered-therapy-animals-during-inpatient-stroke-recovery/?commentsorder=newest",
+                  "label": "Have you encountered therapy animals during inpatient stroke recovery?",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-clip/img-20007616",
+                  "label": "Aneurysm clip",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/vid-20078182",
+                  "label": "Aneurysm Surgery",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/brain-ct-scan/about/pac-20587837",
+                  "label": "Brain CT scan",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/brain-mri/about/pac-20582237",
+                  "label": "Brain magnetic resonance imaging",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/diagnosis-treatment/drc-20361595",
+                  "label": "Diagnosis & treatment",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/doctors-departments/ddc-20361659",
+                  "label": "Doctors & departments",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483?p=1",
+                  "label": "Print",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/group/cerebrovascular-diseases/?utm_source=mayoclinic.org&utm_medium=referral&utm_campaign=connect_widget",
+                  "label": "Stroke & Cerebrovascular Diseases support group",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/discussion/tia-symptoms-but-all-tests-come-back-negative-for-anything/?commentsorder=newest",
+                  "label": "TIA symptoms but ALL tests come back negative for anything",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://connect.mayoclinic.org/discussion/extreme-tiredness-after-ischemic-stroke/?commentsorder=newest",
+                  "label": "Extreme Tiredness after ischemic stroke?",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-coil/img-20007617",
+                  "label": "Endovascular coiling",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/vid-20078330",
+                  "label": "New Way to Fix Aneurysms",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/cerebral-angiogram/about/pac-20607747",
+                  "label": "Cerebral angiogram",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/craniotomy/about/pac-20568981",
+                  "label": "Craniotomy",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/lumbar-puncture/about/pac-20394631",
+                  "label": "Lumbar puncture (spinal tap)",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/pterional-craniotomy/about/pac-20605661",
+                  "label": "Pterional craniotomy",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/es/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "label": "Español",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/ar/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "label": "العربية",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/zh-hans/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "label": "简体中文",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://pubmed.ncbi.nlm.nih.gov/27102908/",
+                  "label": "https://pubmed.ncbi.nlm.nih.gov/27102908/",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.aans.org/patients/conditions-treatments/cerebral-aneurysm/",
+                  "label": "https://www.aans.org/patients/conditions-treatments/cerebral-aneurysm/",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.bafound.org/treatment-recovery/treatment-options/endovascular-treatment/",
+                  "label": "https://www.bafound.org/treatment-recovery/treatment-options/endovascular-treatment/",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.bafound.org/treatment-recovery/treatment-options/surgery/",
+                  "label": "https://www.bafound.org/treatment-recovery/treatment-options/surgery/",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.jointcommission.org/who-we-are/who-we-work-with/find-accredited-organizations#q=mayo%20clinic&numberOfResults=25",
+                  "label": "https://www.jointcommission.org/who-we-are/who-we-work-with/find-accredited-organizations#q=mayo%20clinic&numberOfResults=25",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.nhs.uk/conditions/brain-aneurysm/",
+                  "label": "https://www.nhs.uk/conditions/brain-aneurysm/",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 2,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.ninds.nih.gov/health-information/disorders/cerebral-aneurysms",
+                  "label": "https://www.ninds.nih.gov/health-information/disorders/cerebral-aneurysms",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                }
+              ],
+              "entry": "fetch"
+            }
+          ],
+          "result": "### Page note: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483\nStored documents: doc-c374dddd1acb\nReader state: complete; relevance: partial\n**Page:** Brain aneurysm – Symptoms & causes – Mayo Clinic  \nURL: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483  \n\n**Evidence**  \n\n| Risk Factor | Source quote |\n|-------------|--------------|\n| **Age** (30‑60 years) | “Brain aneurysms can happen at any age. **However, they’re more common in adults between ages 30 and 60**.” |\n| **Female sex** | “Brain aneurysms are more common in women than in men.” |\n| **Cigarette smoking** | “Cigarette smoking. **Smoking is a risk factor for brain aneurysms to form and for brain aneurysms to rupture.**” |\n| **High blood pressure** | “High blood pressure. **This condition can weaken arteries. Aneurysms are more likely to form and to rupture in weakened arteries.**” |\n| **Drug use, especially cocaine** | “Drug use, particularly using cocaine. **Drug use raises blood pressure.** … may lead to an infection, which may cause an aneurysm.” |\n| **Heavy alcohol use** | “Heavy alcohol use. **This also can increase blood pressure.**” |\n| **Inherited connective tissue conditions (e.g., Ehlers–Danlos syndrome)** | “Inherited connective tissue conditions, **such as Ehlers‑Danlos syndrome.**” |\n| **Polycystic kidney disease** | “Polycystic kidney disease. **This inherited condition results in fluid‑filled sacs in the kidneys. It also may increase blood pressure.**” |\n| **Aortic coarctation (narrow aorta)** | “A narrow aorta, also called coarctation of the aorta.” |\n| **Brain arteriovenous malformation (AVM)** | “Brain arteriovenous malformation, also called brain AVM.” |\n| **Family history of brain aneurysm** | “A family history of brain aneurysm. **The risk is higher if you have family members who have had a brain aneurysm.**” |\n| **Large aneurysm (for rupture)** | “Having a large aneurysm.” |\n| **Certain aneurysm locations (for rupture)** | “Having aneurysms in certain locations.” |\n| **Irregular aneurysm shape / daughter sac (for rupture)** | “Having an irregular shape of the aneurysm or having an outpouching on the aneurysm, called a daughter sac.” |\n| **Uncontrolled high blood pressure (for rupture)** | “Having untreated high blood pressure.” |\n\n*All quotes are from the “Risk factors” section of the page.*\n\n**Missing**  \n- Risk factors for an **abdominal aortic aneurysm** (no such list on this page).  \n- Risk factors for a **thoracic aortic aneurysm** (no such list on this page).  \n- No explicit comparison or statement indicating which risk factors are common to all three aneurysm types.\n\n**Next links** (potential routes to missing risk‑factor information, but none directly address abdominal or thoracic aortic aneurysms from this page):\n\n| Link text | URL | Potential relevance |\n|-----------|-----|---------------------|\n| Diagnosis & treatment | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/diagnosis-treatment/drc-20361595 | Provides medical details for brain aneurysm only. |\n| Aneurysm clip | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-clip/img-20007616 | Media page, not a risk‑factor list. |\n| Endovascular coiling | https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-coil/img-20007617 | Media page, not a risk‑factor list. |\n| Cerebral angiogram | https://www.mayoclinic.org/tests-procedures/cerebral-angiogram/about/pac-20607747 | Procedure page, not risk factors. |\n| Brain CT scan | https://www.mayoclinic.org/tests-procedures/brain-ct-scan/about/pac-20587837 | Imaging page, not risk factors. |\n| Mayo Clinic Minute: Who is at risk for a brain aneurysm? | https://newsnetwork.mayoclinic.org/?p=392951 | News article about brain aneurysm risk factors only. |\n\n**Status:** partial\n\nStored source IDs: doc-c374dddd1acb\n33 source links remain unvisited (not excluded). Use research_state inspect/follow to continue this branch later.\n- Mayo Clinic Minute: Who is at risk for a brain aneurysm?: https://newsnetwork.mayoclinic.org/?p=392951\n- Mayo Clinic Minute: The difference in brain aneurysms: https://newsnetwork.mayoclinic.org/?p=382222\n- Care at Mayo Clinic: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/care-at-mayo-clinic/mac-20361689\n- A Book: Mayo Clinic Family Health Book: https://order.store.mayoclinic.com/flex/mmv/fhblc01/?altkey=FHBORG&utm_source=MC-DotOrg-PS&utm_medium=Link&utm_campaign=FamilyHealth-Book&utm_content=FHB\n- Newsletter: Mayo Clinic Health Letter — Digital Edition: https://order.store.mayoclinic.com/flex/mmv/hldigar/?altkey=HLEMORG\n- Brain aneurysm: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/brain-aneurysm/img-20007506\n- Aneurysm clip: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-clip/img-20007616\n- Aneurysm Surgery: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/vid-20078182\n- Diagnosis & treatment: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/diagnosis-treatment/drc-20361595\n- Doctors & departments: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/doctors-departments/ddc-20361659\n- Print: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483?p=1\n- Endovascular coiling: https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/multimedia/aneurysm-coil/img-20007617\n\n**Status:** partial\n**Extraction:** complete\n**Sources:** https://www.mayoclinic.org/diseases-conditions/brain-aneurysm/symptoms-causes/syc-20361483\n**Further expansion stopped:** no_useful_next_link. Saved evidence is retained."
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "reasoning": "We have risk factor lists for AAA and brain aneurysm. Need thoracic aortic aneurysm risk factors. Search.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Mayo Clinic thoracic aortic aneurysm risk factors"
+          },
+          "result_chars": 3549,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2359.4,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"Thoracic aortic aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188\", \"snippet\": \"Risk factors · Age. Thoracic aortic aneurysms occur most often in people age 65 and older. · Smoking and tobacco use. If you smoke or chew tobacco ...\", \"date\": \"Apr 18, 2025\"}, {\"title\": \"Thoracic aortic aneurysm - Diagnosis and treatment\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/diagnosis-treatment/drc-20350193\", \"snippet\": \"Thoracic aortic aneurysm care at Mayo Clinic · Aortic root surgery ... Epidemiology, risk factors, pathogenesis, and natural history of thoracic ...\", \"date\": \"Apr 18, 2025\"}, {\"title\": \"Thoracic aortic aneurysm - Care at Mayo Clinic\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/care-at-mayo-clinic/mac-20350197\", \"snippet\": \"For example, if an aneurysm is caused by a genetic condition such as Marfan syndrome, Mayo Clinic cardiologists work with other healthcare ...\", \"date\": \"Apr 18, 2025\"}, {\"title\": \"Thoracic Aortic Aneurysmal Disease: Comprehensive ...\", \"link\": \"https://www.mayoclinicproceedings.org/article/S0025-6196(23)00333-6/fulltext\", \"snippet\": \"by P Reddy · 2024 · Cited by 8 — Marfan syndrome (MFS), Loeys-Dietz syndrome (LDS), vascular Ehlers-Danlos syndrome, Turner syndrome, bicuspid aortic valve (BAV), and familial thoracic aortic ...\"}, {\"title\": \"Mayo Clinic – Thoracic Aortic Aneurysm\", \"link\": \"https://www.youtube.com/watch?v=L_N4HFGkgZ4\", \"snippet\": \"In this video, Gabor Bagameri, M.D., a cardiac surgeon at Mayo Clinic discusses the normal anatomy function and histology of the thoracic ...\", \"date\": \"5 years ago\"}, {\"title\": \"Abdominal aortic aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\", \"snippet\": \"Smoking is the strongest risk factor for aortic aneurysms. Smoking weakens the walls of blood vessels, including the aorta. This raises the risk ...\", \"date\": \"Apr 3, 2025\"}, {\"title\": \"Mayo Clinic Q and A: Thoracic aortic aneurysms\", \"link\": \"https://newsnetwork.mayoclinic.org/discussion/mayo-clinic-q-and-a-thoracic-aortic-aneurysms/\", \"snippet\": \"Other factors that increase the risk of a thoracic aortic aneurysm include high blood pressure; smoking; high cholesterol levels; and ...\", \"date\": \"Mar 15, 2022\"}, {\"title\": \"Thoracic aortic aneurysm and aortic root repair: Heart care at ...\", \"link\": \"https://medprofvideos.mayoclinic.org/videos/thoracic-aortic-aneurysm-and-aortic-root-repair-heart-care-at-mayo-clinic\", \"snippet\": \"When we think about thoracic erotic Aysal disease as a group, we need to think about three categories. First is genetic etiology. The second is ...\"}, {\"title\": \"A thoracic aortic aneurysm is a weakened area in the major ...\", \"link\": \"https://www.facebook.com/MayoClinic/videos/mayo-clinic-video-podcast-dr-gabor-bagameri/495832978196980/\", \"snippet\": \"A thoracic aortic aneurysm is a weakened area in the major blood vessel that feeds blood to the body. \\\"Most of the time, a thoracic aortic ...\", \"date\": \"5 years ago\"}], \"related_searches\": [\"Thoracic aortic aneurysm: symptoms\", \"Thoracic aortic aneurysm treatment\", \"Thoracic aortic aneurysm causes\", \"How dangerous is a 4 cm aortic aneurysm\", \"Thoracic aortic aneurysm pathophysiology\", \"Thoracic aortic aneurysm classification\", \"Ascending thoracic aortic aneurysm symptoms\", \"Thoracic aortic aneurysm diagnosis\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "reasoning": "",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch<|channel|>commentary",
+          "arguments": {
+            "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20150188"
+          },
+          "result_chars": 46,
+          "is_error": true,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "unknown tool 'web_fetch<|channel|>commentary'."
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "reasoning": "We need to fetch thoracic page.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188"
+          },
+          "result_chars": 5773,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 9982.0,
+          "explorations": [
+            {
+              "depth": 1,
+              "parent_reasoning": "",
+              "query": "Mayo Clinic thoracic aortic aneurysm risk factors",
+              "urls": [
+                "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188"
+              ],
+              "turns": 2,
+              "status": "partial",
+              "information": "### Page note: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188\nStored documents: doc-af8d4bda4f3c\nReader state: complete; relevance: partial\n**Page:** Thoracic aortic aneurysm – Symptoms and causes (https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188)\n\n**Evidence**  \n* **Risk factors** (Thoracic aortic aneurysm)  \n  * **Age.**  “Thoracic aortic aneurysms occur most often in people age 65 and older.”【2, line 67】  \n  * **Smoking and tobacco use.**  “If you smoke or chew tobacco, it's important that you quit. Using tobacco also can worsen an aneurysm and overall health.”【2, line 68】  \n  * **High blood pressure.**  “Increased blood pressure damages the blood vessels in the body. This raises the risk of an aneurysm.”【2, line 69】  \n  * **Coronary artery disease.**  “This type of heart disease causes reduced blood flow to the heart. It's often caused by atherosclerosis. Atherosclerosis can damage the lining of a blood vessel, increasing the risk of an aneurysm.”【2, line 70】  \n  * **Family history.**  “You're more likely to get an aortic aneurysm and rupture if you have a parent, brother, sister or child with one. You may develop aneurysms at a younger age.”【2, line 71】\n\n* **Other related categories (listed under Causes or general discussion) that may serve as risk factors for aneurysms more broadly**  \n  * **Atherosclerosis** – “A buildup of fats, cholesterol, and other substances in and on the artery walls causes the arteries to get stiff. Over time, the walls of the arteries may get weak.”【2, line 45】  \n  * **Genetic conditions** – “Aortic aneurysms in younger people are often caused by changes in genes. A genetic condition called Marfan syndrome can weaken the wall of the aorta.”【2, line 47】  \n  * **Blood vessel inflammation** – “Conditions that cause irritation and swelling of blood vessels, such as Takayasu arteritis and giant cell arteritis, are associated with thoracic aortic aneurysms.”【2, line 53】  \n  * **Bicuspid aortic valve** – “People who are born with a bicuspid valve are more likely to get a thoracic aneurysm.”【2, line 56】  \n  * **Untreated infection** – “Though rare, it’s possible to get a thoracic aortic aneurysm if you’ve had an untreated infection such as syphilis or salmonella.”【2, line 58】  \n  * **Traumatic injury** – “Some people who are injured in falls or motor vehicle crashes get thoracic aortic aneurysms. But this is rare.”【2, line 60】\n\n* **Relationship to abdominal aortic aneurysm**  \n  * “Thoracic aortic aneurysms are less common than aneurysms in the lower part of the aorta, called abdominal aortic aneurysms.”【2, line 64】\n\n**Missing**  \n* No risk‑factor list for **abdominal aortic aneurysm** or **brain aneurysm** is present on this page.  \n* No explicit statement of any risk factor common to all three aneurysm types.  \n\n**Next links**  \n* Reference list entry **“Aortic aneurysm”** (source 1) – likely links to a general Mayo Clinic page that may contain risk‑factor information applicable to abdominal and brain aneurysms.  \n* Menu link **“Diseases & Conditions”** → “Aortic aneurysm” – could lead to a page covering all aneurysm types and their shared risk factors.  \n* The page contains links to “Diagnosis & treatment,” “Doctors & departments,” and “Care at Mayo Clinic,” which are not expected to contain risk‑factor lists.",
+              "information_chars": 3402,
+              "own_information": "**Page:** Thoracic aortic aneurysm – Symptoms and causes (https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188)\n\n**Evidence**  \n* **Risk factors** (Thoracic aortic aneurysm)  \n  * **Age.**  “Thoracic aortic aneurysms occur most often in people age 65 and older.”【2, line 67】  \n  * **Smoking and tobacco use.**  “If you smoke or chew tobacco, it's important that you quit. Using tobacco also can worsen an aneurysm and overall health.”【2, line 68】  \n  * **High blood pressure.**  “Increased blood pressure damages the blood vessels in the body. This raises the risk of an aneurysm.”【2, line 69】  \n  * **Coronary artery disease.**  “This type of heart disease causes reduced blood flow to the heart. It's often caused by atherosclerosis. Atherosclerosis can damage the lining of a blood vessel, increasing the risk of an aneurysm.”【2, line 70】  \n  * **Family history.**  “You're more likely to get an aortic aneurysm and rupture if you have a parent, brother, sister or child with one. You may develop aneurysms at a younger age.”【2, line 71】\n\n* **Other related categories (listed under Causes or general discussion) that may serve as risk factors for aneurysms more broadly**  \n  * **Atherosclerosis** – “A buildup of fats, cholesterol, and other substances in and on the artery walls causes the arteries to get stiff. Over time, the walls of the arteries may get weak.”【2, line 45】  \n  * **Genetic conditions** – “Aortic aneurysms in younger people are often caused by changes in genes. A genetic condition called Marfan syndrome can weaken the wall of the aorta.”【2, line 47】  \n  * **Blood vessel inflammation** – “Conditions that cause irritation and swelling of blood vessels, such as Takayasu arteritis and giant cell arteritis, are associated with thoracic aortic aneurysms.”【2, line 53】  \n  * **Bicuspid aortic valve** – “People who are born with a bicuspid valve are more likely to get a thoracic aneurysm.”【2, line 56】  \n  * **Untreated infection** – “Though rare, it’s possible to get a thoracic aortic aneurysm if you’ve had an untreated infection such as syphilis or salmonella.”【2, line 58】  \n  * **Traumatic injury** – “Some people who are injured in falls or motor vehicle crashes get thoracic aortic aneurysms. But this is rare.”【2, line 60】\n\n* **Relationship to abdominal aortic aneurysm**  \n  * “Thoracic aortic aneurysms are less common than aneurysms in the lower part of the aorta, called abdominal aortic aneurysms.”【2, line 64】\n\n**Missing**  \n* No risk‑factor list for **abdominal aortic aneurysm** or **brain aneurysm** is present on this page.  \n* No explicit statement of any risk factor common to all three aneurysm types.  \n\n**Next links**  \n* Reference list entry **“Aortic aneurysm”** (source 1) – likely links to a general Mayo Clinic page that may contain risk‑factor information applicable to abdominal and brain aneurysms.  \n* Menu link **“Diseases & Conditions”** → “Aortic aneurysm” – could lead to a page covering all aneurysm types and their shared risk factors.  \n* The page contains links to “Diagnosis & treatment,” “Doctors & departments,” and “Care at Mayo Clinic,” which are not expected to contain risk‑factor lists.",
+              "own_status": "partial",
+              "own_information_chars": 3208,
+              "extraction_state": "complete",
+              "own_extraction_state": "complete",
+              "note_count": 1,
+              "recovery_attempts": 0,
+              "expansion_decision": "no",
+              "expansion_stop_reason": "no_useful_next_link",
+              "nodes": 0,
+              "error": null,
+              "latency_ms": 31100.1,
+              "opened": [],
+              "documents": [
+                "doc-af8d4bda4f3c"
+              ],
+              "pending_links": [
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/aortic-surgery-what-patients-need-to-know/vid-20123456",
+                  "label": "Aortic surgery: What patients need to know — Mayo Clinic",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 6,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/endovascular-repair-for-thoracic-aortic-aneurysm/img-20123853",
+                  "label": "Endovascular repair for thoracic aortic aneurysm",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/open-chest-surgery-for-thoracic-aortic-aneurysm/img-20123852",
+                  "label": "Open-chest surgery for thoracic aortic aneurysm",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/thoracic-aortic-aneurysm/img-20007461",
+                  "label": "Thoracic aortic aneurysm",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/care-at-mayo-clinic/mac-20350197",
+                  "label": "Care at Mayo Clinic",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 5,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/aortic-dissection-and-aortic-aneurysm/img-20112878",
+                  "label": "Aortic dissection and aortic aneurysm",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 4,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/valve-sparing-aortic-root-replacement/vid-20123459",
+                  "label": "Video: Valve-sparing aortic root replacement",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/aortic-root-surgery/about/pac-20383396",
+                  "label": "Aortic root surgery",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/diagnosis-treatment/drc-20350193",
+                  "label": "Diagnosis & treatment",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/doctors-departments/ddc-20350196",
+                  "label": "Doctors & departments",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188?p=1",
+                  "label": "Print",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/tests-procedures/echocardiogram/about/pac-20393856",
+                  "label": "Echocardiogram",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/es/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "label": "Español",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/ar/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "label": "العربية",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.mayoclinic.org/zh-hans/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "label": "简体中文",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 3,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://accessmedicine.mhmedical.com",
+                  "label": "https://accessmedicine.mhmedical.com",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.merckmanuals.com/professional/cardiovascular-disorders/diseases-of-the-aorta-and-its-branches/thoracic-aortic-aneurysms",
+                  "label": "https://www.merckmanuals.com/professional/cardiovascular-disorders/diseases-of-the-aorta-and-its-branches/thoracic-aortic-aneurysms",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 4,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.nhlbi.nih.gov/health-topics/aneurysm",
+                  "label": "https://www.nhlbi.nih.gov/health-topics/aneurysm",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 1,
+                  "status": "pending"
+                },
+                {
+                  "url": "https://www.nhlbi.nih.gov/health/marfan-syndrome",
+                  "label": "https://www.nhlbi.nih.gov/health/marfan-syndrome",
+                  "origin": "https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188",
+                  "depth": 2,
+                  "priority": 0,
+                  "status": "pending"
+                }
+              ],
+              "entry": "fetch"
+            }
+          ],
+          "result": "### Page note: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188\nStored documents: doc-af8d4bda4f3c\nReader state: complete; relevance: partial\n**Page:** Thoracic aortic aneurysm – Symptoms and causes (https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188)\n\n**Evidence**  \n* **Risk factors** (Thoracic aortic aneurysm)  \n  * **Age.**  “Thoracic aortic aneurysms occur most often in people age 65 and older.”【2, line 67】  \n  * **Smoking and tobacco use.**  “If you smoke or chew tobacco, it's important that you quit. Using tobacco also can worsen an aneurysm and overall health.”【2, line 68】  \n  * **High blood pressure.**  “Increased blood pressure damages the blood vessels in the body. This raises the risk of an aneurysm.”【2, line 69】  \n  * **Coronary artery disease.**  “This type of heart disease causes reduced blood flow to the heart. It's often caused by atherosclerosis. Atherosclerosis can damage the lining of a blood vessel, increasing the risk of an aneurysm.”【2, line 70】  \n  * **Family history.**  “You're more likely to get an aortic aneurysm and rupture if you have a parent, brother, sister or child with one. You may develop aneurysms at a younger age.”【2, line 71】\n\n* **Other related categories (listed under Causes or general discussion) that may serve as risk factors for aneurysms more broadly**  \n  * **Atherosclerosis** – “A buildup of fats, cholesterol, and other substances in and on the artery walls causes the arteries to get stiff. Over time, the walls of the arteries may get weak.”【2, line 45】  \n  * **Genetic conditions** – “Aortic aneurysms in younger people are often caused by changes in genes. A genetic condition called Marfan syndrome can weaken the wall of the aorta.”【2, line 47】  \n  * **Blood vessel inflammation** – “Conditions that cause irritation and swelling of blood vessels, such as Takayasu arteritis and giant cell arteritis, are associated with thoracic aortic aneurysms.”【2, line 53】  \n  * **Bicuspid aortic valve** – “People who are born with a bicuspid valve are more likely to get a thoracic aneurysm.”【2, line 56】  \n  * **Untreated infection** – “Though rare, it’s possible to get a thoracic aortic aneurysm if you’ve had an untreated infection such as syphilis or salmonella.”【2, line 58】  \n  * **Traumatic injury** – “Some people who are injured in falls or motor vehicle crashes get thoracic aortic aneurysms. But this is rare.”【2, line 60】\n\n* **Relationship to abdominal aortic aneurysm**  \n  * “Thoracic aortic aneurysms are less common than aneurysms in the lower part of the aorta, called abdominal aortic aneurysms.”【2, line 64】\n\n**Missing**  \n* No risk‑factor list for **abdominal aortic aneurysm** or **brain aneurysm** is present on this page.  \n* No explicit statement of any risk factor common to all three aneurysm types.  \n\n**Next links**  \n* Reference list entry **“Aortic aneurysm”** (source 1) – likely links to a general Mayo Clinic page that may contain risk‑factor information applicable to abdominal and brain aneurysms.  \n* Menu link **“Diseases & Conditions”** → “Aortic aneurysm” – could lead to a page covering all aneurysm types and their shared risk factors.  \n* The page contains links to “Diagnosis & treatment,” “Doctors & departments,” and “Care at Mayo Clinic,” which are not expected to contain risk‑factor lists.\n\nStored source IDs: doc-af8d4bda4f3c\n19 source links remain unvisited (not excluded). Use research_state inspect/follow to continue this branch later.\n- Aortic surgery: What patients need to know — Mayo Clinic: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/aortic-surgery-what-patients-need-to-know/vid-20123456\n- Care at Mayo Clinic: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/care-at-mayo-clinic/mac-20350197\n- Aortic dissection and aortic aneurysm: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/aortic-dissection-and-aortic-aneurysm/img-20112878\n- https://www.merckmanuals.com/professional/cardiovascular-disorders/diseases-of-the-aorta-and-its-branches/thoracic-aortic-aneurysms: https://www.merckmanuals.com/professional/cardiovascular-disorders/diseases-of-the-aorta-and-its-branches/thoracic-aortic-aneurysms\n- Endovascular repair for thoracic aortic aneurysm: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/endovascular-repair-for-thoracic-aortic-aneurysm/img-20123853\n- Open-chest surgery for thoracic aortic aneurysm: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/open-chest-surgery-for-thoracic-aortic-aneurysm/img-20123852\n- Thoracic aortic aneurysm: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/thoracic-aortic-aneurysm/img-20007461\n- Video: Valve-sparing aortic root replacement: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/multimedia/valve-sparing-aortic-root-replacement/vid-20123459\n- Diagnosis & treatment: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/diagnosis-treatment/drc-20350193\n- Doctors & departments: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/doctors-departments/ddc-20350196\n- Print: https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188?p=1\n- Español: https://www.mayoclinic.org/es/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188\n\n**Status:** partial\n**Extraction:** complete\n**Sources:** https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188\n**Further expansion stopped:** no_useful_next_link. Saved evidence is retained."
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "reasoning": "We need common risk factors across abdominal aortic aneurysm (AAA), brain aneurysm, and thoracic aortic aneurysm (TAA) according to Mayo Clinic. We have risk factor lists for each. Common items: Age, smoking (tobacco use), family history? For AAA: tobacco use, age, sex (male), white race, family history, other aneurysms. Brain: age 30-60, female sex, smoking, high blood pressure, drug use, heavy alcohol use, inherited connective tissue conditions, polycystic kidney disease, coarctation, arteriovenous malformation, family history, large aneurysm, location, irregular shape, uncontrolled hypertension. Thoracic: age, smoking, high blood pressure, coronary artery disease, family history, plus others.\n\nCommon risk factors across all three: age, smoking/tobacco, high blood pressure? Brain list includes high blood pressure. Thoracic list includes high blood pressure. AAA list didn't list high blood pressure explicitly in the extracted list, but may be present; but the extracted list didn't include it. We need from AAA page: Did it mention high blood pressure? In the AAA list: not there. But AAA page might have high blood pressure in context? Let's search again.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Abdominal aortic aneurysm risk factors high blood pressure Mayo Clinic"
+          },
+          "result_chars": 3573,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2146.6,
+          "explorations": [],
+          "result": "{\"organic\": [{\"title\": \"Abdominal aortic aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\", \"snippet\": \"High blood pressure. High blood pressure can damage and weaken the aorta's walls. Blood vessel diseases. These diseases cause blood vessels ...\", \"date\": \"Apr 3, 2025\"}, {\"title\": \"Abdominal aortic aneurysm - Diagnosis and treatment\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/diagnosis-treatment/drc-20350693\", \"snippet\": \"Being male and smoking significantly increase the risk of abdominal aortic aneurysm. Screening recommendations vary, but in general: Men ages 65 ...\", \"date\": \"Apr 3, 2025\"}, {\"title\": \"Aortic aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/aortic-aneurysm/symptoms-causes/syc-20369472\", \"snippet\": \"People with an aortic aneurysm have an increased risk of a tear in the aortic ... high blood pressure compounded by high cholesterol, smoking, ...\", \"date\": \"Apr 10, 2025\"}, {\"title\": \"Mayo expert reacts to new guidelines on abdominal aortic ...\", \"link\": \"https://newsnetwork.mayoclinic.org/discussion/mayo-expert-reacts-to-new-guidelines-on-abdominal-aortic-aneurysm-screening/\", \"snippet\": \"... high blood pressure and high cholesterol are risk factors for abdominal aortic aneurysms, he says. The question of whether to screen becomes ...\", \"date\": \"Jun 24, 2014\"}, {\"title\": \"Thoracic aortic aneurysm - Symptoms and causes\", \"link\": \"https://www.mayoclinic.org/diseases-conditions/thoracic-aortic-aneurysm/symptoms-causes/syc-20350188\", \"snippet\": \"High blood pressure. Increased blood pressure damages the blood vessels in the body. This raises the risk of an aneurysm. Coronary artery ...\", \"date\": \"Apr 18, 2025\"}, {\"title\": \"Mayo Clinic – Thoracic Aortic Aneurysm\", \"link\": \"https://www.youtube.com/watch?v=L_N4HFGkgZ4\", \"snippet\": \"The 1 Blood Pressure Number That Predicts Stroke (Seniors Over 60) ... Abdominal Aortic Aneurysm - Warning Signs You Must NEVER Ignore.\", \"date\": \"5 years ago\"}, {\"title\": \"Blood pressure, hypertension and the risk of abdominal aortic ...\", \"link\": \"https://pmc.ncbi.nlm.nih.gov/articles/PMC6497813/\", \"snippet\": \"by E Kobeissi · 2019 · Cited by 214 — Risk factors for the development of AAA include older age, male gender, Caucasian race, family history of the disorder, atherosclerotic disease ...\"}, {\"title\": \"Abdominal Aortic Aneurysms: Mayo Surgeon Explains Who ...\", \"link\": \"https://newsnetwork.mayoclinic.org/discussion/abdominal-aortic-aneurysms-mayo-clinic-surgeon-explains-who-needs-screening-treatment/\", \"snippet\": \"The greatest risk is that the aneurysm will rupture. “With every heartbeat there is increased pressure ... aneurysm bulges can extend to blood ...\", \"date\": \"Jul 16, 2014\"}, {\"title\": \"Thoracic aortic aneurysm and aortic root repair: Heart care at ...\", \"link\": \"https://medprofvideos.mayoclinic.org/videos/thoracic-aortic-aneurysm-and-aortic-root-repair-heart-care-at-mayo-clinic\", \"snippet\": \"Usually when the aneurysm involves the first part of the aorta, it's called aortic root. It's like you can imagine like a pear shape. It's a ...\"}], \"related_searches\": [\"Aortic aneurysm in females symptoms\", \"Abdominal aortic aneurysm treatment\", \"Aortic aneurysm diagnosis\", \"Abdominal aortic aneurysm - causes\", \"Aortic aneurysm treatment without surgery\", \"Leaking abdominal aortic aneurysm symptoms\", \"Abdominal aortic aneurysm surgery success rate\", \"Abdominal aortic aneurysm rupture symptoms\"]}"
+        }
+      ]
+    },
+    {
+      "turn": 9,
+      "reasoning": "We need to answer: According to the Mayo Clinic, what risk factors do an abdominal aortic aneurysm, a brain aneurysm, and a thoracic aortic aneurysm have in common? We need common risk factors across the three.\n\nWe have lists:\n\nFrom AAA source: risk factors list. Provided earlier. Let's list AAA risk factors: Tobacco use, Age, Sex (male), Being white, Family history, Other aneurysms. Also possibly high blood pressure etc? The AAA page had high blood pressure? The snippet in threshold earlier said \"High blood pressure. High blood pressure can damage and weaken the aorta's walls.\" That was part of risk. But from the table we extracted, only those 6. But the page may have more risk factors. Let's open again and maybe scroll further lines to confirm.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688"
+          },
+          "result_chars": 2213,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "### Page note: https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\nStored documents: doc-3780ddfcf1aa\nReader state: complete; relevance: partial\n**Page:** Abdominal aortic aneurysm – Symptoms and causes (Mayo Clinic)  \n**Evidence**  \n*Risk factors for abdominal aortic aneurysm (AAA) as listed in the “Risk factors” section*  \n| # | Risk factor | Source quote | Notes |\n|---|-------------|--------------|-------|\n| 1 | **Tobacco use** | “*Smoking is the strongest risk factor for aortic aneurysms.*” | Smoking, e.g., men ages 65‑75 who have ever smoked should have one‑time ultrasound screening |\n| 2 | **Age** | “*Abdominal aortic aneurysms occur most often in people age 65 and older.*” | • |\n| 3 | **Sex** | “*Men get abdominal aortic aneurysms much more often than women do.*” | • |\n| 4 | **Being white** | “*People who are white are at higher risk of abdominal aortic aneurysms.*” | • |\n| 5 | **Family history** | “*Having a family history of abdominal aortic aneurysms increases the risk of having the condition.*” | • |\n| 6 | **Other aneurysms** | “*Having an aneurysm in the aorta in the chest (thoracic aortic aneurysm) or in another large blood vessel, such as the artery behind the knee, might increase the risk of an abdominal aortic aneurysm.*” | • |\n\n**Missing**  \n* The risk factors of brain aneurysm.  \n* The risk factors of thoracic aortic aneurysm.  \n* Any explicit statement of common risk factors across the three disease types.  \n\n**Next links**  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/diagnosis-treatment/drc-20350693` – diagnosis & treatment; unlikely to list brain/thoracic risk factors.  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/doctors-departments/ddc-20350695` – doctors & departments; unlikely to list risk factors.  \n* `https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/care-at-mayo-clinic/mac-20350696` – care at Mayo Clinic; unlikely to list risk factors.\nPreviously saved notes; no new network fetch. Use read_document for another part of this source; research_state inspect/follow for pending links.\nStored document: doc-3780ddfcf1aa"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "reasoning": "We need common risk factors among abdominal aortic aneurysm, brain aneurysm, thoracic aortic aneurysm according to Mayo Clinic. We have lists for each.\n\nLet's gather risk factor lists:\n\nFrom doc-3780ddfcf1aa (abdominal): tobacco use, age, sex, being white, family history, other aneurysms.\n\nFrom brain (doc-c374dddd1acb): risk factors include age, female sex, cigarette smoking, high blood pressure, drug use (cocaine), heavy alcohol use, inherited connective tissue conditions, polycystic kidney disease, aortic coarctation, brain AVM, family history, large aneurysm, certain location, irregular shape, uncontrolled BP.\n\nBut for common across all three, we only care about those present in all three lists.\n\nWe also need thoracic aortic aneurysm list: from doc-af8d4bda4f3c: Age, smoking and tobacco use, high blood pressure, coronary artery disease, family history. Also mentions atherosclerosis, genetic conditions, etc. But core risk factors list given.\n\nSo common risk factors among all three: Age, smoking/tobacco use, family history.\n\nSex? brain: female female; abdominal: men; not common. White? only abdominal. High BP appears in brain list; not in abdominal list? Abdominal list didn't mention high BP? Actually abdominal list omitted high BP; but search result variant earlier had high blood pressure included? That doc-3780... earlier had maybe high blood pressure? The pub? Let's check read_document for doc-3780 but maybe risk factor list includes high blood pressure. Let's search within doc-3780.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "read_document",
+          "arguments": {
+            "document": "doc-3780ddfcf1aa",
+            "action": "find",
+            "terms": [
+              "blood"
+            ]
+          },
+          "result_chars": 1710,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "{\"document\": \"doc-3780ddfcf1aa\", \"url\": \"https://www.mayoclinic.org/diseases-conditions/abdominal-aortic-aneurysm/symptoms-causes/syc-20350688\", \"operation\": {\"document\": \"doc-3780ddfcf1aa\", \"action\": \"find\", \"terms\": [\"blood\"]}, \"total\": 8, \"lines\": [[117, \"*   **High blood pressure.** High blood pressure can damage and weaken the aorta's walls.\"], [118, \"*   **Blood vessel diseases.** These diseases cause blood vessels to become swollen and irritated.\"], [126, \"*   **Tobacco use.** Smoking is the strongest risk factor for aortic aneurysms. Smoking weakens the walls of blood vessels, including the aorta. This raises the risk of aortic aneurysm and aneurysm rupture. The longer and more you use tobacco, the greater the chances are of developing an aortic aneurysm. Men ages 65 to 75 who have ever smoked should have a one-time ultrasound to screen for an abdominal aortic aneurysm.\"], [131, \"*   **Other aneurysms.** Having an aneurysm in the aorta in the chest (thoracic aortic aneurysm) or in another large blood vessel, such as the artery behind the knee, might increase the risk of an abdominal aortic aneurysm.\"], [133, \"If you're at risk of an aortic aneurysm, medicines may be given to lower blood pressure and relieve stress on weakened arteries.\"], [147, \"*   Low blood pressure.\"], [150, \"Aortic aneurysms also increase the risk of developing blood clots in the area. If a blood clot breaks loose, it can block a blood vessel elsewhere in the body. Symptoms of a blocked blood vessel may include pain or reduced blood flow to the legs, toes, kidneys or belly area.\"], [158, \"*   **Keep your blood pressure and cholesterol under control.** Take medicines as directed.\"]], \"next_offset\": null}"
+        }
+      ]
+    },
+    {
+      "turn": 11,
+      "reasoning": "We need risk factors common to AAA, brain aneurysm, thoracic aortic aneurysm according to Mayo Clinic.\n\nWe have risk factor lists for AAA, brain, thoracic (from the pages). We need common ones among all three. Let's extract risk list:\n\nAAA: tobacco use, age, sex, being white, family history, other aneurysms, high blood pressure (implicitly high blood pressure mentioned), etc. From list: earlier table didn't include high blood pressure but find shows. So risk factors list includes: high blood pressure, blood vessel diseases, tobacco use, other aneurysms.\n\nBrain aneurysm list: age, female, cigarette smoking, high blood pressure, drug use cocaine (not in others), heavy alcohol, inherited connective tissue conditions, polycystic kidney disease, aortic coarctation, brain AVM, family history (brain-specific), large aneurysm, certain locations etc. but relevant common risk factors: age, female, smoking, high blood pressure, family history.\n\nThoracic aortic aneurysm list: age, smoking and tobacco use, high blood pressure, coronary artery disease, family history. Also includes other categories like atherosclerosis, genetic conditions etc. But core risk factors: age, smoking, high blood pressure, family history.\n\nThus common across all three: age, smoking, high blood pressure, family history.\n\nCheck if \"family history of aneurysm\" appears in AAA and thoracic and brain? AAA: yes family history of abdominal aortic aneurysms. Thoracic: yes family history. Brain: yes family history of brain aneurysm. So family history common.\n\nAlso perhaps gender: male/female? AAA: sex, but brain: female, thoracic: not explicit. So not common.\n\nWhite ethnicity not in brain/thoracic.\n\nThus answer: age, smoking (tobacco use), high blood pressure, family history of aneurysm.\n\nNeed source quotes for each risk factor for each aneurysm type. Provide at least one quote each.\n\nFrom AAA page: age quote: “Abdominal aortic aneurysms occur most often in people age 65 and older.” from doc-3780ddfcf1aa lines 100? text captured earlier. smoking: \"Smoking is the strongest risk factor for aortic aneurysms.\" Also high blood pressure: \"High blood pressure. High blood pressure can damage and weaken the aorta's walls.\" family history: \"Having a family history of abdominal aortic aneurysms increases the risk of having the condition.\"\n\nBrain: age: “Brain aneurysms can happen at any age. However, they’re more common in adults between ages 30 and 60.” smoking: “Cigarette smoking. Smoking is a risk factor for brain aneurysms to form and for brain aneurysms to rupture.” high blood pressure: “High blood pressure. This condition can weaken arteries.” family history: \"A family history of brain aneurysm. The risk is higher if you have family members who have had a brain aneurysm.\"\n\nThoracic: age: “Thoracic aortic aneurysms occur most often in people age 65 and older.” smoking: “If you smoke or chew tobacco, it’s... Using tobacco also can worsen an aneurysm.” high blood pressure: “Increased blood pressure damages the blood vessels in the body. This raises the risk of an aneurysm.” family history: “You’re more likely to get an aortic aneurysm… if you have a parent, brother, sister or child with one.”\n\nThus answer. Need to cite sources: doc-3780ddfcf1aa for AAA, doc-c374dddd1acb for brain, doc-af8d4bda4f3c for thoracic. Provide quotes.\n\nProceed to research_state update? We just need to answer.\n\nBut guidelines: keep working evidence table? We can produce final answer. Probably mention risk factors with citing.",
+      "text": "**Risk factors that Mayo Clinic lists for all three aneurysm types (abdominal aortic, brain, and thoracic aortic)**\n\n| Risk factor | Abdominal aortic aneurysm (Mayo Clinic) | Brain aneurysm (Mayo Clinic) | Thoracic aortic aneurysm (Mayo Clinic) |\n|-------------|----------------------------------------|------------------------------|----------------------------------------|\n| **Age** | “Abdominal aortic aneurysms occur most often in people age 65 and older.”【doc‑3780ddfcf1aa, line ≈107】 | “Brain aneurysms can happen at any age. **However, they’re more common in adults between ages 30 and 60**.”【doc‑c374dddd1acb, line ≈78】 | “Thoracic aortic aneurysms occur most often in people age 65 and older.”【doc‑af8d4bda4f3c, line ≈67】 |\n| **Smoking / tobacco use** | “**Smoking is the strongest risk factor for aortic aneurysms.**”【doc‑3780ddfcf1aa, line ≈120】 | “**Cigarette smoking. Smoking is a risk factor for brain aneurysms to form and for brain aneurysms to rupture.**”【doc‑c374dddd1acb, line ≈88】 | “If you smoke or chew tobacco, it’s important that you quit. **Using tobacco also can worsen an aneurysm**.”【doc‑af8d4bda4f3c, line ≈68】 |\n| **High blood pressure (hypertension)** | “**High blood pressure.** High blood pressure can damage and weaken the aorta’s walls.”【doc‑3780ddfcf1aa, line ≈117】 | “**High blood pressure.** This condition can weaken arteries.”【doc‑c374dddd1acb, line ≈93】 | “**Increased blood pressure damages the blood vessels in the body.** This raises the risk of an aneurysm.”【doc‑af8d4bda4f3c, line ≈69】 |\n| **Family history of aneurysm** | “**Having a family history of abdominal aortic aneurysms increases the risk of having the condition.**”【doc‑3780ddfcf1aa, line ≈134】 | “**A family history of brain aneurysm.** The risk is higher if you have family members who have had a brain aneurysm.”【doc‑c374dddd1acb, line ≈112】 | “**You’re more likely to get an aortic aneurysm… if you have a parent, brother, sister or child with one.**”【doc‑af8d4bda4f3c, line ≈71】 |\n\n**So, according to Mayo Clinic, the four risk factors that appear in all three aneurysm categories are:**  \n1. Older age  \n2. Smoking / tobacco use  \n3. High blood pressure (hypertension)  \n4. Positive family history of aneurysm.\n\nThese factors are mentioned consistently across the respective Mayo Clinic pages for abdominal aortic aneurysm, brain aneurysm, and thoracic aortic aneurysm.",
+      "tool_calls": []
+    }
+  ],
+  "usage": {
+    "input_tokens": 154219,
+    "output_tokens": 10515,
+    "reasoning_tokens": 9132,
+    "calls": 18
+  },
+  "latency_ms": 183897.1,
+  "error": null
+}

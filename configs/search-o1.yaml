@@ -1,0 +1,137 @@
+# Search-o1 — agentic RAG + Reason-in-Documents (Li et al., 2025).
+#
+# 모델은 검색만 한다. 검색당 상위 k개를 자동으로 페치해 explorer(= RiD 모듈)가
+# 한 번에 읽고 요약하며, 그 요약만 메인 추론 체인에 들어간다.
+#
+# depthsearch 와 같은 코드 경로를 쓴다. 다른 것은 explorer.max_depth 뿐이다.
+
+agent:
+  base_url: http://127.0.0.1:8000/v1
+  max_tokens: 8192
+  max_turns: 40
+  timeout_s: 600
+
+  # 검색 예산. 세 방법이 같은 값을 써야 비교가 성립한다.
+  #
+  # 20 으로 올려 봤다가 10 으로 되돌렸다. 상한은 확실히 풀렸는데(소진율 0.67->0.23)
+  # f1 이 0.383 -> 0.336 으로 떨어졌다. 검색을 많이 할수록 나쁘기 때문이다 —
+  #
+  #     검색 3-5회 0.711 · 6-9회 0.351 · 10회+ 0.199
+  #
+  # 그리고 모델은 **주는 만큼 쓴다**(상한 10 -> 평균 8.7, 상한 20 -> 평균 12.2).
+  # 답을 찾아서 멈추는 것이 아니라 예산이 남아서 계속 찾는다. 그래서 손잡이는
+  # 예산이 아니라 "언제 멈추는가"이고, 그쪽은 시스템 프롬프트에서 건다.
+  max_searches: 10
+  # 검색당 자동 페치 수. **원 논문과 같은 10.**
+  #
+  # 한때 5로 깎아 두었는데, 그 근거는 k개를 한 reader 에 묶어 넣어 문서 예산을
+  # 나눠 갖던 시절의 계산이었다. 지금은 페이지마다 reader 가 하나씩 붙어 각자
+  # max_document_tokens 를 통째로 받으므로 k 가 커져도 장당 분량은 그대로다.
+  # 근거가 사라진 값만 남아 있었고, 그동안 이 베이스라인만 웹을 절반만 봤다.
+  search_top_k: 10
+  search_results: 10            # serper 가 돌려주는 결과 수 (상위 k개만 페치)
+
+  # 페치한 페이지 하나의 토큰 상한. **세 방법 공통** — 같은 분량의 웹을 봐야
+  # 비교가 성립한다. 도구 서버는 토크나이저가 없어 자 단위로밖에 못 자르므로
+  # 토큰 절단은 에이전트가 한 번만 한다.
+  fetch_max_tokens: 32768
+
+  # 대화 컨텍스트 상한. **팟의 --max-model-len 에서 max_tokens 를 뺀 값이어야 한다.**
+  #   131072(--max-model-len) - 8192(max_tokens) = 122880
+  # 이 둘은 항상 같이 움직인다. 팟을 65536 으로 내리면 여기도 57344 로 내린다.
+  context_limit: 122880
+  # 프로토콜 복구 재시도 상한. **세 방법이 같아야 한다** — 모델이 툴콜을 평문
+  # JSON 으로 흘리는 것은 방법의 성질이 아니라 gpt-oss 의 버릇이라, 베이스라인만
+  # 낮게 두면 방법 차이가 아니라 구현 차이로 점수가 갈린다.
+  # 검색·페치 예산이 남아 있을 때만 발동하고 턴만 더 쓴다(예산 밖으로 새지 않는다).
+  max_tool_recoveries: 2
+
+explorer:
+  # 1 = 재귀 없음. 페치한 문서를 읽고 요약만 한다 (= Search-o1 의 RiD).
+  max_depth: 1
+  max_expansion_nodes: 0
+  max_subtree_children: 0
+  max_turns: 1
+  # 정제 출력 상한. 추출 작업이라 실제로는 1~2K 면 충분하다. 크게 잡으면 문서 예산과
+  # 합쳐 컨텍스트를 넘기므로 8192 로 둔다.
+  max_tokens: 8192
+  # **페이지 하나**의 토큰 상한. ragent 의 fetch_max_tokens · depthsearch 의
+  # max_document_tokens 와 같은 값이어야 세 방법이 같은 분량의 웹을 본 것이 된다.
+  #
+  # 상위 k개를 묶어서 한 번에 읽히지 않는다 — 페이지마다 explorer 를 하나씩 태우고
+  # 그 요약들을 이어 붙여 메인 모델에 올린다. 묶어서 주면 k개가 이 예산을 나눠 갖게
+  # 되어 페이지당 분량이 1/k 로 줄고(실측: 절단 41%, 다른 두 방법은 1%) 비교가
+  # 깨진다. 하나씩 주면 explorer 는 어느 방법에서든 늘 페이지 하나를 읽는다.
+  max_document_tokens: 32768
+  # explorer 세션 하나의 컨텍스트 상한(자기 페이지 + 자식 요약 누적).
+  context_limit: 122880
+
+# 메인 추론 모델의 시스템 프롬프트.
+# **Search-o1 논문 Appendix A.1 의 "Instruction for Search-o1" 를 옮긴 것이다.**
+#
+# 논문은 <|begin_search_query|> 같은 특수토큰 프로토콜을 쓰지만 우리는 OpenAI
+# 함수 호출로 도구를 준다. **그 부분만 우리 방식으로 바꾸고 나머지(예시·리마인더·
+# 검색 상한 안내)는 논문 구성을 그대로 따른다.**
+#
+# 검색 상한 숫자는 논문의 {MAX_SEARCH_LIMIT} 자리다. 치환 기능이 없으므로 글로
+# 박혀 있다 — **agent.max_searches 와 항상 같이 움직여야 한다.**
+system_prompt: |
+  You are a reasoning assistant with the ability to perform web searches to help you
+  answer the user's question accurately. You have special tools:
+
+  - To perform a search: call the `web_search` function with your query.
+    The system will search and analyze relevant web pages, then provide you with
+    helpful information extracted from them.
+
+  You can repeat the search process multiple times if necessary. The maximum number
+  of search attempts is limited to 10.
+
+  Once you have all the information you need, continue your reasoning.
+
+  Example:
+
+  Question: "..."
+  Assistant thinking steps:
+  - I might need to look up details about ...
+  Assistant: calls `web_search` with the query.
+  (System returns processed information from relevant web pages)
+  Assistant continues reasoning with the new information...
+
+  Remember:
+  - Call `web_search` to request a web search.
+  - When done searching, continue your reasoning.
+
+explorer_prompt: |
+  Task Instruction:
+  You are tasked with reading and analyzing web pages based on the following inputs:
+  Previous Reasoning Steps, Current Search Query, and Searched Web Pages. Your
+  objective is to extract relevant and helpful information for Current Search Query
+  from the Searched Web Pages and seamlessly integrate this information into the
+  Previous Reasoning Steps to continue reasoning for the original question.
+
+  Guidelines:
+  1. Analyze the Searched Web Pages:
+  - Carefully review the content of each searched web page.
+  - Identify factual information that is relevant to the Current Search Query and can
+    aid in the reasoning process for the original question.
+  2. Extract Relevant Information:
+  - Select the information from the Searched Web Pages that directly contributes to
+    advancing the Previous Reasoning Steps.
+  - Ensure that the extracted information is accurate and relevant.
+  3. Output Format:
+  - If the web pages provide helpful information for current search query: Present the
+    information beginning with `Final Information` as shown below.
+
+  Final Information
+
+  [Helpful information]
+
+  - If the web pages do not provide any helpful information for current search query:
+    Output the following text.
+
+  Final Information
+
+  No helpful information found.
+
+  Now you should analyze each web page and find helpful information based on the
+  current search query and previous reasoning steps.
