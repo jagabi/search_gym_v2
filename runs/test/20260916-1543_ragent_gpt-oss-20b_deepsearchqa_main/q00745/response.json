@@ -1,0 +1,933 @@
+{
+  "index": 745,
+  "question": "Which states had over 4 million reported employment in October Q4 2022, based on the Quarterly census of employment and wages on the U.S. Bureau of Labor Statistics, and a grade 8 math average score of 274 or higher in 2022, based on the Nation's Report Card, and had an estimated total population of 12 million or more in 2022 based on the U.S. Census Bureau?",
+  "gold_answer": "New York, Pennsylvania, Illinois",
+  "category": "Other",
+  "method": "ragent",
+  "model": "openai/gpt-oss-20b",
+  "system_prompt": "You are a reasoning assistant with the ability to perform web searches and retrieve\nwebpage content to help you answer the user's question accurately. You have special\ntools:\n\n- To perform a search: call the `web_search` function with your query.\n  The system will call the web search API with your query and return the search\n  results. The search results will include a list of webpages with titles, URLs and\n  snippets (but not full content).\n- To retrieve full page content: after receiving the search results, if you need\n  more detailed information from specific URLs, call the `web_fetch` function with\n  the URL. The system will fetch the full page content and return it.\n\nYou can repeat the search process multiple times if necessary. The maximum number\nof search attempts is limited to 10.\n\nOnce you have all the information you need, continue your reasoning.\n\nExample:\n\nQuestion: \"...\"\nAssistant thinking steps:\n- I need to find out ...\nAssistant: calls `web_search` with the query.\n(System returns search results without full page content)\nAssistant thinks: The search results mention several URLs. I want full details from\none of them.\nAssistant: calls `web_fetch` with that URL.\n(System returns full page content)\nNow the assistant has enough information and can continue reasoning.\n\nRemember:\n- Call `web_search` to request a web search.\n- Call `web_fetch` to request full page content.\n- When done retrieving information, continue your reasoning.",
+  "explorer_prompt": "",
+  "answer": "I’m sorry, but I wasn’t able to locate the specific quarterly‑state employment values for **Q4 2022** or the NAEP 8th‑grade math scores that meet the thresholds you specified.  \n\nThe data you need are very granular:\n\n| Data source | What you need |\n|-------------|---------------|\n| **BLS QCEW** | State‑level employment count for the month of October 2022 (the fourth quarter of 2022). |\n| **Nation’s Report Card (NAEP)** | State average 8th‑grade mathematics score for 2022 that is **≥ 274**. |\n| **U.S. Census Bureau** | State estimated total population for 2022 that is **≥ 12 million**. |\n\nThe BLS site that hosts the QCEW data (https://www.bls.gov/cew/) offers a **Data Viewer** where you can specify a state‑level, month‑level table. Unfortunately the “view” pages are heavily interactive and the HTML content returned by the API contains no ready‑made list of the raw numbers in the format we need. Likewise, the NAEP website provides interactive tables and downloadable spreadsheets, but the pages don’t expose the values directly in the page source.\n\nBecause the information is not present in the first‑page snippets returned by the web‑search engine, the only reliable method to answer the question would be to:\n\n1. **Download the QCEW employment snapshot for October 2022** from the BLS Data Viewer or the downloadable CSV/Excel file that contains all state totals for that month.  \n2. **Download the NAEP 2022 8th‑grade math scores spreadsheet** (the “state scores” download is freely available on the NAEP site).  \n3. **Query the 2022 American Community Survey or the Census’s 2022 population estimates** to get the total population for each state.  \n\nOnce the three datasets are in hand, you would filter:\n\n* State employment (October 2022) ≥ 4,000,000.  \n* NAEP 8th‑grade math score ≥ 274.  \n* Population estimate ≥ 12,000,000.\n\nOnly the intersection of those three sets would provide the answer you’re seeking.\n\nIf you need help accessing or parsing any of those files, let me know and I can walk you through the steps.",
+  "stop_reason": "answered",
+  "turns": 15,
+  "searches": 10,
+  "fetches": 2,
+  "expansion_nodes": 0,
+  "max_depth_reached": 1,
+  "explorer_calls": 0,
+  "dead_dives": 0,
+  "fetch_attempts": 2,
+  "fetch_failures": 0,
+  "search_attempts": 10,
+  "search_failures": 0,
+  "budget": {
+    "total": 0,
+    "used": 0,
+    "refused": 0,
+    "duplicates": 0,
+    "links_stripped": 0,
+    "off_page": 0,
+    "repeats": 0,
+    "same_site": 0,
+    "visited": 0,
+    "nodes_by_depth": {},
+    "reused": 0
+  },
+  "context_tokens": 24488,
+  "context_exhausted": false,
+  "reader_stats": {},
+  "invalid_tool_calls": 0,
+  "steps": [
+    {
+      "turn": 1,
+      "reasoning": "We need states that meet 3 criteria:\n\n1. Employment in October Q4 2022 >4 million (quarterly census of employment and wages). Need employment numbers.\n2. Grade 8 math average score >=274 (Nation's Report Card 2022).\n3. Total population estimate >=12 million 2022 (Census Bureau).\n\nWe need to identify states that satisfy all. Likely large states: California, Texas, Florida, New York, Illinois? Let's check employment >4m.\n\nUse search for \"October Q4 2022 employment by state\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "October Q4 2022 employment by state October 2022 employment 4 million California employment October 2022"
+          },
+          "result_chars": 2886,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1954.3,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Full October 2022 Jobs Report",
+                "link": "https://centerforjobs.org/ca/job-reports/october-2022-jobs-report",
+                "snippet": "California took 32 months to reach the jobs recovery benchmark. there were an estimated 0.9 million out of work in October."
+              },
+              {
+                "title": "California's unemployment rate rose to 4.0 percent for Oct. 2022",
+                "link": "https://edd.ca.gov/en/about_edd/archived-news-releases-2022/unemployment-october-2022/",
+                "snippet": "California's unemployment rate rose to 4.0% in October 2022, despite employers adding 56700 nonfarm payroll jobs.",
+                "date": "Nov 18, 2022"
+              },
+              {
+                "title": "Employment up in 46 states for year ended October 2022",
+                "link": "https://www.bls.gov/opub/ted/2022/employment-up-in-46-states-for-year-ended-october-2022.htm",
+                "snippet": "The largest job increases occurred in California (695,500), Texas (694,200), and Florida (457,400). These data are from the Current ...",
+                "date": "Nov 29, 2022"
+              },
+              {
+                "title": "Labor Statistics for October 2022",
+                "link": "https://www.wciinc.org/employers-blog/labor-statistics-october-2022/",
+                "snippet": "According to the Bureau of Labor Statistics, the unemployment rate rose to 3.7% in October. Read on for more statistics.",
+                "date": "Nov 7, 2022"
+              },
+              {
+                "title": "California's unemployment rate rose to 4.0 percent for Oct. ...",
+                "link": "https://www.facebook.com/californiaedd/posts/californias-unemployment-rate-rose-to-40-percent-for-oct-2022-employers-added-56/504323358401699/",
+                "snippet": "California's unemployment rate rose to 4.0 percent for Oct. 2022. Employers added 56,700 nonfarm payroll jobs. For more information, visit: edd.",
+                "date": "Nov 18, 2022"
+              },
+              {
+                "title": "U.S. Job Numbers – October 2022 Jobs Report",
+                "link": "https://www.ihire.com/resourcecenter/employer/pages/the-october-2022-jobs-report",
+                "snippet": "Total nonfarm employment increased by 261,000 in October, number of unemployed persons rose to 6.1 million in October. 4.184 million in August.",
+                "date": "Nov 4, 2022"
+              },
+              {
+                "title": "inland empire - regional intelligence report",
+                "link": "https://business.ucr.edu/sites/default/files/2023-02/ie_rir_winter_2023.pdf",
+                "snippet": "From February 2020 to October 2022, the region's labor force rose by 75,800, a 3.6% increase. By contrast, California's overall labor force declined -1.3%, or ..."
+              },
+              {
+                "title": "Open Remote Jobs: Q4 2022 Remote Job Reports",
+                "link": "https://www.virtualvocations.com/blog/annual-statistical-remote-work-reports/open-remote-jobs-q4-2022-remote-job-reports/",
+                "snippet": "What are the top open remote jobs for Q4 2022? Virtual Vocations releases the best states, industries, and employers for remote work.",
+                "date": "Dec 19, 2022"
+              },
+              {
+                "title": "Bay Watch Posts",
+                "link": "https://www.bayareaeconomy.org/bay-watch/",
+                "snippet": "Bay Area gained nearly 7,000 jobs last month. Monthly job change in the 9-county Bay Area, January 2022 - September 2024."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "reasoning": "We need states with three criteria:\n\n1. Employment >4 million in Oct 2022 Q4 employment data by state. BLS Quarterly Census of Employment and Wages (QCEW). Need states with >4 million employers: likely California, Texas, Florida, New York, Illinois, Pennsylvania, Ohio, Georgia, North Carolina, Michigan.\n\nWe should retrieve list. Search.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "October 2022 employment by state QCEW table 2022 October employment workforce 4 million California Texas Florida New York"
+          },
+          "result_chars": 3171,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1424.7,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://www.bls.gov/cew/",
+                "snippet": "The Quarterly Census of Employment and Wages (QCEW) program publishes a quarterly count of employment and wages reported by employers covering more than 95 ..."
+              },
+              {
+                "title": "Full October 2022 Jobs Report",
+                "link": "https://centerforjobs.org/ca/job-reports/october-2022-jobs-report",
+                "snippet": "As indicated in the latest data, the labor force remains stagnant while demand for labor as reflected in unfilled job openings has stayed at elevated levels, ..."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://floridajobs.org/economic-data/quarterly-census-of-employment-and-wages-(qcew)",
+                "snippet": "The count covers about 98 percent of all U.S. jobs and data are available by industry on a quarterly and annual basis by county, metro area, state, and local ..."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://dol.ny.gov/quarterly-census-employment-and-wages",
+                "snippet": "Quarterly Census of Employment and Wages (QCEW) is a quarterly report of employment and wages reported by employers covered under New York State's Unemployment ..."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages - Data for ...",
+                "link": "https://lmi.workforcegps.org/resources/2015/06/18/11/24/QCEW_Quarterly_Census_of_Employment_and_Wages",
+                "snippet": "QCEW produces a comprehensive data on the number of establishments, monthly employment and quarterly wages for workers. These data are ...",
+                "date": "Nov 15, 2024"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://labormarketinfo.edd.ca.gov/qcew/cew-select.asp",
+                "snippet": "Quarterly Census of Employment and Wages (QCEW). These data, based on the NAICS classification, provide the count of employment and wages for workers ..."
+              },
+              {
+                "title": "United States Labor Force",
+                "link": "https://www.economy.com/united-states/labor-force",
+                "snippet": "The BLS presents labor force and unemployment data for census regions and divisions, states, and selected substate areas from the Local Area Unemployment ..."
+              },
+              {
+                "title": "The U.S. economy lost 23,000 jobs last month, with local ...",
+                "link": "https://www.facebook.com/KCRA3/posts/the-us-economy-lost-23000-jobs-last-month-with-local-public-schools-seeing-one-o/1520554456778537/",
+                "snippet": "* The Drivers: This cumulative ~8% decline is primarily driven by lower birth rates, families fleeing high living costs, and a drop in ...",
+                "date": "1 month ago"
+              },
+              {
+                "title": "U.S. Job Numbers – October 2022 Jobs Report",
+                "link": "https://www.ihire.com/resourcecenter/employer/pages/the-october-2022-jobs-report",
+                "snippet": "The U.S. Department of Labor October 2022 jobs report is out, and the data hints at a solid labor market heading into the holidays.",
+                "date": "Nov 4, 2022"
+              }
+            ],
+            "related_searches": [
+              "Us labor department jobs report",
+              "Quarterly Census of Employment and Wages",
+              "Labor department jobs report today",
+              "Unemployment rate by state by year",
+              "Census employment data",
+              "Bureau of Labor Statistics salary by occupation",
+              "U.S. jobs report today",
+              "BLS unemployment rate by State"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "reasoning": "The user asks:\n\n\"Which states had over 4 million reported employment in October Q4 2022, based on the Quarterly census of employment and wages on the U.S. Bureau of Labor Statistics, and a grade 8 math average score of 274 or higher in 2022, based on the Nation's Report Card, and had an estimated total population of 12 million or more in 2022 based on the U.S. Census Bureau?\"\n\nSo we need states meeting all three criteria:\n\n1. October Q4 2022 employment > 4 million (QCEW).\n2. Grade 8 mathematics average score >= 274 (Nation's Report Card, 2022).\n3. Estimated total population >= 12 million in 2022 (Census).\n\nWe need to list states meeting all criteria. So we need data sources:\n\n- QCEW employment by state for Oct 2022. We can fetch a table.\n\n- Nation's Report Card grade 8 math scores by state, 2022.\n\n- Census population estimates for 2022.\n\nWe need to find intersection.\n\nApproach: Search for QCEW employment Oct 2022 by state >4M. Likely California (approx 5-6M), Texas (~5M), Florida (~4M?), maybe New York (~4M?), maybe Pennsylvania (~4M?) but might be less. Let's find actual numbers.\n\nSearch for \"QCEW October 2022 employment by state\" to get a dataset.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "QCEW October 2022 employment by state 2022 October employment numbers"
+          },
+          "result_chars": 3104,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1394.9,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://www.bls.gov/cew/",
+                "snippet": "The Quarterly Census of Employment and Wages (QCEW) program publishes a quarterly count of employment and wages reported by employers covering more than 95 ..."
+              },
+              {
+                "title": "Full October 2022 Jobs Report",
+                "link": "https://centerforjobs.org/ca/job-reports/october-2022-jobs-report",
+                "snippet": "As discussed in our preliminary report on the October data, the state's recovery progress continued to be mixed. Nonfarm jobs finally reached a recovery ..."
+              },
+              {
+                "title": "Statement by US Secretary of Labor Walsh on October ...",
+                "link": "https://www.dol.gov/newsroom/releases/osec/osec20221104",
+                "snippet": "The healthcare sector added 53,000 jobs, including gains in hospital employment, doctors' and dentists' offices and nursing homes. \"The overall ...",
+                "date": "Nov 4, 2022"
+              },
+              {
+                "title": "QCEW Tables - Wyoming Department of Workforce Services",
+                "link": "http://doe.state.wy.us/LmI/toc_202.htm",
+                "snippet": "2022Q1 Quarterly Update: Wyoming Employment Grows for Fourth Consecutive Quarter (Wyoming Labor Force Trends, October 2022). 2021Q4 Quarterly Update ..."
+              },
+              {
+                "title": "Labor Statistics for October 2022",
+                "link": "https://www.wciinc.org/employers-blog/labor-statistics-october-2022/",
+                "snippet": "Total nonfarm payroll employment increased by 261,000 in October, and the unemployment rate rose 0.2 percentage point to 3.7 percent, ...",
+                "date": "Nov 7, 2022"
+              },
+              {
+                "title": "Women Gain Nearly Two in Three Jobs Added to Economy ...",
+                "link": "https://nwlc.org/wp-content/uploads/2022/11/Oct-Jobs-Day.pdf",
+                "snippet": "The most recent Bureau of Labor Statistics (BLS) data showed that women gained 173,000 jobs in October 2022. 261,000 jobs.",
+                "date": "Nov 1, 2022"
+              },
+              {
+                "title": "U.S. Job Numbers – October 2022 Jobs Report",
+                "link": "https://www.ihire.com/resourcecenter/employer/pages/the-october-2022-jobs-report",
+                "snippet": "Total nonfarm employment increased by 261,000 in October, and September's number was revised to 315,000 (up by 52,000). The unemployment rate ...",
+                "date": "Nov 4, 2022"
+              },
+              {
+                "title": "Monthly employment report for October 2022",
+                "link": "https://esd.wa.gov/media/pdf/571/mer-2022-10pdf/download?inline",
+                "snippet": "The resident civilian labor force is the total number of people in the workforce, employed and unemployed, ages 16 and up. The number of unemployed is the."
+              },
+              {
+                "title": "Employment up in 46 states for year ended October 2022",
+                "link": "https://www.bls.gov/opub/ted/2022/employment-up-in-46-states-for-year-ended-october-2022.htm",
+                "snippet": "The largest job increases occurred in California (695,500), Texas (694,200), and Florida (457,400). These data are from the Current Employment ...",
+                "date": "Nov 29, 2022"
+              },
+              {
+                "title": "Quarterly Census of Employment & Wages (QCEW) - IDES",
+                "link": "https://ides.illinois.gov/resources/labor-market-information/qcew.html",
+                "snippet": "A quarterly tabulation of business establishments, employment, and total wages paid, by geographical area (county or state), and by NAICS-industry sector. The ..."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "reasoning": "The question: states that\n\n- had over 4 million reported employment in October Q4 2022, based on QCEW\n- had a grade 8 math average score 274 or higher in 2022, based on Nation's Report Card\n- had estimated total population 12 million or more in 2022, based on US Census\n\nWe need to find states meeting all three. Likely large states: California, Texas, Florida? Population>12m: all major states. Need employment numbers Q4 2022 >4 million.\n\nAccording to BLS QCEW October 2022 employment numbers: California had about 9.8 million? Let's check. We'll search for \"California QCEW October 2022 employment\".\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "California QCEW October 2022 employment 2022Q4"
+          },
+          "result_chars": 3146,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1640.1,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://www.bls.gov/cew/",
+                "snippet": "The Quarterly Census of Employment and Wages (QCEW) program publishes a quarterly count of employment and wages reported by employers covering more than 95 ..."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://labormarketinfo.edd.ca.gov/qcew/cew-select.asp",
+                "snippet": "These data, based on the NAICS classification, provide the count of employment and wages for workers covered by unemployment insurance programs in the time ..."
+              },
+              {
+                "title": "California's unemployment rate rose to 4.0 percent for Oct. ...",
+                "link": "https://www.facebook.com/californiaedd/posts/californias-unemployment-rate-rose-to-40-percent-for-oct-2022-employers-added-56/504323358401699/",
+                "snippet": "California's unemployment rate rose to 4.0 percent for Oct. 2022. Employers added 56,700 nonfarm payroll jobs. For more information, visit: edd.",
+                "date": "Nov 18, 2022"
+              },
+              {
+                "title": "County Employment and Wages in California",
+                "link": "https://www.bls.gov/regions/west/news-release/2023/countyemploymentandwages_california_20230706.htm",
+                "snippet": "Weekly wages in the 11 of the 28 largest counties in California were above the national average of $1,385 in the fourth quarter of 2022. Three ...",
+                "date": "Jul 6, 2023"
+              },
+              {
+                "title": "California's unemployment rate rose to 4.0 percent for Oct. 2022",
+                "link": "https://edd.ca.gov/en/about_edd/archived-news-releases-2022/unemployment-october-2022/",
+                "snippet": "California's unemployment rate rose to 4.0% in October 2022, despite employers adding 56700 nonfarm payroll jobs.",
+                "date": "Nov 18, 2022"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://lab.data.ca.gov/dataset/quarterly-census-of-employment-and-wages",
+                "snippet": "The Quarterly Census of Employment and Wages (QCEW) Program is a Federal-State cooperative program between the U.S. Department of Labor's ...",
+                "date": "Oct 30, 2023"
+              },
+              {
+                "title": "CalFresh Work and Workforce Training",
+                "link": "https://www.ppic.org/publication/calfresh-work-and-workforce-training/",
+                "snippet": "The top sectors of employment for working CalFresh participants in the focal group include health care and social assistance (16%), retail trade ...",
+                "date": "Aug 26, 2026"
+              },
+              {
+                "title": "US Data Release Notes",
+                "link": "https://kb.lightcast.io/en/articles/6957539-us-data-release-notes",
+                "snippet": "With the 2022Q4 QCEW data release, QCEW is now officially publishing in 2022 NAICS categories, so we've updated our industry classification to ...",
+                "date": "Aug 10, 2026"
+              },
+              {
+                "title": "Economy – Jobs & Unemployment – NSJV Data Compass",
+                "link": "https://datacompass.org/economy-jobs-unemployment/",
+                "snippet": "Employment is one of the clearest indicators of a region's economic health and resilience. This section tracks trends in employment, unemployment, ..."
+              }
+            ],
+            "related_searches": [
+              "California qcew october 2022 employment 2022q4 pay",
+              "Quarterly Census of Employment and Wages",
+              "QCEW release dates",
+              "QCEW data",
+              "QCEW revisions",
+              "Census employment data",
+              "QCEW data Viewer",
+              "BLS QCEW data"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "reasoning": "The user asks: which states had over 4 million reported employment in Oct Q4 2022, based on QCEW, and a grade 8 math average score of 274 or higher in 2022, based on the Nation's Report Card, and had an estimated total population of 12 million or more in 2022 based on US Census.\n\nWe need to produce list of states meeting all three criteria.\n\nSteps:\n\n1. Identify states with QCEW employment >4 million in Oct 2022. Likely large states: CA, TX, FL, NY, WA? Need exact numbers.\n\nWe might need to fetch QCEW data. There is a dataset. Perhaps easier: search \"California employment October 2022 QCEW reported employment 4,000,000\" Let's search national dataset maybe \"Quarterly Census of Employment and Wages December 2022 employment by state\".\n\nSearch.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "QCEW employment October 2022 state employment 2022Q4 4 million"
+          },
+          "result_chars": 2893,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1376.7,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://www.bls.gov/cew/",
+                "snippet": "The Quarterly Census of Employment and Wages (QCEW) program publishes a quarterly count of employment and wages reported by employers covering more than 95 ..."
+              },
+              {
+                "title": "Covered employment (QCEW)",
+                "link": "https://esd.wa.gov/jobs-and-training/labor-market-information/employment-and-wages/covered-employment-qcew",
+                "snippet": "Learn about the Quarterly Census of Employment and Wages (QCEW). This program measures employment and wages in industries covered by unemployment insurance."
+              },
+              {
+                "title": "QCEW Tables - Wyoming Department of Workforce Services",
+                "link": "http://doe.state.wy.us/LmI/toc_202.htm",
+                "snippet": "2022Q4 Quarterly Update: Mining Adds Nearly 1,500 Jobs, $39 Million in Total Wages (Wyoming Labor Force Trends, July 2023). 2022 Annual Data for Wyoming. 2022Q3 ..."
+              },
+              {
+                "title": "Search datasets",
+                "link": "https://catalog.data.gov/?q=qcew",
+                "snippet": "The Quarterly Census of Employment and Wages (QCEW) program (also known as ES-202) collects employment and wage data from employers covered by New York State's ..."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://labormarketinfo.edd.ca.gov/qcew/cew-select.asp",
+                "snippet": "These data, based on the NAICS classification, provide the count of employment and wages for workers covered by unemployment insurance programs in the time ..."
+              },
+              {
+                "title": "Employment and Wages, Annual Averages 2022",
+                "link": "https://www.bls.gov/cew/publications/employment-and-wages-annual-averages/2022/",
+                "snippet": "The QCEW program provides the most complete set of monthly employment and quarterly wage data by six-digit industry at the national, state, combined ..."
+              },
+              {
+                "title": "QCEW BED.s",
+                "link": "https://auber.org/wp-content/uploads/2019/11/QCEW-BEDs.pdf",
+                "snippet": "• States: Job Vacancies, Green Jobs. Wage and Benefits Surveys. Current Employment Statistics. Occupational Employment Statistics. Occupational Safety and ..."
+              },
+              {
+                "title": "Employment by State - BEA Data",
+                "link": "https://www.bea.gov/data/employment/employment-by-state",
+                "snippet": "Employment by State BEA produces a job count for each state and the District of Columbia. These statistics are based primarily on data from ...",
+                "date": "Oct 28, 2024"
+              },
+              {
+                "title": "Business employment dynamics",
+                "link": "https://esd.wa.gov/jobs-and-training/labor-market-information/employment-and-wages/business-employment-dynamics",
+                "snippet": "QCEW data are drawn from reports of employment and wage data for workers covered by unemployment insurance. We produce the report quarterly. Additional reports ..."
+              }
+            ],
+            "related_searches": [
+              "Quarterly Census of Employment and Wages",
+              "QCEW data",
+              "QCEW revisions",
+              "QCEW release dates",
+              "Census employment data",
+              "QCEW data Viewer",
+              "BLS QCEW data",
+              "United States Census Bureau"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "reasoning": "The user asks: Which states had over 4 million reported employment in October Q4 2022, based on QCEW, and a grade 8 math average score of 274 or higher in 2022, based on Nation's Report Card, and had estimated total population 12 million or more in 2022 (Census). We need to find intersection of three data sets:\n\n1. Employment (reported) in October Q4 2022 (which is Q4 2022). Need states with >4 million employment. Likely large states: California, Texas, Florida, New York, Illinois, Pennsylvania, Ohio, Georgia, North Carolina, Michigan, Washington, Arizona, Massachusetts, etc. But employment counts >4M: California (~14 million), Texas (~10-12), Florida (~7-8), New York (~7.5), Illinois (~8?), Pennsylvania (~8?), Ohio (~7?), Georgia (~6.5), North Carolina (~5?), Michigan (~6?). So threshold >4M.\n\n2. Grade 8 math average score of 274 or higher in 2022 from Nation’s Report Card. Nation's Report Card uses TIMSS? Actually their national report card site has math scores for each state. Need states with average >=274. We need to find list. Likely high-scoring states include Massachusetts, New Jersey, Arizona? Wait, 2022 AP? But the Nation's Report Card 2022 provides average math score for 8th grade: states: New Jersey 313, Maryland 306, etc. Many lower scores maybe 266 etc. We need threshold 274+. Let's search.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Nation's Report Card 2022 8th grade average math score by state 274 or higher"
+          },
+          "result_chars": 2928,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1366.5,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Explore Results for the 2024 NAEP Mathematics Assessment",
+                "link": "https://www.nationsreportcard.gov/reports/mathematics/2024/g4_8/?grade=8",
+                "snippet": "In 2024, the average score at eighth grade was not significantly different from 2022 but was 8 points lower compared to 2019."
+              },
+              {
+                "title": "Explore Results for the 2022 NAEP Mathematics Assessment",
+                "link": "https://www.nationsreportcard.gov/mathematics/?grade=8",
+                "snippet": "In 2022, average mathematics scores for the nation were lower by 5 points at fourth grade and lower by 8 points at eighth grade compared to scores in 2019."
+              },
+              {
+                "title": "2024 Mathematics Snapshot Report for New York Grade 8",
+                "link": "https://nces.ed.gov/nationsreportcard/subject/publications/stt2024/pdf/2024219NY8.pdf",
+                "snippet": "In 2024, the average score of eighth-grade students in New York was 271. their average score in 2022 (274) In 2022 = 19. In 022 = 274"
+              },
+              {
+                "title": "NAEP Mathematics: National Average Scores",
+                "link": "https://www.nationsreportcard.gov/mathematics/nation/scores/?grade=8",
+                "snippet": "The average mathematics score in 2022 for eighth-grade students was 12 points higher compared to the first assessment year in 1990."
+              },
+              {
+                "title": "2024 Mathematics Snapshot Report for Washington Grade 8",
+                "link": "https://ospi.k12.wa.us/sites/default/files/2025-01/naep-snapshot_mat_2024_wa_8.pdf",
+                "snippet": "In 2024, the average score of eighth-grade students in Washington was 274. average score in 2022 (276) In 2022 = 36, significantly different … 274 Nation ( ..."
+              },
+              {
+                "title": "State Profiles",
+                "link": "https://www.nationsreportcard.gov/profiles/stateprofile?sfj=NP&chort=2&sub=MAT&sj=&st=MN&year=2024R3",
+                "snippet": "Mathematics, Grade 8. Difference in average scale scores, percentage at or above Basic, percentage at or above Proficient, between all jurisdictions and ..."
+              },
+              {
+                "title": "Performance Trends for States and Districts",
+                "link": "https://www.nationsreportcard.gov/reports/mathematics/2024/g4_8/state-district-trends/?grade=4",
+                "snippet": "Grade 4. Grade 8. Higher fourth-grade mathematics scores in 15 states/jurisdictions compared to 2022. When comparing state/jurisdiction average scores in ..."
+              },
+              {
+                "title": "Analysis of 2022 NAEP Mathematics and Reading Results",
+                "link": "https://whiteboardadvisors.com/analysis-of-2022-naep-mathematics-and-reading-results/",
+                "snippet": "Average eighth grade math score fell from 282 in 2019 to 274 in 2022 – a decline of 8 points 38% of eighth-graders performed below NAEP Basic,",
+                "date": "Oct 24, 2022"
+              },
+              {
+                "title": "Nation's Report Card Shows Declines in 8th-Grade ...",
+                "link": "https://www.nagb.gov/news-and-events/news-releases/2025/declines-in-8th-grade-science-and-12th-grade-math-and-reading.html",
+                "snippet": "The lowest performers, students scoring at the 10th percentile, saw declines in 8th-grade science and 12th-grade math and reading, trends which ...",
+                "date": "Sep 9, 2025"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "reasoning": "We need to identify states that meet all three conditions:\n\n1. QCEW employment in October Q4 2022 over 4 million reported employment.\n2. Grade 8 math average score 274 or higher in 2022 (Nation's Report Card NAEP).\n3. Estimated total population 12 million or more in 2022 (U.S. Census Bureau).\n\nWe need to retrieve data for each condition and intersect.\n\nWe might first compile list of states with population >=12 million in 2022. Quick approximate: California (~39M), Texas (~29M), Florida (~21M), New York (~19M), Pennsylvania (~12.8M), Illinois (~12.6M), Ohio (~11.7M—slightly less), Georgia (~10.5M), North Carolina (~10.4M, less), Michigan (~10M less), etc. So likely states: CA, TX, FL, NY, PA, IL maybe etc.\n\nNext, need states with QCEW employment >4 million in October 2022.\n\nWe might search for \"QCEW employment October 2022 California\" etc. But maybe better to find tables.\n\nAlternatively, reference to BLS FactFinder: For October 2022, employment for each state: maybe known.\n\nBut we can approximate: California had around 14 million employment? Actually statewide employment maybe ~14M. Texas about 10M. Florida ~7M. New York ~7M. Pennsylvania ~6M. Illinois ~6M? So those exceed 4M.\n\nBut we need evidence.\n\nWe can search for QCEW employment numbers for states in 2022.\n\nSearch: \"October 2022 state employment 4 million QCEW\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"state employment\" October 2022 QCEW",
+            "topn": 10
+          },
+          "result_chars": 3551,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1860.5,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Employment and Wages, Annual Averages 2022",
+                "link": "https://www.bls.gov/cew/publications/employment-and-wages-annual-averages/2022/",
+                "snippet": "... 2022 QCEW news releases can be found at the QCEW ... Additionally, for state information related to these topics, please contact each state's employment ..."
+              },
+              {
+                "title": "Labor market report library - Employment Security Department",
+                "link": "https://esd.wa.gov/jobs-and-training/labor-market-information/labor-market-report-library",
+                "snippet": "Washington State Employment Security Department precedential decisions of commissioner ... 2022 QCEW annual averages (XLSX, 1.2MB) · 2021 QCEW annual ..."
+              },
+              {
+                "title": "QCEW First Quarter 2026 Data and Publications are Now ...",
+                "link": "https://www.facebook.com/groups/971865684050393/posts/1777273103509643/",
+                "snippet": "... State Employment and Unemployment Summary news release. The final benchmark will reflect revisions to all not seasonally adjusted data from ..."
+              },
+              {
+                "title": "Chart of the week: Is there any job growth in D.C.?",
+                "link": "https://www.dcpolicycenter.org/publications/is-there-any-job-growth/",
+                "snippet": "... State Employment and Unemployment Summary” for October 2023. The data show that, since October 2022, total private employment grew by 2.7 ...",
+                "date": "Nov 21, 2023"
+              },
+              {
+                "title": "Regional Spotlight: Measuring State Employment",
+                "link": "https://www.philadelphiafed.org/-/media/frbp/assets/economy/articles/economic-insights/2022/q3-q4/eiq3q422_rs-measuring-state-employment.pdf",
+                "snippet": "The Quarterly Census of Employment and Wages (QCeW) program of the Bls reports monthly estimates (on a quarterly basis) of state employment ...",
+                "date": "Dec 6, 2022"
+              },
+              {
+                "title": "Search datasets",
+                "link": "https://catalog.data.gov/?q=employment",
+                "snippet": "The Quarterly Census of Employment and Wages (QCEW) ... This data set provides resources for state employment and training throughout United States."
+              },
+              {
+                "title": "Revisions to 2025 state employment - FRED Blog",
+                "link": "https://fredblog.stlouisfed.org/2026/04/revisions-to-2025-state-employment/",
+                "snippet": "The average absolute revision to 2025 state employment growth was 0.70%. Job growth was revised lower in 40 states and higher in 10 states.",
+                "date": "Apr 20, 2026"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages: Presentation",
+                "link": "https://www.bls.gov/opub/hom/cew/presentation.htm",
+                "snippet": "CES also uses QCEW employment to benchmark their national and state employment estimates annually. Finally, CES uses information from Business Employment ..."
+              },
+              {
+                "title": "PSRC Data Portal",
+                "link": "https://psrc-psregcncl.hub.arcgis.com/search?groupIds=acfa746d62734c8e9240f21520fb5fdc",
+                "snippet": "These employment estimates are based on the Washington State Employment Security Department`s (ESD) Quarterly Census of Employment and Wages (QCEW) series ..."
+              },
+              {
+                "title": "Missouri Monthly Jobs Report",
+                "link": "https://meric.mo.gov/missouri-monthly-jobs-report",
+                "snippet": "After the revisions process, the state's employment change from January 2025 to December 2025 was revised to a net gain of 16,600 jobs. The revision process ..."
+              }
+            ],
+            "related_searches": [
+              "State employment october 2022 qcew update",
+              "State employment october 2022 qcew schedule",
+              "State employment october 2022 qcew data",
+              "State employment october 2022 qcew dates",
+              "California state employment october 2022 qcew",
+              "When is QCEW released",
+              "Bls Employment by county",
+              "Bureau of labor statistics bls quarterly census of employment and wages"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "reasoning": "The user: wants states that satisfy 3 criteria:\n\n1. Over 4 million reported employment in October Q4 2022 (i.e., October 2022). Data from QCEW.\n\n2. Grade 8 math average score of 274 or higher in 2022 (Nation's Report Card, NAEP 2022).\n\n3. Estimated total population 12M or more in 2022 (Census Bureau).\n\nWe need to produce a list of states that meet all three.\n\nWe should gather data for each state:\n\n- Employment data: Need Q4 2022 employment numbers per state. I'd need a table. Probably the BLS QCEW website has a summary table by state for October, maybe national totals by state for that month. There's also a quarterly summary from the BLS monthly employment. Another source: BLS. We could use the BLS \"Employment and Wages, Annual Averages 2022\" dataset for quarterly totals, but that's annual averages. There might be a dataset for QCEW \"state employment by quarter\" like https://www.bls.gov/cew/data.htm or a dataset: \"QCEW State Employment\" (ED). We could search \"state employment QCEW October 2022\".\n\nLet's search again.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "QCEW state employment October 2022 4 million",
+            "topn": 10
+          },
+          "result_chars": 3125,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2414.8,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Quarterly Census of Employment and Wages: Design",
+                "link": "https://www.bls.gov/opub/hom/cew/design.htm",
+                "snippet": "The QCEW covers more than 95 percent of U.S. jobs available at the county, state, and national level, Employment, October 2022 Employment, 11,754 152,243"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://dol.ny.gov/quarterly-census-employment-and-wages",
+                "snippet": "Census of Employment and Wages (QCEW) is a quarterly report of employment and wages reported by employers covered under New York State's Unemployment Insurance ..."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://ohiolmi.com/home/QCEW/QCEWpubs",
+                "snippet": "The Quarterly Census of Employment & Wages program summarizes employment and wages covered by the unemployment insurance law."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://cdle.colorado.gov/dlss/labor-market-information-lmi/quarterly-census-of-employment-and-wages-qcew",
+                "snippet": "The QCEW program publishes a quarterly count of employment and wages reported by employers covering more than 95 percent of U.S. jobs available"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages - Data for ...",
+                "link": "https://lmi.workforcegps.org/resources/2015/06/18/11/24/QCEW_Quarterly_Census_of_Employment_and_Wages",
+                "snippet": "QCEW produces a comprehensive data on the number of establishments, monthly employment and quarterly wages for workers. These data are ...",
+                "date": "Nov 15, 2024"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://www.bls.gov/cew/",
+                "snippet": "(QCEW) program publishes a quarterly count of employment covering more than 95 percent of U.S. jobs, available at the county, MSA, state and national levels by ..."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://kb.lightcast.io/en/articles/7934107-quarterly-census-of-employment-and-wages-qcew",
+                "snippet": "QCEW is comprehensive, capturing 95% of US wage-and-salary jobs. QCEW can be viewed at a variety of detail levels, both geographically (by ...",
+                "date": "Jun 5, 2023"
+              },
+              {
+                "title": "U.S. Job Numbers – October 2022 Jobs Report",
+                "link": "https://www.ihire.com/resourcecenter/employer/pages/the-october-2022-jobs-report",
+                "snippet": "Total nonfarm employment increased by 261,000 in October, number of unemployed persons rose to 6.1 million in October. jobs eased slightly to 4 ...",
+                "date": "Nov 4, 2022"
+              },
+              {
+                "title": "QCEW - About the Data - Labor Market Information - CA.gov",
+                "link": "https://labormarketinfo.edd.ca.gov/data/qcew_about_the_data.html",
+                "snippet": "Employment data under the QCEW program represents the number of the state's UI covered workers who worked during, or received pay for, the pay period which ..."
+              }
+            ],
+            "related_searches": [
+              "Qcew state employment october 2022 4 million update",
+              "Qcew state employment october 2022 4 million weekly",
+              "Qcew state employment october 2022 4 million pay",
+              "Quarterly Census of Employment and Wages",
+              "QCEW revisions",
+              "QCEW data",
+              "QCEW release dates",
+              "Census employment data"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 9,
+      "reasoning": "We have a question: states that satisfy three criteria:\n\n1. Over 4 million reported employment in Q4 October 2022, based on Quarterly Census of Employment and Wages (QCEW).\n2. A grade 8 math average score of 274 or higher in 2022, based on Nation's Report Card (NAEP).\n3. Estimated total population of 12 million or more in 2022 based on U.S. Census Bureau.\n\nWe need to find which states meet all three.\n\nWe need employment data for October 2022 per state. Likely QCEW provides statewide employment numbers. We need list of states with >4 million employment.\n\nWe could use BLS dataset \"Employment and Wages, Annual Averages 2022\" maybe contains state total nonfarm employment. Google search for \"state employment october 2022 QCEW numbers California 4.3 million\" etc.\n\nLet's search for QCEW state employment report for October 2022.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "state employment October 2022 QCEW employment state",
+            "topn": 10
+          },
+          "result_chars": 3227,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1213.7,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://www.bls.gov/cew/",
+                "snippet": "(QCEW) program publishes a quarterly count of employment covering more than 95 percent of U.S. jobs, available at the county, MSA, state and national levels by ..."
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages",
+                "link": "https://dol.ny.gov/quarterly-census-employment-and-wages",
+                "snippet": "Employment and Wages (QCEW) is a quarterly report of employment and wages reported by employers covered under New York State's Unemployment Insurance Law."
+              },
+              {
+                "title": "Regional Spotlight: Measuring State Employment",
+                "link": "https://www.philadelphiafed.org/-/media/frbp/assets/economy/articles/economic-insights/2022/q3-q4/eiq3q422_rs-measuring-state-employment.pdf",
+                "snippet": "the QCeW program reported employment counts for nearly 11 million establishments. The QCeW data for October, November, and December 2021 were ...",
+                "date": "Dec 6, 2022"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://ohiolmi.com/home/QCEW/QCEWpubs",
+                "snippet": "The Quarterly Census of Employment & Wages program summarizes employment and wages covered by the unemployment insurance law."
+              },
+              {
+                "title": "Employment & Wages by Industry (QCEW) - State of Connecticut",
+                "link": "https://www1.ctdol.state.ct.us/lmi/202/default.asp",
+                "snippet": "The program produces a comprehensive tabulation of employment and wage information for workers covered by Connecticut Unemployment Insurance (UI) laws and ..."
+              },
+              {
+                "title": "QCEW Tables - Wyoming Department of Workforce Services",
+                "link": "http://doe.state.wy.us/LmI/toc_202.htm",
+                "snippet": "2022Q1 Quarterly Update: Wyoming Employment Grows for Fourth Consecutive Quarter (Wyoming Labor Force Trends, October 2022)."
+              },
+              {
+                "title": "North Carolina's October Employment Figures Released",
+                "link": "https://www.commerce.nc.gov/supplemental-release-october-2022-statewide-emloyment-numbers/open",
+                "snippet": "The state's seasonally adjusted October 2022 unemployment rate was 3.8 percent, increasing 0.2. The number of people employed decreased 10,310 ...",
+                "date": "Oct 2, 2022"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages - Data for ...",
+                "link": "https://lmi.workforcegps.org/resources/2015/06/18/11/24/QCEW_Quarterly_Census_of_Employment_and_Wages",
+                "snippet": "(QCEW) program publishes a quarterly count of employment and wages reported by employers covering more than 95 percent of U.S. jobs, available ...",
+                "date": "Nov 15, 2024"
+              },
+              {
+                "title": "Quarterly Census of Employment and Wages (QCEW)",
+                "link": "https://kb.lightcast.io/en/articles/7934107-quarterly-census-of-employment-and-wages-qcew",
+                "snippet": "QCEW is comprehensive, capturing 95% of US wage-and-salary jobs. QCEW can be viewed at a variety of detail levels, both geographically (by ...",
+                "date": "Jun 5, 2023"
+              }
+            ],
+            "related_searches": [
+              "State employment october 2022 qcew employment state update",
+              "State employment october 2022 qcew employment state pay",
+              "State employment october 2022 qcew employment state california",
+              "State employment october 2022 qcew employment state bls",
+              "Quarterly Census of Employment and Wages",
+              "QCEW revisions",
+              "Census employment data",
+              "QCEW data"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "reasoning": "The user wants states that satisfy three conditions:\n\n1. Over 4 million reported employment in October Q4 2022, per QCEW.\n2. Grade 8 math average score of 274 or higher in 2022, per Nation's Report Card (NAEP).\n3. Estimated total population of 12 million or more in 2022 (Census Bureau estimates).\n\nWe need to find which states meet all three criteria.\n\nWe need to collect data:\n\n- QCEW employment numbers for October 2022 for each state. Ensure >4 million.\n- NAEP 2022 8th grade math average scores by state. Find states with score >=274.\n- Census 2022 population estimates for each state (likely 2022 estimate; need >12 million).\n\nWe then intersect.\n\nWe need to source these data reliably. Let's fetch human-readable data.\n\nSearch for \"2022 NAEP 8th grade math scores by state 2022\"",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "2022 NAEP 8th grade math scores by state 2022",
+            "topn": 10
+          },
+          "result_chars": 3061,
+          "is_error": false,
+          "refused": false,
+          "leaked": 1,
+          "duration_ms": 1154.1,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "NAEP Mathematics: State Average Scores",
+                "link": "https://www.nationsreportcard.gov/mathematics/states/scores/?grade=8",
+                "snippet": "Figure Change in average scores between 2019 and 2022 for eighth-grade public school students assessed in NAEP mathematics, by state/jurisdiction."
+              },
+              {
+                "title": "2022 NAEP Mathematics Assessment",
+                "link": "https://nces.ed.gov/use-work/resource-library/report/statistical-analysis-report/2022-naep-mathematics-assessment-highlighted-results-grades-4-and-8-nation-states-and-districts",
+                "snippet": "The report includes national, state, and district results on the performance of fourth- and eighth-grade students."
+              },
+              {
+                "title": "Explore Results for the 2022 NAEP Mathematics Assessment",
+                "link": "https://www.nationsreportcard.gov/mathematics/?grade=8",
+                "snippet": "In 2022, average mathematics scores for the nation were lower by 5 points at fourth grade and lower by 8 points at eighth grade compared to scores in 2019."
+              },
+              {
+                "title": "Assessments - Mathematics | NAEP",
+                "link": "https://nces.ed.gov/nationsreportcard/mathematics/",
+                "snippet": "Compared to 2022, the average mathematics score was higher for grade 4 and not significantly different for grade 8. 2022 Mathematics at Grades ...",
+                "date": "May 18, 2026"
+              },
+              {
+                "title": "NAEP Math",
+                "link": "https://www.nagb.gov/naep-subject-areas/mathematics.html",
+                "snippet": "Math scores in 8th grade had the largest decline ever in 2022, though scores did not change significantly in 2024."
+              },
+              {
+                "title": "2022 Mathematics Snapshot Report: Oklahoma Grade 8",
+                "link": "https://nces.ed.gov/nationsreportcard/subject/publications/stt2022/pdf/2023011OK8.pdf",
+                "snippet": "OVERALL RESULTS. • In 2022, the average score of eighth-grade students in Oklahoma was 264. This was lower than the average score of 273 for students in the ..."
+              },
+              {
+                "title": "[OC] Percent of 8th Graders Proficient or Better in Math by ...",
+                "link": "https://www.reddit.com/r/dataisbeautiful/comments/1niyhh6/oc_percent_of_8th_graders_proficient_or_better_in/",
+                "snippet": "Percent of 8th Graders Proficient or Better in Math by US State in 2022 OC … 30% at “Proficient” for 8th grade math in recent years seems a ...",
+                "date": "12 months ago"
+              },
+              {
+                "title": "Long-term trends in reading and mathematics achievement (38)",
+                "link": "https://nces.ed.gov/fastfacts/display.asp?id=38",
+                "snippet": "In 2022, reading and mathematics scores for students at all five selected percentile levels declined compared to 2020. In both subjects, scores for lower- ..."
+              }
+            ],
+            "related_searches": [
+              "2022 naep 8th grade math scores by state 2022 usa",
+              "2022 naep 8th grade math scores by state 2022 2023",
+              "2022 naep 8th grade math scores by state 2022 texas",
+              "2022 naep 8th grade math scores by state 2022 california",
+              "NAEP math scores by state",
+              "Lowest math scores by state",
+              "Math scores by state 2025",
+              "High school math scores by state"
+            ],
+            "filtered_results": "1 result(s) removed: they reproduce the question itself, so they are the evaluation set leaking rather than a source. Search for the underlying facts."
+          }
+        }
+      ]
+    },
+    {
+      "turn": 11,
+      "reasoning": "We need combine data across three sources:\n\n- QCEW employment for Oct 2022, >4 million.\n- NAEP grade 8 math averaged >=274\n- Census population 12 million+ in 2022.\n\nWe must list states that satisfy all three.\n\nWe need to identify data. Might be easier to get existing lists:\n\n- QCEW employment numbers by state: may find a table listing employment by state for Oct 2022.\n\nWe could use BLS dataset. For quick, maybe use the BLS table \"Employment and Wages, Annual Averages 2022\" at state level; but those are annual averages, not specific to Oct.\n\nBut we could approximate with the 2022 QCEW data for each state: The employment counts for Q4 2022 may be near annual average.\n\nLet's search for \"QCEW employment state October 2022 4 million\" but above results didn't fetch specifics.\n\nMaybe use BLS API or dataset like \"QCEW Employment at the State Level\" available in BLS with download links. There may be Excel files. Let's search for \"QCEW Employment by State 2022Q4.xlsx\".\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "QCEW employment state 2022Q4.xlsx",
+            "topn": 10
+          },
+          "result_chars": 0,
+          "is_error": false,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "web_search limit reached — you have used all 10 of your 10 searches and no further search will run. Answer the question now from what you have gathered."
+        }
+      ]
+    },
+    {
+      "turn": 12,
+      "reasoning": "We can't perform more searches. We're limited. We need to answer which states had all three criteria. We need data:\n\n1. QCEW state employment for October 2022 (i.e., 2022Q4) with employment >= 4 million.\n2. NAEP 8th grade math average score >= 274 in 2022.\n3. Census population >= 12 million in 2022.\n\nLikely states: California (~39M, employment over 4M, math average maybe 276?). Texas (~29M, employment >4M, math avg maybe 272? Might be below 274). New York (~19M, employment >4M, math avg maybe 270). Florida (~22M, employment >4M, math avg maybe 269). Illinois (~12.5M, employment >4M, math avg maybe 272). Pennsylvania (~12.8M, employment >4M, math avg maybe 273). Let's verify approximate math scores: We need sources. But we lack fetched pages. However we have link to NAEP state scores page. We can fetch that.\n\nLet's fetch the \"NAEP Mathematics: State Average Scores\" page.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://www.nationsreportcard.gov/mathematics/states/scores/?grade=8"
+          },
+          "result_chars": 15535,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 9931.9,
+          "explorations": [],
+          "result": "Title: NAEP Mathematics: State Average Scores\n\nURL Source: https://www.nationsreportcard.gov/mathematics/states/scores/?grade=8\n\nMarkdown Content:\n[![Image 1: The Nation's Report Card](https://www.nationsreportcard.gov/adminonly/themes/redesign_2015/images/nationsreportcard-logo.png)](https://www.nationsreportcard.gov/)\n\nMENU CLOSE\n*   Reports \n\n    *   Current Releases \n        *   [ARTS](https://www.nationsreportcard.gov/arts_2016/)\n        *   Civics \n            *   [Highlights from the 2022 Assessment](https://www.nationsreportcard.gov/highlights/civics/2022/)\n            *   [Report Card](https://www.nationsreportcard.gov/civics/)\n\n        *   [Economics](https://www.nationsreportcard.gov/economics_2012/)\n        *   Geography \n            *   [Highlights from the 2018 Assessment](https://www.nationsreportcard.gov/highlights/geography/2018/)\n            *   [Report Card](https://www.nationsreportcard.gov/geography/)\n\n        *   Long-Term Trend \n            *   [Long-Term Trend at Age 9 and 13](https://www.nationsreportcard.gov/ltt/2025/)\n\n        *   Mathematics \n            *   [Report Card for the Nation, States, and Districts (grades 4 and 8)](https://www.nationsreportcard.gov/reports/mathematics/2024/g4_8/?grade=4)\n            *   [Report Card for Grade 12](https://www.nationsreportcard.gov/reports/mathematics/2024/g12/)\n\n        *   Reading \n            *   [Report Card for the Nation, States, and Districts (grades 4 and 8)](https://www.nationsreportcard.gov/reports/reading/2024/g4_8/?grade=4)\n            *   [Report Card for Grade 12](https://www.nationsreportcard.gov/reports/reading/2024/g12/)\n\n        *   Science \n            *   [Report Card for the Nation (grade 8)](https://www.nationsreportcard.gov/reports/science/2024/)\n            *   [2019 Report Card for the Nation (grades 4, 8 and 12)](https://www.nationsreportcard.gov/science/)\n            *   [2015 State Assessment](https://www.nationsreportcard.gov/science_2015/#overview/accordion-3?grade=4)\n\n    *           *   Survey Questionnaires \n            *   [School and Teacher Questionnaire Special Study](https://www.nationsreportcard.gov/stq/)\n            *   [Students' Views of Mathematics, Reading, and Science](https://www.nationsreportcard.gov/sq_students_views_2015/)\n            *   [Students' Computer Access and Use](https://www.nationsreportcard.gov/sq_computer/)\n            *   [Classroom Instruction for Mathematics, Reading, and Science](https://www.nationsreportcard.gov/sq_classroom/)\n\n        *   Technology and Engineering Literacy \n            *   [Highlights from the 2018 Assessment](https://www.nationsreportcard.gov/tel_2018_highlights/)\n            *   [Report Card](https://www.nationsreportcard.gov/tel/)\n\n        *   U.S. History \n            *   [Highlights from the 2022 Assessment](https://www.nationsreportcard.gov/highlights/ushistory/2022/)\n            *   [Report Card](https://www.nationsreportcard.gov/ushistory/)\n\n        *   Writing \n            *   [National](https://www.nationsreportcard.gov/writing_2011/)\n            *   [Trial Urban District Assessment](https://www.nationsreportcard.gov/writing_2007/w0037.aspx)\n\n    *   [Report Library](https://www.nationsreportcard.gov/report_archive.aspx)\n    *   Special Studies \n        *   [2017 Mathematics Process Data](https://www.nationsreportcard.gov/process_data/)\n        *   [High School Transcript Study](https://www.nationsreportcard.gov/hstsreport/#home)\n        *   [Mega-States](https://www.nationsreportcard.gov/megastates/)\n        *   [Monthly School Survey Linking Study](https://www.nationsreportcard.gov/mssls_2022/)\n        *   [Mathematics Puerto Rico](https://www.nationsreportcard.gov/puerto_rico_2013/#/)\n        *   [Vocabulary](https://www.nationsreportcard.gov/reading_2013/vocabulary/)\n\n*   Dashboards \n\n    *   [Experiences and Opportunities in Education Dashboard](https://www.nationsreportcard.gov/dashboards/otl/)\n    *   [Achievement Gap Dashboard](https://www.nationsreportcard.gov/dashboards/achievement_gaps.aspx)\n    *   [Racial/Ethnic Score Gap Tool](https://www.nationsreportcard.gov/dashboards/regression/)\n    *   [Public, Private, and Charter Schools Dashboard](https://www.nationsreportcard.gov/dashboards/schools_dashboard.aspx)\n    *   [Socioeconomic Status Index Dashboard](https://www.nationsreportcard.gov/dashboards/sesindex/)\n\n*   Data Tools \n\n    *   [Data Tools Home](https://www.nationsreportcard.gov/data_tools.aspx)\n    *   [Data Explorer](https://www.nationsreportcard.gov/ndecore/)\n    *   [State Profiles](https://www.nationsreportcard.gov/profiles/stateprofile/)\n    *   [District Profiles](https://www.nationsreportcard.gov/profiles/districtprofile/)\n    *   [NAEP Data Service API](https://www.nationsreportcard.gov/api_documentation.aspx)\n    *   [Questions Tool](https://www.nationsreportcard.gov/nqt/)\n    *   [Item Maps](https://www.nationsreportcard.gov/itemmaps/)\n\n*   [Newsroom](https://www.nationsreportcard.gov/media.aspx)  \n*   [Focus on NAEP](https://www.nationsreportcard.gov/focus_on_naep/)  \n*   [Take NAEP Now](https://www.nationsreportcard.gov/takenaepnow/)  \n\nSEARCH\n\n![Image 2: Select to Open Search](https://www.nationsreportcard.gov/adminonly/themes/redesign_2015/images/mag.png)\n\n![Image 3: Carrot Image](https://www.nationsreportcard.gov/adminonly/themes/redesign_2015/images/carrot.png)\n\nSEARCH\n\n# [NAEP Report Card: Mathematics](https://www.nationsreportcard.gov/mathematics/?grade=8 \"Home\")\n\nPrint\n\n*   [Home](https://www.nationsreportcard.gov/mathematics/?grade=8)\n*   [Nation](https://www.nationsreportcard.gov/mathematics/nation/scores/?grade=8)\n*   [States](https://www.nationsreportcard.gov/mathematics/states/scores/?grade=8)\n*   [Districts](https://www.nationsreportcard.gov/mathematics/districts/scores/?grade=8)\n*   [Sample Questions](https://www.nationsreportcard.gov/mathematics/sample-questions/?grade=8)\n*   [Survey Questionnaires](https://www.nationsreportcard.gov/mathematics/survey-questionnaires/?grade=8)\n*   [About](https://www.nationsreportcard.gov/mathematics/about/framework/?grade=8)\n\nContents for State:\n\n*   [Average Scores](https://www.nationsreportcard.gov/mathematics/states/scores/?grade=8)\n*   [Student Group Scores](https://www.nationsreportcard.gov/mathematics/states/groups/?grade=8)\n*   [Achievement-Level Results](https://www.nationsreportcard.gov/mathematics/states/achievement/?grade=8)\n\n## State Average Scores\n\nShare this result:\n\nShare\n\nFacebook X[Email](mailto:?subject=NAEP%20Mathematics%3A%20State%20Average%20Scores&body=NAEP%20Mathematics%3A%20State%20Average%20Scores%0Ahttps%3A%2F%2Fwww.nationsreportcard.gov%2Fmathematics%2Fstates%2Fscores%3Fgrade%3D8%23states-scores-change&to= \"Share this by email\")Permalink\n\n### State Score Change Map\n\nGrade 4 as of 2022\n\nGrade 8 as of 2022\n\nGrade 12 as of 2019\n\n#### Lower eighth-grade mathematics scores in 51 states/jurisdictions compared to 2019\n\nWhen comparing state/jurisdiction average scores in mathematics for eighth-grade public school students in 2022 with those from 2019, the previous assessment year,\n\n*   0 scored higher;\n*   51 scored lower; and\n*   2 had no significant change in scores.\n\nResults for states/jurisdictions reflect the performance of students in public schools only and are reported along with the results for public school students in the nation.\n\nExplore the interactive map below to see which states/jurisdictions saw increases or decreases and by how much. Scroll down to explore the magnitude of average score changes across states/jurisdictions.\n\nSelect focal year \n\n2022\n\nSelect comparison year \n\n2019\n\n##### Figure Change in average scores between 2019 and 2022 for eighth-grade public school students assessed in NAEP mathematics, by state/jurisdiction\n\nSee the accessible version of this chart in the NAEP Data Explorer: [/ndecore/shareredirect?su=NDE&fr=2&sht=REPORT&sb=MAT&sc=MRPCM&gr=8&ju=NP-AL-AK-AZ-AR-CA-CO-CT-DC-DE-DS-FL-GA-HI-ID-IL-IN-IA-KS-KY-LA-ME-MD-MA-MI-MN-MS-MO-MT-NE-NV-NH-NJ-NM-NY-NC-ND-OH-OK-OR-PA-RI-SC-SD-TN-TX-UT-VT-VA-WA-WV-WI-WY-PR&st=MN-MN&vr=TOTAL&yr=2019R3-2017R3-2015R3-2013R3-2011R3-2009R3-2007R3-2005R3-2003R3-2000R3-2000R2-1996R3-1996R2-1992R2-1990R2](https://www.nationsreportcard.gov/ndecore/shareredirect?su=NDE&fr=2&sht=REPORT&sb=MAT&sc=MRPCM&gr=8&ju=NP-AL-AK-AZ-AR-CA-CO-CT-DC-DE-DS-FL-GA-HI-ID-IL-IN-IA-KS-KY-LA-ME-MD-MA-MI-MN-MS-MO-MT-NE-NV-NH-NJ-NM-NY-NC-ND-OH-OK-OR-PA-RI-SC-SD-TN-TX-UT-VT-VA-WA-WV-WI-WY-PR&st=MN-MN&vr=TOTAL&yr=2019R3-2017R3-2015R3-2013R3-2011R3-2009R3-2007R3-2005R3-2003R3-2000R3-2000R2-1996R3-1996R2-1992R2-1990R2)\n\nBetween   \n2019 and 2022\n\n0 states/jurisdictions\n\n0 states/jurisdictions\n\n0 states/jurisdictions\n\n0 states/jurisdictions\n\nhad a score increase\n\nhad no significant change in score\n\nhad a score decrease\n\nhad no data or not applicable\n\nLoading...\n\nNOTE: DS = Department of Defense Education Activity (DoDEA), a federally operated nonpublic school system responsible for educating children of military families. See more about [DoDEA](http://www.dodea.edu/aboutDoDEA/index.cfm).\n\nThe table below shows the number of states/jurisdictions with score increases or decreases in 2022 and how many states/jurisdictions scored higher, lower, or not significantly different than the nation (public) in NAEP mathematics.\n\n|  |  | Number of states/jurisdictions in 2022 |\n| --- |\n| Change in average NAEP mathematics score between 2019 and 2022 | Total | Higher than nation (public) | Not significantly different from nation (public) | Lower than nation (public) |\n| Score increase | 0 | 0 | 0 | 0 |\n| No significant change in score | 2 | 2 | 0 | 0 |\n| Score decrease | 51 | 17 | 16 | 18 |\n\nTo compare average mathematics scores between states/jurisdictions and the nation (public), use the [NAEP State Profiles Tool](https://www.nationsreportcard.gov/profiles/stateprofile).\n\n### Related to this topic\n\n*   [National Average Scores](https://www.nationsreportcard.gov/mathematics/nation/scores?grade=8)\n*   [District Average Scores](https://www.nationsreportcard.gov/mathematics/districts/scores?grade=8)\n*   [State Student Group Scores](https://www.nationsreportcard.gov/mathematics/states/groups?grade=8)\n\nShare this result:\n\nShare\n\nFacebook X[Email](mailto:?subject=NAEP%20Mathematics%3A%20State%20Average%20Scores&body=NAEP%20Mathematics%3A%20State%20Average%20Scores%0Ahttps%3A%2F%2Fwww.nationsreportcard.gov%2Fmathematics%2Fstates%2Fscores%3Fgrade%3D8%23states-scores-size&to= \"Share this by email\")Permalink\n\n### Size of State Score Changes\n\nGrade 4 as of 2022\n\nGrade 8 as of 2022\n\nGrade 12 as of 2019\n\n#### Examine the magnitude of score changes\n\nIn the 51 states/jurisdictions where scores were lower in 2022 than 2019, the size of the score differences ranged from 4 to 13 points.The average score decline for public schools in the nation decreased by 8 points.\n\nTo view score changes for eighth-grade public school students in mathematics between 2022 and previous assessment years, or between other combinations of assessment years, use the drop-down menu to select a comparison year. To see whether the score change in one state/jurisdiction is statistically different from the score change in another state/jurisdiction, use the[NAEP State Profiles Tool](https://www.nationsreportcard.gov/profiles/stateprofile). Find out how[statistical significance](https://nces.ed.gov/nationsreportcard/mathematics/interpret_results.aspx#statistical)is determined.\n\nSelect focal year \n\n2022\n\nSelect comparison year \n\n2019\n\n##### Figure Score-point change between 2019 and 2022 for eighth-grade public school students assessed in NAEP mathematics, by state/jurisdiction\n\nDisplay As\n\nGraph Table\n\nDownload graph\n\nLoading...\n\nLegend\n\nNOTE: DoDEA = Department of Defense Education Activity, a federally operated nonpublic school system responsible for educating children of military families. See more about [DoDEA](http://www.dodea.edu/aboutDoDEA/index.cfm).\n\n### Related to this topic\n\n*   [National Average Scores](https://www.nationsreportcard.gov/mathematics/nation/scores?grade=8)\n*   [District Average Scores](https://www.nationsreportcard.gov/mathematics/districts/scores?grade=8)\n*   [State Achievement-Level Results](https://www.nationsreportcard.gov/mathematics/states/achievement?grade=8)\n\nNext page: [State Student Group Scores](https://www.nationsreportcard.gov/mathematics/states/groups?grade=8)\n\nShow notes and sources\n\nNOTE: Beginning with the 2017 assessment, NAEP mathematics results are from a digitally based assessment; prior to 2017, results were from a paper-and-pencil-based assessment. Accommodations were not permitted in NAEP mathematics assessments prior to 2000 at the state level. Results are not shown for those states that did not participate or did not meet the minimum participation guidelines for reporting in a given assessment year. Although the estimates (e.g., average scores or percentages) are shown as rounded numbers, the positions of the data points in the graphics are based on the unrounded numbers. Unrounded numbers were used for calculating the differences between the estimates, and for the statistical comparison test when the estimates were compared to each other. Not all apparent differences between estimates are statistically significant.\n\nSOURCE: U.S. Department of Education, Institute of Education Sciences, National Center for Education Statistics, National Assessment of Educational Progress (NAEP), various years, 1990–2022 Mathematics Assessments.\n\n### Additional State Resources\n\nState profiles Tool\n\nSee how a state performed over time, view a state's demographics and school characteristics, download snapshot reports, and compare each state's overall performance to performance nationwide or in other states.\n\n[State Profiles](http://nces.ed.gov/nationsreportcard/states/)\n\nState Snapshots\n\nDownload a one-page report containing key findings and trends in a condensed format. Reports contain overall student results, bar charts showing NAEP achievement levels, and tables displaying results by key reporting groups.\n\nChoose a Jurisdiction \n\nNation (public)\n\n[Grade 4](https://nces.ed.gov/nationsreportcard/subject/publications/stt2022/pdf/2023011NP4.pdf)[Grade 8](https://nces.ed.gov/nationsreportcard/subject/publications/stt2022/pdf/2023011NP8.pdf)\n\nDownload Data Tables Customize Data Tables\n\nData\n\nQuick View\n\nDownload data tables summarizing:\n\n*   participation rates\n*   inclusion rates and other information about students with disabilities (SD) and English learners (EL)\n*   scale score and achievement-level results by select characteristics\n\nDownload Data Tables \n\n[Download Grades 4 and 8 national/state/district participation & inclusion as Excel (.xlsx)](https://www.nationsreportcard.gov/mathematics/supportive_files/2022_technical_appendix_math.xlsx)\n\n[Download Grades 4 and 8 national/state/district participation & inclusion as PDF (.pdf)](https://www.nationsreportcard.gov/mathematics/supportive_files/2022_technical_appendix_math.pdf)\n\nRelated Links\n\n[About The Nation's Report Card](https://www.nationsreportcard.gov/about.aspx)[About the National Assessment of Educational Progress (NAEP)](http://nces.ed.gov/nationsreportcard/about/)[Contacts](https://www.nationsreportcard.gov/contacts.aspx)[FAQs](https://www.nationsreportcard.gov/faq.aspx)[Glossary](https://www.nationsreportcard.gov/glossary.aspx?ispopup=false)\n*   Follow Us\n*   [](https://twitter.com/naep_nces \"Follow us on X\")\n*   [](https://www.facebook.com/NationalAssessmentofEducationalProgress \"Follow us on Facebook\")\n"
+        }
+      ]
+    },
+    {
+      "turn": 13,
+      "reasoning": "We need states with:\n\n1. Over 4 million reported employment in Oct Q4 2022 (QCEW)\n2. 8th grade math average score >= 274 in 2022\n3. Population 12 million or more in 2022 (Census)\n\nWe have list of states meeting criterion 2? We need scores.\n\nFrom the NAEP state scores page we need values >=274. We need to parse.\n\nDue to time, maybe we can approximate with known states: California average 296? Actually CA 2022 average? I recall CA 2022 289? I need accurate values.\n\nWe might fetch data for each state via API? Let's use Data Explorer? Maybe the page sorted table available on website that we can scrape.\n\nWe can get state scores via Data Explorer direct link which may return JSON? But cannot fetch easily. Perhaps we can manually know: states with math score >=274 are those higher than 274. Which states? Look up from NAEP 2022 report: States with scores: California 296, Texas 273? Wait 274 threshold.\n\nI search for \"2022 NAEP math score 274 state\".\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"2022 NAEP\" \"math\" 274 state",
+            "topn": 10
+          },
+          "result_chars": 0,
+          "is_error": false,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "web_search limit reached — you have used all 10 of your 10 searches and no further search will run. Answer the question now from what you have gathered."
+        }
+      ]
+    },
+    {
+      "turn": 14,
+      "reasoning": "We need to answer: which states had over 4 million reported employment in October Q4 2022 (so Oct 2022 employment), have grade 8 math average score of 274 or higher in 2022, and had estimated total population of 12 million or more in 2022. We need states that satisfy all three.\n\nWe need data:\n\n1. Employment for October 2022 from QCEW. We need states with over 4 million employed in that quarter.\n\nLikely major states: California, Texas, Florida, New York, Illinois, Pennsylvania, Ohio, Georgia, North Carolina, Michigan, New Jersey, Virginia, Washington, etc. We need to get employment numbers.\n\n2. NAEP 2022 8th grade math average score by state, threshold 274. Need to get state scores.\n\n3. Estimated total population 12 million or more in 2022: many states with >12 million: CA, TX, FL, NY, PA, IL, OH, GA, NC, MI, NJ, VA, WA, AZ, IN, MA, TN, MO, MD, CO, SC, AR (but AR less). Let's list.\n\nWe need intersection.\n\nWe have to provide answer with sources. We have QCEW not fetched. We need specific employment numbers. We didn't fetch. Maybe we can get approximate from BLS releases. There is a BLS release \"Employment and wages\" for each state. But we didn't get.\n\nPossibly we can infer: Over 4 million employment threshold likely includes states with population >12 million and employment rates. But we cannot assume all such states exceed 4 million. Let's look up specific numbers.\n\nWe need specific August? Wait October Q4 2022. We might approximate but need exact.\n\nMaybe we can use BLS employment data by state for October 2022 from BLS \"Employment and wages\" table: may be found on BLS site e.g., \"Employment and wages, October 2022\", but must fetch.\n\nBut we might use the BLS data from \"Employment and wages, October 2022\" that shows each state's estimated employment.\n\nLet's try to fetch a page with employment data.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://www.bls.gov/cew/"
+          },
+          "result_chars": 34982,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 3392.2,
+          "explorations": [],
+          "result": "Title: Quarterly Census of Employment and Wages : U.S. Bureau of Labor Statistics\n\nURL Source: https://www.bls.gov/cew/\n\nMarkdown Content:\n[](https://www.bls.gov/cew/)\n\n![Image 1: BLS emblem 2016](https://www.bls.gov/images/bls_emblem_2016.png)\n\nGo\nDo you have questions about QCEW data?\n\nGo\nAre you trying to report data for the Multiple Worksite Report (MWR)?\n\nGo\nAre you trying to report data for the Annual Refiling Survey (ARS)?\n\nGo\nDo you need help finding something else?\n\n[Skip to Content](https://www.bls.gov/cew/#startcontent)\n\n![Image 2: U.S. flag](https://www.dol.gov/themes/opa_theme/img/flag-favicon-57.png)\nAn official website of the United States government Here is how you know\n\n[![Image 3: Department of Labor Logo](https://www.dol.gov/themes/opa_theme/img/logo-primary.svg) United States Department of Labor](https://www.dol.gov/)\n\n![Image 4: Dot gov](https://www.dol.gov/themes/opa_theme/img/icon-dot-gov.svg)\n**The .gov means it's official.**  \n Federal government websites often end in .gov or .mil. Before sharing sensitive information, make sure you're on a federal government site.\n\n![Image 5: Https](https://www.dol.gov/themes/opa_theme/img/icon-https.svg)\n**The site is secure.**  \n The **https://** ensures that you are connecting to the official website and that any information you provide is encrypted and transmitted securely.\n\n[U.S. Bureau of Labor Statistics](https://www.bls.gov/)\n\n[Release Calendar](https://www.bls.gov/schedule/news_release/) | [Subscribe](javascript:window.open('https://public.govdelivery.com/accounts/USDOLBLS/subscriber/new ','Popup','width=800,height=500,toolbar=no,scrollbars=yes,resizable=yes'); void(''); \"Subscribe to BLS E-mail Updates\")\n\nSearch button Search: \n\nMenu\n\n*   Search button Search:  [Release Calendar](https://www.bls.gov/schedule/news_release/) | [Subscribe](javascript:window.open('https://public.govdelivery.com/accounts/USDOLBLS/subscriber/new ','Popup','width=800,height=500,toolbar=no,scrollbars=yes,resizable=yes'); void(''); \"Subscribe to BLS E-mail Updates\") \n*   [Home](https://www.bls.gov/)\n\n    *   [About BLS](https://www.bls.gov/about-bls/home.htm)\n    *   [History](https://www.bls.gov/bls/history/home.htm)\n    *   [Our Leadership](https://www.bls.gov/bls/senior_staff/home.htm)\n    *   [Budget and Performance](https://www.bls.gov/bls/bls_budget_and_performance.htm)\n    *   [Questions and Answers](https://www.bls.gov/bls/faqs.htm)\n    *   [A-Z Index](https://www.bls.gov/bls/topicsaz.htm)\n    *   [Glossary](https://www.bls.gov/bls/glossary.htm)\n    *   [BLS Speakers Available](https://www.bls.gov/bls/bls-speakers/)\n    *   [Errata](https://www.bls.gov/errata/)\n    *   [Contact BLS](https://www.bls.gov/bls/contact.htm)\n\n    *   [Overview of BLS Statistics](https://www.bls.gov/bls/overview.htm)\n    *   [Guide to Programs & Services](https://www.bls.gov/information-guide/home.htm)\n    *   [Demographics](https://www.bls.gov/bls/demographics.htm)\n    *   [Industries](https://www.bls.gov/bls/industry.htm)\n    *   [Business Costs](https://www.bls.gov/bls/business.htm)\n    *   [Occupations](https://www.bls.gov/bls/occupation.htm)\n    *   [Geography](https://www.bls.gov/bls/geography.htm)\n\n    *   [Resources For](https://www.bls.gov/audience/)\n    *   [Business Leaders](https://www.bls.gov/audience/business.htm)\n    *   [Consumers](https://www.bls.gov/audience/consumers.htm)\n    *   [Developers](https://www.bls.gov/audience/developers.htm)\n    *   [Economists](https://www.bls.gov/audience/economists.htm)\n    *   [Investors](https://www.bls.gov/audience/investors.htm)\n    *   [Jobseekers](https://www.bls.gov/audience/jobseekers.htm)\n    *   [Media](https://www.bls.gov/audience/media.htm)\n    *   [Public Policymakers](https://www.bls.gov/audience/policy.htm)\n    *   [Researcher](https://www.bls.gov/audience/researcher.htm)\n    *   [Students & Teachers](https://www.bls.gov/audience/students.htm)\n    *   [Survey Respondents](https://www.bls.gov/respondents/)\n\n*   [Subjects](https://www.bls.gov/bls/proghome.htm)\n\n    *   [Inflation & Prices](https://www.bls.gov/bls/inflation.htm)\n    *   [Consumer Price Index](https://www.bls.gov/cpi/)\n    *   [Producer Price Indexes](https://www.bls.gov/ppi/)\n    *   [Import/Export Price Indexes](https://www.bls.gov/mxp/)\n    *   [Contract Escalation](https://www.bls.gov/bls/escalation.htm)\n    *   [Price Index Research](https://www.bls.gov/pir/)\n    *   [Pay & Benefits](https://www.bls.gov/bls/wages.htm)\n    *   [Employment Cost Index](https://www.bls.gov/eci/)\n    *   [Employer Costs for Employee Compensation](https://www.bls.gov/ecec/home.htm)\n    *   [Wage Data by Occupation](https://www.bls.gov/oes/)\n    *   [Earnings by Demographics](https://www.bls.gov/cps/earnings.htm#demographics)\n    *   [Earnings by Industry](https://www.bls.gov/ces/)\n    *   [County Wages](https://www.bls.gov/cew/)\n    *   [Benefits](https://www.bls.gov/ebs/)\n    *   [Modeled Wage Estimates](https://www.bls.gov/mwe/)\n    *   [Compensation Research](https://www.bls.gov/crp/)\n    *   [Strikes & Lockouts](https://www.bls.gov/wsp/)\n    *   [Wage Records from Unemployment Insurance](https://www.bls.gov/wrp/)\n    *   [Occupational Requirements](https://www.bls.gov/ors/)\n\n    *   [Unemployment](https://www.bls.gov/bls/unemployment.htm)\n    *   [National Unemployment Rate](https://www.bls.gov/cps/)\n    *   [State & Local Unemployment Rates](https://www.bls.gov/lau/)\n    *   [Unemployment Research](https://www.bls.gov/ers/)\n    *   [Employment](https://www.bls.gov/bls/employment.htm)\n    *   [National Employment](https://www.bls.gov/ces/)\n    *   [State & Local Employment](https://www.bls.gov/sae/)\n    *   [County Employment](https://www.bls.gov/cew/)\n    *   [Worker Characteristics](https://www.bls.gov/cps/)\n    *   [American Indian Report](https://www.bls.gov/air/)\n    *   [Employment Projections](https://www.bls.gov/emp/)\n    *   [Job Openings & Labor Turnover Survey](https://www.bls.gov/jlt/)\n    *   [Business Response Survey](https://www.bls.gov/brs/)\n    *   [Employment by Occupation](https://www.bls.gov/oes/)\n    *   [Work Experience Over Time](https://www.bls.gov/nls/)\n    *   [Business Employment Dynamics](https://www.bls.gov/bdm/)\n    *   [Foreign Direct Investment](https://www.bls.gov/fdi/)\n    *   [Employment Research](https://www.bls.gov/ers/)\n    *   [Workplace Injuries](https://www.bls.gov/iif/)\n\n    *   [Productivity](https://www.bls.gov/bls/productivity.htm)\n    *   [Labor and Total Factor Productivity](https://www.bls.gov/productivity/)\n    *   [Productivity Research](https://www.bls.gov/dpr/)\n    *   [Spending & Time Use](https://www.bls.gov/bls/spending.htm)\n    *   [Consumer Expenditures](https://www.bls.gov/cex/)\n    *   [How Americans Spend Time](https://www.bls.gov/tus/)\n    *   [International](https://www.bls.gov/bls/international.htm)\n    *   [International Technical Cooperation](https://www.bls.gov/itc/)\n    *   [Import/Export Price Indexes](https://www.bls.gov/mxp/)\n    *   [Geographic Information](https://www.bls.gov/regions/)\n    *   [Northeast (Boston-New York)](https://www.bls.gov/regions/northeast/)\n    *   [Mid-Atlantic (Philadelphia)](https://www.bls.gov/regions/mid-atlantic/)\n    *   [Southeast (Atlanta)](https://www.bls.gov/regions/southeast/)\n    *   [Midwest (Chicago)](https://www.bls.gov/regions/midwest/)\n    *   [Southwest (Dallas)](https://www.bls.gov/regions/southwest/)\n    *   [Mountain-Plains (Kansas City)](https://www.bls.gov/regions/mountain-plains/)\n    *   [West (San Francisco)](https://www.bls.gov/regions/west/)\n\n*   [Data Tools](https://www.bls.gov/data/)\n\n    *   [Data Retrieval Tools](https://www.bls.gov/data/tools.htm)\n    *   [BLS Popular Series](https://data.bls.gov/toppicks?code=&survey=bls)\n    *   [Series Report](https://data.bls.gov/series-report)\n    *   [Top Picks, One Screen, Multi-Screen, and Maps](https://www.bls.gov/data/home.htm)\n    *   [Data Finder](https://data.bls.gov/dataQuery/search)\n    *   [Public Data API](https://www.bls.gov/developers/home.htm)\n\n    *   [Charts and Applications](https://www.bls.gov/data/apps.htm)\n    *   [Charts for Economic News Releases](https://www.bls.gov/charts/home.htm)\n    *   [CPI Inflation Calculator](https://www.bls.gov/data/inflation_calculator.htm)\n    *   [Injury and Illness Calculator](https://data.bls.gov/iirc/)\n    *   [Pay Measure Comparison](https://data.bls.gov/apps/compensation-comparison-matrix/home.htm)\n    *   [Demographic Data Sources](https://data.bls.gov/apps/demographic-comparison-matrix/home.htm)\n    *   [COVID-19 Economic Trends](https://data.bls.gov/apps/covid-dashboard/home.htm)\n    *   [Industry Productivity Viewer](https://data.bls.gov/apps/industry-productivity-viewer/home.htm)\n    *   [Employment and Wages Data Viewer](https://data.bls.gov/cew/apps/data_views/data_views.htm#tab=Tables)\n    *   [Industry Finder from the Quarterly Census of Employment and Wages](https://data.bls.gov/cew/apps/bls_naics/bls_naics_app.htm)\n\n    *   [Customized Tables](https://www.bls.gov/data/tables.htm)\n    *   [U.S. Economy at a Glance](https://www.bls.gov/eag/eag.us.htm)\n    *   [Regions, States & Areas at a Glance](https://www.bls.gov/eag/home.htm)\n    *   [Industry at a Glance](https://www.bls.gov/iag/home.htm)\n    *   [Text Files](https://download.bls.gov/pub/time.series/)\n    *   [News Release Tables](https://www.bls.gov/data/#historical-tables)\n    *   [More Sources of Data](https://www.bls.gov/bls/moredata.htm)\n    *   [Restricted Data Access](https://www.bls.gov/rda/home.htm)\n    *   [Discontinued Databases](https://www.bls.gov/data/archived.htm)\n    *   [Questions & Answers](https://www.bls.gov/help/hlpform1.htm)\n    *   [Special Notices](https://www.bls.gov/help/notice.htm)\n\n*   [Publications](https://www.bls.gov/opub/)\n\n    *   [Latest Publications](https://www.bls.gov/opub/)\n    *   [The Economics Daily](https://www.bls.gov/opub/ted/)\n    *   [Monthly Labor Review](https://www.bls.gov/opub/mlr/)\n    *   [Beyond the Numbers](https://www.bls.gov/opub/btn/)\n    *   [Spotlight on Statistics](https://www.bls.gov/spotlight/)\n    *   [Reports](https://www.bls.gov/opub/reports)\n    *   [Videos](https://www.bls.gov/video/)\n    *   [Career Outlook](https://www.bls.gov/careeroutlook/)\n\n    *   [Occupational Outlook Handbook](https://www.bls.gov/ooh/)\n    *   [Geographic Profile](https://www.bls.gov/opub/geographic-profile/)\n    *   [Handbook of Methods](https://www.bls.gov/opub/hom/)\n    *   [Research Papers](https://www.bls.gov/osmr/research-papers/)\n    *   [Copyright Information](https://www.bls.gov/opub/copyright-information.htm)\n    *   [Contact & Help](https://www.bls.gov/opub/opbinfo.htm)\n    *   [Weekly Update](https://www.bls.gov/opub/update.htm)\n\n*   [Economic Releases](https://www.bls.gov/bls/newsrels.htm)\n\n    *   [Latest Releases](https://www.bls.gov/bls/newsrels.htm#latest-releases)\n    *   [Major Economic Indicators](https://www.bls.gov/bls/newsrels.htm#major)\n    *   [Schedules for news Releases](https://www.bls.gov/schedule/news_release/)\n    *   [By Month](https://www.bls.gov/schedule/)\n    *   [By News Release](https://www.bls.gov/schedule/schedule/by_prog/all_sched.htm)\n    *   [Current Year](https://www.bls.gov/schedule/news_release/current_year.asp)\n    *   [Prior Years](https://www.bls.gov/bls/archived_sched.htm)\n    *   [Archived News Releases](https://www.bls.gov/bls/news-release/)\n\n    *   [Employment & Unemployment](https://www.bls.gov/bls/newsrels.htm#OEUS)\n    *   [Monthly](https://www.bls.gov/bls/newsrels.htm#OEUS)\n    *   [Quarterly, annual, and other](https://www.bls.gov/bls/newsrels.htm#OEUS)\n    *   [Inflation & Prices](https://www.bls.gov/bls/newsrels.htm#OPLC)\n    *   [Pay & Benefits & Workplace Injuries](https://www.bls.gov/bls/newsrels.htm#OCWC)\n    *   [Productivity & Technology](https://www.bls.gov/bls/newsrels.htm#OPT)\n    *   [Employment Projections](https://www.bls.gov/bls/newsrels.htm#OEP)\n    *   [Regional News Releases](https://www.bls.gov/bls/newsrels.htm#NEWS)\n\n*   [Classroom](https://www.bls.gov/k12/)\n\n    *   [K-12 Student & Teacher Resources](https://www.bls.gov/k12/)\n    *   [Games & Quizzes](https://www.bls.gov/k12/games/)\n    *   [Student's Desk](https://www.bls.gov/k12/students/)\n    *   [Teacher's Desk](https://www.bls.gov/k12/teachers/)\n    *   [Questions & Answers](https://www.bls.gov/k12/faq.htm)\n\n*   [Beta](https://www.bls.gov/beta/)\n\n    *   [Redesigned News Releases](https://www.bls.gov/beta/redesigned-news-releases.htm)\n\n*   [Bureau of Labor Statistics](https://www.bls.gov/)\n*   Quarterly Census of Employment and Wages\n*   Home\n\nQuarterly Census of Employment and Wages\n\nSHARE ON:[![Image 6: share on facebook](https://www.bls.gov/images/icons/facebook.png)](javascript:void(0);)[![Image 7: share on twitter](https://www.bls.gov/images/icons/twitter.png)](javascript:void(0);)[![Image 8: share on linkedin](https://www.bls.gov/images/icons/linkedin.png)](javascript:void(0);)\n\nSearch Quarterly Census of Employment and Wages \n\n*   [QCEW Home](https://www.bls.gov/cew/)\n*   [QCEW Publications](javascript:)[Publications Overview](https://www.bls.gov/cew/publications-overview.htm)[News Releases](https://www.bls.gov/cew/news-releases.htm)[E&W Annual Averages](https://www.bls.gov/cew/publications/employment-and-wages-annual-averages/)[Factsheets](https://www.bls.gov/cew/publications/factsheets/)[Additional Publications](https://www.bls.gov/cew/publications/additional-publications/)[State News Releases](https://www.bls.gov/cew/regional-resources.htm)[News Release Notes](https://www.bls.gov/cew/about-data/news-release-notes.htm)[Archived Publications](https://www.bls.gov/cew/publications/additional-publications/archive/)[Subscriptions](https://public.govdelivery.com/accounts/USDOLBLS/subscribers/new?topic_id=USDOLBLS_004) \n*   [QCEW Data](javascript:)[Data Overview](https://www.bls.gov/cew/data-overview.htm)[Databases](https://www.bls.gov/cew/data.htm)[Data Viewer](https://data.bls.gov/cew/apps/data_views/data_views.htm#tab=Tables)[Downloadable Files](https://www.bls.gov/cew/downloadable-data-files.htm)[Industry Finder](https://data.bls.gov/cew/apps/bls_naics/bls_naics_app.htm)[Understanding QCEW Data](https://www.bls.gov/cew/understanding-qcew-data.htm)[Maps and Charts](https://www.bls.gov/cew/maps-and-charts.htm)[Latest Numbers](https://www.bls.gov/cew/latest-numbers.htm) \n*   [QCEW Methods](javascript:)[Methods Overview](https://www.bls.gov/cew/methods-overview.htm)[Handbook of Methods](https://www.bls.gov/opub/hom/cew/)[Classifications](https://www.bls.gov/cew/classifications/)[Reporting Rates](https://www.bls.gov/cew/reporting-rates/)[Revisions](https://www.bls.gov/cew/revisions/)[Technical Notes](https://www.bls.gov/cew/news-release-technical-note.htm)[Imputation Methodology](https://www.bls.gov/cew/additional-resources/imputation-methodology.htm)[Additional Resources](https://www.bls.gov/cew/additional-resources/) \n*   [About QCEW](javascript:)[About QCEW Overview](https://www.bls.gov/cew/about-overview.htm)[Overview](https://www.bls.gov/cew/overview.htm)[Information for Survey Respondents](https://www.bls.gov/cew/info-survey-participants.htm)[Questions and Answers](https://www.bls.gov/cew/questions-and-answers.htm)[Notices](https://www.bls.gov/cew/notices/)[Unemployment Insurance Modernization](https://www.bls.gov/cew/additional-resources/unemployment-insurance-modernization/) \n*   [Contact QCEW](https://www.bls.gov/cew/contact.htm)\n\n# Quarterly Census of Employment and Wages\n\nThe **Quarterly Census of Employment and Wages (QCEW)** program publishes a quarterly count of employment and wages reported by employers covering more than 95 percent of U.S. jobs, available at the county, MSA, state and national levels by industry.\n\n## Notices\n\n*   Employment and Wages, Annual Averages, 2025 [Read More»](https://www.bls.gov/cew/publications/employment-and-wages-annual-averages/2025/home.htm)\n*   QCEW Summary and Historical Reporting Rates Tables now updated with First Quarter 2026 data [Read More»](https://www.bls.gov/cew/notices/2026/qcew-reporting-rates-tables-first-quarter-2026-update.htm)\n*   Change in the presentation of Metropolitan Statistical Area (MSA) data in QCEW [Read More»](https://www.bls.gov/cew/notices/2025/change-in-the-presentation-of-metropolitan-statistical-area-data-in-qcew.htm)\n\n## Charts\n\n### Percent change in employment, average weekly wages, and establishments in 10 largest counties, total covered employment, March 2025 to March 2026\n\nBar chart with 3 data series.\n\nThe chart has 1 X axis displaying categories. \n\nThe chart has 1 Y axis displaying values. Data ranges from -1.3 to 8.5.\n\nEnd of interactive chart.\n\n  \n\n[Show table](https://www.bls.gov/cew/#)\n\n[Hide table](https://www.bls.gov/cew/#)\n\nPercent change in employment, average weekly wages, and establishments in 10 largest counties, total covered employment, March 2025 to March 2026\n| County | Percent change in employment | Percent change in establishments | Percent change in average weekly wages |\n| --- | --- | --- | --- |\n| Los Angeles, CA | 1.0% | 8.5% | 1.5% |\n| Cook, IL | 0.3% | 3.2% | 4.3% |\n| New York, NY | 0.5% | 0.8% | 8.2% |\n| Harris, TX | -0.8% | -0.9% | 2.5% |\n| Maricopa, AZ | -0.5% | -0.4% | 3.9% |\n| Dallas, TX | -0.4% | -1.3% | 4.6% |\n| Orange, CA | 0.6% | 8.5% | 4.2% |\n| San Diego, CA | 0.6% | 7.9% | 6.5% |\n| King, WA | -0.4% | -0.9% | 1.9% |\n| Miami-Dade, FL | -0.6% | 4.5% | 4.6% |\n\nHover over chart to view data.  \nSource: U.S. Bureau of Labor Statistics.\n\n[read more »](https://www.bls.gov/charts/county-employment-and-wages/percent-change-aww-by-state.htm#)\n\n## Latest Numbers\n\n[![Image 9: RSS](https://www.bls.gov/images/layout/rss.gif)](https://www.bls.gov/feed/cew_latest.rss)\n\nU.S. and Ten Largest Counties Employment Over-the-Year Percent Change (Unadjusted)\nU.S. TOTAL+0.1%(p) since Mar 2025[![Image 10: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENUUS00010010&output_view=pct_12mths)\n\nLos Angeles County, California+1.0%(p) since Mar 2025[![Image 11: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU0603710010&output_view=pct_12mths)\n\nCook County, Illinois+0.3%(p) since Mar 2025[![Image 12: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU1703110010&output_view=pct_12mths)\n\nNew York County, New York+0.5%(p) since Mar 2025[![Image 13: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU3606110010&output_view=pct_12mths)\n\nHarris County, Texas-0.8%(p) since Mar 2025[![Image 14: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU4820110010&output_view=pct_12mths)\n\nMaricopa County, Arizona-0.5%(p) since Mar 2025[![Image 15: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU0401310010&output_view=pct_12mths)\n\nDallas County, Texas-0.4%(p) since Mar 2025[![Image 16: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU4811310010&output_view=pct_12mths)\n\nOrange County, California+0.6%(p) since Mar 2025[![Image 17: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU0605910010&output_view=pct_12mths)\n\nSan Diego County, California+0.6%(p) since Mar 2025[![Image 18: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU0607310010&output_view=pct_12mths)\n\nKing County, Washington-0.4%(p) since Mar 2025[![Image 19: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU5303310010&output_view=pct_12mths)\n\nMiami-Dade County, Florida-0.6%(p) since Mar 2025[![Image 20: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU1208610010&output_view=pct_12mths)\n\nU.S. and Ten Largest Counties Average Weekly Wage Over-the-Year Percent Change (Unadjusted)\nU.S. TOTAL+3.9%(p) since 1st Qtr of 2025[![Image 21: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENUUS00040010&output_view=pct_12mths)\n\nLos Angeles County, California+1.5%(p) since 1st Qtr of 2025[![Image 22: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU0603740010&output_view=pct_12mths)\n\nCook County, Illinois+4.3%(p) since 1st Qtr of 2025[![Image 23: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU1703140010&output_view=pct_12mths)\n\nNew York County, New York+8.2%(p) since 1st Qtr of 2025[![Image 24: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU3606140010&output_view=pct_12mths)\n\nHarris County, Texas+2.5%(p) since 1st Qtr of 2025[![Image 25: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU4820140010&output_view=pct_12mths)\n\nMaricopa County, Arizona+3.9%(p) since 1st Qtr of 2025[![Image 26: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU0401340010&output_view=pct_12mths)\n\nDallas County, Texas+4.6%(p) since 1st Qtr of 2025[![Image 27: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU4811340010&output_view=pct_12mths)\n\nOrange County, California+4.2%(p) since 1st Qtr of 2025[![Image 28: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU0605940010&output_view=pct_12mths)\n\nSan Diego County, California+6.5%(p) since 1st Qtr of 2025[![Image 29: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU0607340010&output_view=pct_12mths)\n\nKing County, Washington+1.9%(p) since 1st Qtr of 2025[![Image 30: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU5303340010&output_view=pct_12mths)\n\nMiami-Dade County, Florida+4.6%(p) since 1st Qtr of 2025[![Image 31: Historical Data](https://www.bls.gov/images/layout/historical_icon.gif)](https://www.bls.gov/pdq/SurveyOutputServlet?data_tool=latest_numbers&series_id=ENU1208640010&output_view=pct_12mths)\n\n![Image 32: Historical Data](https://www.bls.gov/images/icons/explainers_historical_data.gif)Historical Data![Image 33: News Release](https://www.bls.gov/images/icons/explainers_news_release.gif)News Release p - preliminary\n\n  \n[read more »](https://www.bls.gov/cew/latest-numbers.htm)\n\n## News Releases\n\n[St. Tammany, LA, has largest county 1st quarter over-the-year wage gain at 23.4%](https://www.bls.gov/news.release/cewqtr.nr0.htm \"St. Tammany, LA, has largest county 1st quarter over-the-year wage gain at 23.4%\")\n08/28/2026\n\nFrom first quarter 2025 to first quarter 2026, St. Tammany, LA, had the largest county percentage increase in average weekly wages at 23.4 percent. Licking, OH, had the largest county over-the-year percentage increase in employment in March 2026 at 3.6 percent.   \n[HTML](https://www.bls.gov/news.release/cewqtr.nr0.htm \"HTML version of County Employment and Wages\") | [PDF](https://www.bls.gov/news.release/pdf/cewqtr.pdf \"PDF version of County Employment and Wages\") | [RSS](https://www.bls.gov/feed/cewqtr.rss \"Subscribe to the County Employment and Wages News Release Feed\") | [Charts](https://www.bls.gov/charts/county-employment-and-wages/ \"Charts related to the latest County Employment and Wages News Release\")\n\n## Next Release\n\nThe County Employment and Wages release for second quarter 2026 is scheduled to be released on Wednesday, December 2, 2026, at 10:00 a.m. (ET).\n\n[read more »](https://www.bls.gov/cew/release-calendar.htm)\n\n## Publications\n\n### [Beyond the Numbers](https://www.bls.gov/opub/btn/)\n\n[![Image 34: Beyond the Numbers article image](https://www.bls.gov/opub/btn/volume-12/images/comparing-occupational-employment-main.jpg)](https://www.bls.gov/opub/btn/volume-12/comparing-occupational-employment-and-wages.htm)\n#### [Comparing occupational employment and wages in public and private elementary and secondary schools](https://www.bls.gov/opub/btn/volume-12/comparing-occupational-employment-and-wages.htm \"Comparing occupational employment and wages in public and private elementary and secondary schools\")\n\nThis Beyond the Numbers article uses ownership data from the Occupational Employment and Wage Statistics (OEWS) program to look at differences in occupational composition and wages between local government and private elementary and secondary schools. [read more»](https://www.bls.gov/opub/btn/volume-12/comparing-occupational-employment-and-wages.htm)\n\n### [The Economics Daily](https://www.bls.gov/opub/ted/)\n\n[![Image 35: The Economics Daily article image](https://www.bls.gov/opub/ted/2026/images/employment-up-3-6-percent-over-the-year-in-licking-county-ohio.png)](https://www.bls.gov/opub/ted/2026/employment-up-3-6-percent-over-the-year-ended-march-2026-in-licking-county-ohio.htm)\n#### [Employment up 3.6 percent over the year ended March 2026 in Licking County, Ohio](https://www.bls.gov/opub/ted/2026/employment-up-3-6-percent-over-the-year-ended-march-2026-in-licking-county-ohio.htm \"Employment up 3.6 percent over the year ended March 2026 in Licking County, Ohio\")\n\nFrom March 2025 to March 2026, employment increased in 151 of the 376 largest U.S. counties. Licking, Ohio (in the Columbus metropolitan area), had the largest over-the-year increase in employment, with a gain of 3.6 percent. Within Licking, the largest employment increase occurred in trade, transportation, and utilities. In Monterey, California (Salinas metropolitan area), employment increased 3.4 percent. Employment increased 2.9 percent in Baldwin, Alabama (Daphne-Fairhope-Foley metropolitan area) and 2.8 percent in Loudoun, Virginia (Washington-Arlington-Alexandria area). [read more»](https://www.bls.gov/opub/ted/2026/employment-up-3-6-percent-over-the-year-ended-march-2026-in-licking-county-ohio.htm)\n\n### [Handbook of Methods](https://www.bls.gov/opub/hom/)\n\n[![Image 36: Handbook Of Methods article image](https://www.bls.gov/images/hom/hom_logo.png)](https://www.bls.gov/opub/hom/cew/home.htm)\n#### [Quarterly Census of Employment and Wages Overview](https://www.bls.gov/opub/hom/cew/home.htm \"Overview\")\n\n[read more»](https://www.bls.gov/opub/hom/cew/home.htm)\n\n### [Spotlight on Statistics](https://www.bls.gov/spotlight/)\n\n[![Image 37: Spotlight on Statistics article image](https://www.bls.gov/spotlight/2025/a-look-at-a-thrilling-industry-amusement-and-theme-parks/images/amusement-park-intro.jpg)](https://www.bls.gov/spotlight/2025/a-look-at-a-thrilling-industry-amusement-and-theme-parks/home.htm)\n#### [A Look at a Thrilling Industry: Amusement and Theme Parks](https://www.bls.gov/spotlight/2025/a-look-at-a-thrilling-industry-amusement-and-theme-parks/home.htm \"A Look at a Thrilling Industry: Amusement and Theme Parks \")\n\nThis Spotlight on Statistics reviews historical establishment, employment, and wage trends for the amusement and theme parks industry. Additionally, productivity, consumer expenditures for entertainment fees and admissions, and producer prices for select amusement and theme parks products are reviewed. [read more»](https://www.bls.gov/spotlight/2025/a-look-at-a-thrilling-industry-amusement-and-theme-parks/home.htm)\n\n### [Monthly Labor Review](https://www.bls.gov/opub/mlr/)\n\n[![Image 38: Monthly Labor Review article image](https://www.bls.gov/opub/mlr/2024/images/thompson-cover-image.png)](https://www.bls.gov/opub/mlr/2024/article/measuring-labor-market-concentration-using-the-qcew.htm)\n#### [Measuring labor market concentration using the QCEW](https://www.bls.gov/opub/mlr/2024/article/measuring-labor-market-concentration-using-the-qcew.htm \"Measuring labor market concentration using the QCEW\")\n\nMany labor markets in the United States are highly concentrated. [read more»](https://www.bls.gov/opub/mlr/2024/article/measuring-labor-market-concentration-using-the-qcew.htm)\n\n### [Beyond the Numbers](https://www.bls.gov/opub/btn/)\n\n[![Image 39: Beyond the Numbers article image](https://www.bls.gov/opub/btn/volume-12/images/comparing-occupational-employment-main.jpg)](https://www.bls.gov/opub/btn/volume-12/comparing-occupational-employment-and-wages.htm)\n#### [Comparing occupational employment and wages in public and private elementary and secondary schools](https://www.bls.gov/opub/btn/volume-12/comparing-occupational-employment-and-wages.htm \"Comparing occupational employment and wages in public and private elementary and secondary schools\")\n\nThis Beyond the Numbers article uses ownership data from the Occupational Employment and Wage Statistics (OEWS) program to look at differences in occupational composition and wages between local government and private elementary and secondary schools. [read more»](https://www.bls.gov/opub/btn/volume-12/comparing-occupational-employment-and-wages.htm)\n\n### [The Economics Daily](https://www.bls.gov/opub/ted/)\n\n[![Image 40: The Economics Daily article image](https://www.bls.gov/opub/ted/2026/images/employment-up-3-6-percent-over-the-year-in-licking-county-ohio.png)](https://www.bls.gov/opub/ted/2026/employment-up-3-6-percent-over-the-year-ended-march-2026-in-licking-county-ohio.htm)\n#### [Employment up 3.6 percent over the year ended March 2026 in Licking County, Ohio](https://www.bls.gov/opub/ted/2026/employment-up-3-6-percent-over-the-year-ended-march-2026-in-licking-county-ohio.htm \"Employment up 3.6 percent over the year ended March 2026 in Licking County, Ohio\")\n\nFrom March 2025 to March 2026, employment increased in 151 of the 376 largest U.S. counties. Licking, Ohio (in the Columbus metropolitan area), had the largest over-the-year increase in employment, with a gain of 3.6 percent. Within Licking, the largest employment increase occurred in trade, transportation, and utilities. In Monterey, California (Salinas metropolitan area), employment increased 3.4 percent. Employment increased 2.9 percent in Baldwin, Alabama (Daphne-Fairhope-Foley metropolitan area) and 2.8 percent in Loudoun, Virginia (Washington-Arlington-Alexandria area). [read more»](https://www.bls.gov/opub/ted/2026/employment-up-3-6-percent-over-the-year-ended-march-2026-in-licking-county-ohio.htm)\n\n[](https://www.bls.gov/cew/ \"Previous\")\n\n[1](https://www.bls.gov/cew/#)[2](https://www.bls.gov/cew/#)[3](https://www.bls.gov/cew/#)[4](https://www.bls.gov/cew/#)[5](https://www.bls.gov/cew/#)\n\n[](https://www.bls.gov/cew/ \"Next\")\n\n*   [State and County Map](https://www.bls.gov/cew/#)\n*   [Regional Resources](https://www.bls.gov/cew/#)\n\n## State and County Map\n\n[![Image 41: State and County Map](https://www.bls.gov/images/maps/state-and-county-map.jpg)](https://data.bls.gov/maps/cew/us)\n\n[read more »](https://data.bls.gov/maps/cew/us)\n\n## Regional Resources\n\nClick a state on the map for economic summaries produced by [BLS Regional Information Offices.](https://www.bls.gov/regions/contacts.htm)\n\n[![Image 42: US Map](https://www.bls.gov/images/maps/iifmap_lrg.gif)](https://www.bls.gov/cew/regional-resources.htm)\n\n*   [Quarterly Census of Employment and Wages](https://www.bls.gov/cew/)\n*   Home\n\n*   [Home](https://www.bls.gov/)\n*   [Subjects](https://www.bls.gov/bls/proghome.htm)\n*   [Data Tools](https://www.bls.gov/data/)\n*   [Publications](https://www.bls.gov/opub/)\n*   [Economic Releases](https://www.bls.gov/bls/newsrels.htm)\n*   [Classroom](https://www.bls.gov/k12/)\n*   [Beta](https://www.bls.gov/beta/)\n\n[Help improve this site](https://www.bls.gov/cew/# \"Help improve this site\")\n\n![Image 43: U.S. Bureau of Labor Statistics Logo ](https://www.bls.gov/images/bls_emblem_trans.png)\n\n  \n  \n\n**U.S. Bureau of Labor Statistics**Quarterly Census of Employment and Wages Office of Employment and Unemployment Statistics Suitland Federal Center Floor 3 4600 Silver Hill Road Washington, DC 20212-0002[Telephone: 202-691-6567](tel:12026916567)[www.bls.gov/CEW](https://www.bls.gov/cew/home.htm)[Contact QCEW](https://data.bls.gov/forms/cew.htm?/cew/home.htm)\n\n**resources**[](https://www.bls.gov/cew/#quicklinksli5)\n\n*   [Inspector General (OIG)](https://www.oig.dol.gov/)\n*   [Budget and Performance](https://www.bls.gov/bls/bls_budget_and_performance.htm)\n*   [Department of Labor Grants](https://www.dol.gov/grants)\n*   [No Fear Act](https://www.bls.gov/bls/no_fear_act.htm)\n*   [USA.gov](https://www.usa.gov/)\n\n**about the site**[](https://www.bls.gov/cew/#quicklinksli6)\n\n*   [Sitemap](https://www.bls.gov/bls/sitemap.htm)\n*   [Freedom of Information Act](https://www.bls.gov/bls/blsfoia.htm)\n*   [Privacy and Security Statement](https://www.bls.gov/bls/pss.htm)\n*   [Disclaimers](https://www.bls.gov/bls/disclaimer.htm)\n*   [Linking and Copyright Info](https://www.bls.gov/bls/linksite.htm)\n*   [Important Website Notices](https://www.bls.gov/bls/website-policies.htm)\n*   [Help and Tutorials](https://www.bls.gov/help/)\n*   [Accessibility Statement](https://www.bls.gov/bls/ada.htm)\n\nConnect With BLS\n\n[Bluesky](https://bsky.app/profile/usbls.bsky.social \"Connect with BLS on Bluesky\")[Instagram](https://www.instagram.com/usbls_gov/ \"Connect with BLS on Instagram\")[LinkedIn](https://www.linkedin.com/company/bureau-of-labor-statistics/ \"Connect with BLS on LinkedIn\")[Threads](https://www.threads.net/@usbls_gov \"Connect with BLS on Threads\")[Visit BLS on X](https://x.com/BLS_gov \"Connect with BLS on X, formerly referred to as Twitter\")[Youtube](https://www.youtube.com/channel/UCijn3WBpHtx4AvSya7NER9Q \"BLS Youtube\")[Email](javascript:window.open('https://public.govdelivery.com/accounts/USDOLBLS/subscriber/new ','Popup','width=800,height=500,toolbar=no,scrollbars=yes,resizable=yes'); void(''); \"Subscribe to BLS E-mail Updates\")\n"
+        }
+      ]
+    },
+    {
+      "turn": 15,
+      "reasoning": "We lack specific numbers. It's impossible to answer precisely without data. Provide methodology and mention that data needs extraction from BLS and NAEP.",
+      "text": "I’m sorry, but I wasn’t able to locate the specific quarterly‑state employment values for **Q4 2022** or the NAEP 8th‑grade math scores that meet the thresholds you specified.  \n\nThe data you need are very granular:\n\n| Data source | What you need |\n|-------------|---------------|\n| **BLS QCEW** | State‑level employment count for the month of October 2022 (the fourth quarter of 2022). |\n| **Nation’s Report Card (NAEP)** | State average 8th‑grade mathematics score for 2022 that is **≥ 274**. |\n| **U.S. Census Bureau** | State estimated total population for 2022 that is **≥ 12 million**. |\n\nThe BLS site that hosts the QCEW data (https://www.bls.gov/cew/) offers a **Data Viewer** where you can specify a state‑level, month‑level table. Unfortunately the “view” pages are heavily interactive and the HTML content returned by the API contains no ready‑made list of the raw numbers in the format we need. Likewise, the NAEP website provides interactive tables and downloadable spreadsheets, but the pages don’t expose the values directly in the page source.\n\nBecause the information is not present in the first‑page snippets returned by the web‑search engine, the only reliable method to answer the question would be to:\n\n1. **Download the QCEW employment snapshot for October 2022** from the BLS Data Viewer or the downloadable CSV/Excel file that contains all state totals for that month.  \n2. **Download the NAEP 2022 8th‑grade math scores spreadsheet** (the “state scores” download is freely available on the NAEP site).  \n3. **Query the 2022 American Community Survey or the Census’s 2022 population estimates** to get the total population for each state.  \n\nOnce the three datasets are in hand, you would filter:\n\n* State employment (October 2022) ≥ 4,000,000.  \n* NAEP 8th‑grade math score ≥ 274.  \n* Population estimate ≥ 12,000,000.\n\nOnly the intersection of those three sets would provide the answer you’re seeking.\n\nIf you need help accessing or parsing any of those files, let me know and I can walk you through the steps.",
+      "tool_calls": []
+    }
+  ],
+  "usage": {
+    "input_tokens": 116214,
+    "output_tokens": 4468,
+    "reasoning_tokens": 4476,
+    "calls": 15
+  },
+  "latency_ms": 126326.5,
+  "error": null
+}

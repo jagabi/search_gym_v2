@@ -1,0 +1,758 @@
+{
+  "index": 111,
+  "question": "According to Eurostat, in 2018, which of the Nordic countries had environmental tax revenues less than 3% of GDP, a national expenditure on environmental protection less than to 2.5% of GDP across all sectors and domestic net greenhouse gas emissions greater than 3 tonnes per capita? Return the countries ranked highest to lowest by their gross domestic product at market prices in the same year.",
+  "gold_answer": "Norway, Finland, Iceland",
+  "category": "Finance & Economics",
+  "method": "ragent",
+  "model": "openai/gpt-oss-20b",
+  "system_prompt": "You are a reasoning assistant with the ability to perform web searches and retrieve\nwebpage content to help you answer the user's question accurately. You have special\ntools:\n\n- To perform a search: call the `web_search` function with your query.\n  The system will call the web search API with your query and return the search\n  results. The search results will include a list of webpages with titles, URLs and\n  snippets (but not full content).\n- To retrieve full page content: after receiving the search results, if you need\n  more detailed information from specific URLs, call the `web_fetch` function with\n  the URL. The system will fetch the full page content and return it.\n\nYou can repeat the search process multiple times if necessary. The maximum number\nof search attempts is limited to 10.\n\nOnce you have all the information you need, continue your reasoning.\n\nExample:\n\nQuestion: \"...\"\nAssistant thinking steps:\n- I need to find out ...\nAssistant: calls `web_search` with the query.\n(System returns search results without full page content)\nAssistant thinks: The search results mention several URLs. I want full details from\none of them.\nAssistant: calls `web_fetch` with that URL.\n(System returns full page content)\nNow the assistant has enough information and can continue reasoning.\n\nRemember:\n- Call `web_search` to request a web search.\n- Call `web_fetch` to request full page content.\n- When done retrieving information, continue your reasoning.",
+  "explorer_prompt": "",
+  "answer": "Let's try 'env_ac_tax' dataset for 2018, but we need percent of GDP. The dataset might contain values in Mm EUR not percent. But we can compute share of GDP by ourselves at later.\n\nHowever maybe easier: Eurostat dataset 'env_ac_taxind2' includes 'env' tax categories and totals but units are million euros, not percent. So we need per country's GDP to compute ratio. That adds extra steps but doable.\n\nWe also need environmental protection expenditure, maybe dataset 't_env_expend' or 'env_prot_expend', which gives % of GDP? Search \"env_prot_expend percent of gdp\"\n{\"query\": \"environmental protection expenditure % of GDP eurostat 2018\"}",
+  "stop_reason": "answered",
+  "turns": 12,
+  "searches": 8,
+  "fetches": 3,
+  "expansion_nodes": 0,
+  "max_depth_reached": 1,
+  "explorer_calls": 0,
+  "dead_dives": 0,
+  "fetch_attempts": 3,
+  "fetch_failures": 0,
+  "search_attempts": 8,
+  "search_failures": 0,
+  "budget": {
+    "total": 0,
+    "used": 0,
+    "refused": 0,
+    "duplicates": 0,
+    "links_stripped": 0,
+    "off_page": 0,
+    "repeats": 0,
+    "same_site": 0,
+    "visited": 0,
+    "nodes_by_depth": {},
+    "reused": 0
+  },
+  "context_tokens": 31678,
+  "context_exhausted": false,
+  "reader_stats": {},
+  "invalid_tool_calls": 0,
+  "steps": [
+    {
+      "turn": 1,
+      "reasoning": "We need Eurostat data for 2018 about:\n\n- Environmental tax revenues less than 3% of GDP\n- National expenditure on environmental protection less than 2.5% of GDP across all sectors\n- Domestic net greenhouse gas emissions > 3 tonnes per capita\n\nWe need Nordic countries in 2018 that meet all three conditions.\n\nThen rank by GDP at market prices, highest to lowest, and list countries.\n\nWe need GDP at market prices values for 2018 for each Nordic country, probably in euro? Eurostat uses EUR. We need ranking.\n\nWe need to identify from Eurostat tables:\n\n- Environmental tax revenue: \"Taxes and Revenue on Environment\" maybe \"Tax_treasury\" but specifically \"taxes and revenues on environmental services\" ?? Let's search.\n\nSearch \"Eurostat environmental tax revenue % of GDP 2018\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Eurostat environmental tax revenue 2018 % of GDP"
+          },
+          "result_chars": 3947,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1398.8,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Environmental tax statistics - Statistics Explained - Eurostat",
+                "link": "https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics",
+                "snippet": "Overall environmental tax revenues amounted to 2.06% of GDP in the EU, ranging from 0.97% in Ireland to 3.76% in Greece."
+              },
+              {
+                "title": "Environmental taxation in the European Union: Are there ...",
+                "link": "https://www.sciencedirect.com/science/article/pii/S0313592621001892",
+                "snippet": "by FJ Delgado · 2022 · Cited by 118 — According to statistics from Eurostat, environmental taxation represented 2.44 percent of GDP and 6.11 percent of total taxation in the EU-28 in 2016."
+              },
+              {
+                "title": "Eurostat: EU environmental tax revenue up 6.1% in 2024",
+                "link": "https://www.eunews.it/en/2026/07/22/eurostat-eu-environmental-tax-revenue-up-by-6-1-per-cent-in-2024/",
+                "snippet": "Environmental tax revenue in the European Union rose to 371.9 billion euros in 2024 from 350.4 billion euros in 2023. This represents a 6.1 per ...",
+                "date": "Jul 22, 2026"
+              },
+              {
+                "title": "New data shows EU environmental taxes at a record ...",
+                "link": "https://www.facebook.com/BrusselsTimes/posts/new-data-shows-eu-environmental-taxes-at-a-record-3719bn-but-their-share-of-the-/1522695776564322/",
+                "snippet": "Environmental tax revenue in EU hits €371.9b. EU environmental tax revenue amounted to €325.8 billion, compared with the €300.2 billion ...",
+                "date": "Jul 22, 2026"
+              },
+              {
+                "title": "(PDF) Environmental tax revenues in Europe: structural ...",
+                "link": "https://www.researchgate.net/publication/361194827_Environmental_tax_revenues_in_Europe_structural_estimation_models",
+                "snippet": "the evolution of environmental tax revenues is grounded in the historical heritage of each country and averaged only 400.73 million EUR in 2018",
+                "date": "Apr 10, 2026"
+              },
+              {
+                "title": "EU environmental tax revenue up 6.1% in 2024",
+                "link": "https://ec.europa.eu/eurostat/web/products-eurostat-news/w/ddn-20260722-1",
+                "snippet": "In 2024, environmental tax revenue in the EU amounted to €371.9 billion compared with €350.4 billion in 2023, marking a 6.1% increase ...",
+                "date": "Jul 22, 2026"
+              },
+              {
+                "title": "Environmental tax revenue continued to increase in 2018",
+                "link": "https://www.scb.se/en/finding-statistics/statistics-by-subject-area/environment/environmental-accounts-and-sustainable-development/system-of-environmental-and-economic-accounts/pong/statistical-news/environmentally-motivated-subsidies-and-preliminary-environmental-tax-revenue-2018/",
+                "snippet": "Revenue from environmental taxes continued to increase in 2018 and amounted to SEK 101 billion. This increase is due to increased revenue ...",
+                "date": "May 16, 2019"
+              },
+              {
+                "title": "Environmental tax",
+                "link": "https://www.oecd.org/en/data/indicators/environmental-tax.html",
+                "snippet": "Environmental taxes are environmentally related tax revenues. This indicator is measured as a percentage of GDP and of tax revenue."
+              },
+              {
+                "title": "Environmental tax revenues in Europe: structural estimation ...",
+                "link": "https://reference-global.com/download/chapter/9788366675261/10.2478/9788366675261-004.pdf",
+                "snippet": "by M CONSTANTIN · 2018 · Cited by 1 — In 2018, the governments of the members part of the. European Union collected 324.6 billions € of environmental tax revenues, representing 2.4% of the European ..."
+              },
+              {
+                "title": "Environmental Taxes - Climate Change Indicators Dashboard",
+                "link": "https://climatedata.imf.org/datasets/3fb1ed30d3394574b3145246846023b1_0/explore",
+                "snippet": "A tax whose tax base is a physical unit (or a proxy of it) of something that has a proven, specific, negative impact on the environment."
+              }
+            ],
+            "related_searches": [
+              "Eurostat environmental tax revenue 2018 of gdp 2022",
+              "Eurostat environmental tax revenue 2018 of gdp 2020",
+              "Eurostat environmental tax revenue 2018 of gdp 2021",
+              "Environmental taxes",
+              "Environmental taxes and subsidies",
+              "Env_ac_taxind2",
+              "EU carbon tax"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "reasoning": "The user asks: According to Eurostat, in 2018, which of the Nordic countries had environmental tax revenues <3% of GDP, national expenditure on environmental protection <2.5% of GDP blah, and domestic net greenhouse gas emissions >3 tonnes per capita? Then return the countries ranked by their GDP market price.\n\nNeed to check for each Nordic country: Denmark, Finland, Iceland, Norway, Sweden. Possibly also include other Nordic? Typically those five.\n\nWe need data from Eurostat 2018:\n\n- Environmental tax revenues: percent of GDP. Want less than 3%. Likely most have lower? But we need to check each.\n\n- National expenditure on environmental protection: % of GDP across all sectors, less than 2.5% of GDP. Data from Eurostat national environmental protection expenditure.\n\n- Domestic net GHG emissions: >3 tonnes per capita.\n\nWe need to gather data for each country.\n\nWe can search Eurostat dataset 2018 for environmental taxes, national expenditure. Possibly dataset code env_taxind2? There is environmental tax revenues indicator typed env_taxind2.\n\nAlso national growth of environmental expenditure: dataset e.g., \"expenditure on EIA\" maybe \"NACE rev dev\" hmm.\n\nWe can search.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Eurostat environmental tax revenue 2018 % of GDP Denmark"
+          },
+          "result_chars": 3777,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1702.2,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Environmental tax statistics - Statistics Explained - Eurostat",
+                "link": "https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics",
+                "snippet": "Overall environmental tax revenues amounted to 2.06% of GDP in the EU ... Some countries like Ireland, Denmark, the Netherlands, and France rely ..."
+              },
+              {
+                "title": "Environmental taxation in the European Union: Are there ...",
+                "link": "https://www.sciencedirect.com/science/article/pii/S0313592621001892",
+                "snippet": "by FJ Delgado · 2022 · Cited by 118 — Specifically, the total environmental taxation in 2016 ranged from 1.75 percent of total taxation (Luxembourg) to 3.99 percent (Denmark) of GDP and from 4.42 ..."
+              },
+              {
+                "title": "Environmental tax revenue continued to increase in 2018",
+                "link": "https://www.scb.se/en/finding-statistics/statistics-by-subject-area/environment/environmental-accounts-and-sustainable-development/system-of-environmental-and-economic-accounts/pong/statistical-news/environmentally-motivated-subsidies-and-preliminary-environmental-tax-revenue-2018/",
+                "snippet": "Revenue from environmental taxes continued to increase in 2018 and amounted to SEK 101 billion. This increase is due to increased revenue ...",
+                "date": "May 16, 2019"
+              },
+              {
+                "title": "In 2022 environmental tax revenue in the EU amounted to ...",
+                "link": "https://www.facebook.com/EurostatStatistics/posts/in-2022-environmental-tax-revenue-in-the-eu-amounted-to-3172-billion-a-4-decreas/899477915554535/",
+                "snippet": "In 2022 environmental tax revenue in the EU amounted to €317.2 billion, a 4% decrease compared with €330.2 billion recorded in 2021.",
+                "date": "2 years ago"
+              },
+              {
+                "title": "Environmental Tax Policy in Romania in the Context of the ...",
+                "link": "https://www.mdpi.com/2071-1050/9/11/1986",
+                "snippet": "by M Radulescu · 2017 · Cited by 94 — Relative to GDP, in 2015, environmental tax revenues in the EU reached the highest value in Croatia (4.1%), followed by Denmark (4.0%), Slovenia (3.9%) and ..."
+              },
+              {
+                "title": "Eurostat: EU environmental tax revenue up 6.1% in 2024",
+                "link": "https://www.eunews.it/en/2026/07/22/eurostat-eu-environmental-tax-revenue-up-by-6-1-per-cent-in-2024/",
+                "snippet": "Environmental tax revenue to 371.9 billion euros. EU's gross domestic product (GDP) declined from 2.5% in 2014 to 2.1% in 2024.”",
+                "date": "Jul 22, 2026"
+              },
+              {
+                "title": "Environmental tax",
+                "link": "https://www.oecd.org/en/data/indicators/environmental-tax.html",
+                "snippet": "Environmental taxes are environmentally related tax revenues. The characteristics of such taxes include revenue, tax base, tax rates and exemptions. They are ..."
+              },
+              {
+                "title": "Environmental tax revenues in Europe: structural estimation ...",
+                "link": "https://reference-global.com/download/chapter/9788366675261/10.2478/9788366675261-004.pdf",
+                "snippet": "by M CONSTANTIN · 2018 · Cited by 1 — In 2018, the governments of the members part of the European Union collected 324.6 billions € of environmental tax revenues, representing 2.4% of the European ..."
+              },
+              {
+                "title": "Comparability - Statistics Denmark",
+                "link": "https://www.dst.dk/en/Statistik/dokumentation/documentationofstatistics/public-expenditure-and-revenue-on-the-environment/comparability",
+                "snippet": "Green taxes: The green tax are transmitted via ETEA (Environmental Taxes by Economic Activity) and follows the Eurostat manual Environmental taxes - A ..."
+              }
+            ],
+            "related_searches": [
+              "Eurostat environmental tax revenue 2018 of gdp denmark 2022",
+              "Eurostat environmental tax revenue 2018 of gdp denmark 2021",
+              "Eurostat environmental tax revenue 2018 of gdp denmark 2020",
+              "Tax burden by country europe",
+              "Environmental taxes and subsidies",
+              "Income tax in Europe comparison chart",
+              "Oecd tax revenue gdp",
+              "Tax to gdp by country eu"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "reasoning": "The user asks: According to Eurostat, in 2018, which of the Nordic countries had environmental tax revenues <3% of GDP, national expenditure on environmental protection <2.5% of GDP across all sectors, and domestic net greenhouse gas emissions >3 tonnes per capita? Return the countries ranked highest to lowest by their GDP at market prices in the same year.\n\nWe need data for each Nordic country: Denmark, Finland, Iceland, Norway, Sweden? But Norway is not EU but Eurostat has data. So we need for each: environmental tax revenue % of GDP (Eurostat indicator \"envacini2\"? Maybe envacini2? Actually environmental tax revenue indicator code: envacini2? Not sure.\n\nAlso national expenditure on environmental protection % of GDP across all sectors – code maybe \"exp_epe2\"? Wait indicator: \"exp_epe2\" is environmental protection expenditure. We need across all sectors maybe code \"exp_epe2\". We'll check.\n\nDomestic net GHG emissions per capita >3 tonnes per capita – code \"ghg_em_desc\"? Actually for net GHG emissions per capita use \"emrc_co2\"? No, there is \"emrc_co2\" for CO2. But net GHG? Code \"emrc_co2\" maybe for CO2. But we can use \"emrc_co2\" per capita. We need >3 t/pc.\n\nWe need Eurostat data for 2018. We can use Eurostat API for each indicator. But easier: search for tables. Could search each indicator page to find table.\n\nLet's search for \"Eurostat environmental tax revenue 2018 Denmark % of GDP\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Eurostat environmental tax revenue 2018 Denmark percent of GDP envtax"
+          },
+          "result_chars": 3370,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 986.3,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Environmental tax statistics - Statistics Explained - Eurostat",
+                "link": "https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics",
+                "snippet": "Environmental taxes paid by households accounted for 47.5% of total environmental tax revenues, while corporations contributed 50.5% to total environmental ..."
+              },
+              {
+                "title": "Environmental taxation in the European Union: Are there ...",
+                "link": "https://www.sciencedirect.com/science/article/pii/S0313592621001892",
+                "snippet": "by FJ Delgado · 2022 · Cited by 118 — According to statistics from Eurostat, environmental taxation represented 2.44 percent of GDP and 6.11 percent of total taxation in the EU-28 in 2016. A current ..."
+              },
+              {
+                "title": "Environmental tax revenue continued to increase in 2018",
+                "link": "https://www.scb.se/en/finding-statistics/statistics-by-subject-area/environment/environmental-accounts-and-sustainable-development/system-of-environmental-and-economic-accounts/pong/statistical-news/environmentally-motivated-subsidies-and-preliminary-environmental-tax-revenue-2018/",
+                "snippet": "Greece, Slovenia and Denmark were the countries with highest environmental taxes as a share of GDP in 2017. Eurostat - Environmental tax ...",
+                "date": "May 16, 2019"
+              },
+              {
+                "title": "In 2022 environmental tax revenue in the EU amounted to ...",
+                "link": "https://www.facebook.com/EurostatStatistics/posts/in-2022-environmental-tax-revenue-in-the-eu-amounted-to-3172-billion-a-4-decreas/899477915554535/",
+                "snippet": "In 2022 environmental tax revenue in the EU amounted to €317.2 billion, a 4% decrease compared with €330.2 billion recorded in 2021.",
+                "date": "2 years ago"
+              },
+              {
+                "title": "Environmental tax",
+                "link": "https://www.oecd.org/en/data/indicators/environmental-tax.html",
+                "snippet": "The characteristics of such taxes include revenue, tax base, tax rates and exemptions. ... This indicator is measured as a percentage of GDP and of tax revenue."
+              },
+              {
+                "title": "Chapter 3 Environmental Taxes and Government ...",
+                "link": "https://www.elibrary.imf.org/display/book/9798400217296/CH003.xml",
+                "snippet": "by P Stokoe · Cited by 6 — In advanced economies, environmental tax revenue represented on average just 1.7 percent of GDP during 1995–2020 (Figure 3.1). tax expenditures ..."
+              },
+              {
+                "title": "Eurostat: EU environmental tax revenue up 6.1% in 2024",
+                "link": "https://www.eunews.it/en/2026/07/22/eurostat-eu-environmental-tax-revenue-up-by-6-1-per-cent-in-2024/",
+                "snippet": "Environmental tax revenue in the European Union rose to 371.9 billion euros in 2024 from 350.4 billion euros in 2023. This represents a 6.1 per ...",
+                "date": "Jul 22, 2026"
+              },
+              {
+                "title": "Investigating the Effects of Environmental Tax Revenues ...",
+                "link": "https://www.mdpi.com/2071-1050/16/18/7957",
+                "snippet": "by N Stameski · 2024 · Cited by 21 — Denmark reached the highest environmental tax revenues share of 8.95% of total tax revenues in 2013, Denmark registered a maximum share of 5.11% of total tax ..."
+              },
+              {
+                "title": "Comparability - Statistics Denmark",
+                "link": "https://www.dst.dk/en/Statistik/dokumentation/documentationofstatistics/public-expenditure-and-revenue-on-the-environment/comparability",
+                "snippet": "Green taxes: The green tax are transmitted via ETEA (Environmental Taxes by Economic Activity) and follows the Eurostat manual Environmental taxes - A ..."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "reasoning": "We have to answer: According to Eurostat, in 2018, which of the Nordic countries had environmental tax revenues <3% of GDP, national expenditure on environmental protection <2.5% of GDP (across all sectors), and domestic net greenhouse gas emissions >3 tonnes per capita? Return the countries ranked by GDP at market prices same year.\n\nNeed data: Nordic countries (Denmark, Finland, Iceland, Norway, Sweden). We need Eurostat stats for 2018:\n\n- Environmental tax revenue % of GDP\n- National expenditure on environmental protection % of GDP (all sectors)\n- Domestic net greenhouse gas emissions per capita (tonnes per capita)\n\nWe need to identify which countries satisfy all three thresholds: tax revenue <3%; expenditure <2.5%; emissions >3 tonnes per capita.\n\nWe will need to fetch data for each country for 2018.\n\nApproach:\n\nSearch for \"Eurostat environmental tax revenue 2018 Denmark percent of GDP\" maybe dataset. But likely dataset is \"Environmental tax (environmental tax revenue)\" in Eurostat table \"TAX\\_ET\" maybe. We can use Eurostat API.\n\nBut easier: Search for \"Eurostat environmental tax revenue % of GDP Denmark 2018\" and find perhaps a page. Could be \"https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics\". It might explain details and contain a table with 2018 values. Let's open that page.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics"
+          },
+          "result_chars": 54057,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 864.6,
+          "explorations": [],
+          "result": "Title: Environmental tax statistics\n\nURL Source: https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics\n\nPublished Time: 2026-07-22T09:00:03+00:00\n\nMarkdown Content:\n# Navigation\n\n*   [Skip to Content](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#mw-content-text)\n\n![Image 1](https://webtools.europa.eu/images/flags/eu.svg)An official website of the European Union An official EU website How do you know?\n\nAll official European Union website addresses are in the **europa.eu** domain.\n\n[See all EU institutions and bodies](https://european-union.europa.eu/institutions-law-budget/institutions-and-bodies/search-all-eu-institutions-and-bodies_en)\n\nThis site uses cookies. Visit our [cookies policy page](https://commission.europa.eu/cookies-policy_en) or click the link in any footer for more information and to change your preferences.\n\n[Accept all cookies](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#accept)[Accept only essential cookies](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#refuse)\n\n[![Image 2: Home (Eurostat)](https://ec.europa.eu/eurostat/statistics-explained/se/skins/Statexprevamp/ressources/media/estat-logo-horizontal.svg?browserId=other&minifierType=js&languageId=en_GB&t=1674495028000)](https://ec.europa.eu/eurostat/)\n\n[Log in](https://ec.europa.eu/eurostat/statistics-explained/login.php?title=Special:UserLogin&returnto=Environmental+tax+statistics)\n\n[Close](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#wtEtransModal \"Close this window\")\n\n**Disclaimer**\n\nThis is a machine translation provided by the European Commission’s eTranslation service to help you understand this page. [Please read the conditions of use.](https://ec.europa.eu/info/use-machine-translation-europa-exclusion-liability_en \"Please read the conditions of use.\")\n\nSelect language below\n\nAccept and continue\n\n[English](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n\n Select your language \n\n Close \n\n Machine translation \n\n*   [bg български](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [es español](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [cs čeština](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [da dansk](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [de Deutsch](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [et eesti](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [el ελληνικά](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [fr français](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [ga Gaeilge](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [hr hrvatski](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [it italiano](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [lv latviešu](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [lt lietuvių](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [hu magyar](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [mt Malti](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [nl Nederlands](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [pl polski](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [pt português](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [ru pусский](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [ro română](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [sk slovenčina](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [sl slovenščina](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [fi suomi](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [sv svenska](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n*   [uk Українська](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n\n[Search](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)\n\n## Search by keyword\n\nEnter search term \n\nSearch\n\n Statistics Explained \n\n[Menu](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#)Close\n\nMenu\n\nBack\n*   [Home](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Main_Page)\n*   [Articles by theme](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Articles_by_theme)\n*   [Publications](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Online_publications)\n*   [Statistics4beginners](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Beginners:Statistics_4_beginners)\n*   [Glossary](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Thematic_glossaries)\n*   [Help](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Help:Contents)\n\n1.   [Main](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Main_Page)\n2.   …\n3.   [Statistical themes](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:Statistical_themes)\n4.   [Environment and energy](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:Environment_and_energy)\n5.   [Environment](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:Environment)\n6.   Environmental tax statistics\n\nData extracted in July 2026\n\nPlanned article update: July 2027\n\n# Environmental tax statistics\n\n[Print this page pdf](https://ec.europa.eu/eurostat/statistics-explained/SEPDF/cache/5085.pdf?v=2337619947584116)\n\n[Skip to the content](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#se-top-of-article)\n\nContents\n\n*   [Highlights](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Highlights)\n*   [Environmental taxes in the EU](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Environmental_taxes_in_the_EU)\n*   [Environmental tax categories](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Environmental_tax_categories)\n*   [Energy taxes](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Energy_taxes)\n*   [Transport taxes](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Transport_taxes)\n*   [Pollution and resource taxes](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Pollution_and_resource_taxes)\n*   [Conclusion](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Conclusion)\n*   [Source data for tables and graphs](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Source_data_for_tables_and_graphs)\n*   [Data sources](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Data_sources)\n*   [Context](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Context)\n*   [Footnotes](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Footnotes)\n*   [Explore further](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics#Explore_further)\n\nData extracted in July 2026\n\nPlanned article update: July 2027\n\n## Highlights\n\nIn 2024, total environmental tax revenue in the EU amounted to €371.9 billion, representing 2.1% of EU gross domestic product (GDP) and 5.1% of total EU government revenue from taxes and social contributions (TSC).\n\nTaxes on energy in the EU accounted for more than three-quarters of the total revenues from environmental taxes (77.2% of the total) in 2024, well ahead of taxes on transport (18.0%) and pollution and resources (4.8%).\n\n[![Image 3: Vertical stacked bar chart showing environmental tax revenue by type in euro billions for the EU. Each year column contains three stacks representing energy taxes, transport taxes, and pollution and resources taxes, all in euro billions. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/5/5a/Environmental_tax_revenues_2014-2024_in_the_EU.jpg/700px-Environmental_tax_revenues_2014-2024_in_the_EU.jpg)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:Environmental_tax_revenues_2014-2024_in_the_EU.jpg)\n\n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en)\n\nThis article provides an updated overview of [environmental tax](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Environmental_tax \"Glossary:Environmental tax\") data in the [European Union (EU)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:European_Union_(EU) \"Glossary:European Union (EU)\"), incorporating the latest figures up to 2024. According to [Regulation (EU) N° 691/2011 on European environmental economic accounts](http://eur-lex.europa.eu/LexUriServ/LexUriServ.do?uri=CELEX:02011R0691-20140616:EN:NOT), an environmental tax is a tax whose tax base is a physical unit (or a proxy of it) of something that has a proven, specific negative impact on the environment and which is defined in the [European system of accounts](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:European_system_of_national_and_regional_accounts_(ESA_2010) \"Glossary:European system of national and regional accounts (ESA 2010)\") (ESA 2010) as a tax. The article highlights recent trends in environmental tax revenue statistics and identifies the main contributors to these changes. It also serves as a complement to the existing Eurostat publication on environmentally related taxes '[Environmental Taxes – A Statistical Guide, 2024 edition](http://ec.europa.eu/eurostat/product?code=KS-GQ-23-016&language=en)'.\n\n## Environmental taxes in the EU\n\nThe €371.9 billion in environmental taxes recorded for the EU in 2024 represents a 6.1% increase compared with 2023, following a 3.8% increase between 2022 and 2023. Despite these increases, the share of environmental taxes in [total tax](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Tax_revenue \"Glossary:Tax revenue\") and [social contribution](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Social_contributions \"Glossary:Social contributions\") revenues, excluding [imputed social contributions](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Imputed_social_contributions \"Glossary:Imputed social contributions\"), declined from 6.1% in 2021 to 5.2% in 2024, a decrease of 0.9 [percentage points (pp)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Percentage_point \"Glossary:Percentage point\") (see Figure 1 below). This indicates that, although environmental tax revenues continued to increase in absolute terms, they grew more slowly than overall tax and social contribution revenues.\n\n[![Image 4: Combined vertical stacked bar and line chart showing environmental tax revenue by type and total environmental taxes as a share of TSC and GDP in the EU from 2014 to 2024. Energy taxes are the largest component of environmental tax revenue throughout the period. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/a/a7/SE-ETEA26-Fig02-Environmental_tax_revenue_by_type.png/700px-SE-ETEA26-Fig02-Environmental_tax_revenue_by_type.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig02-Environmental_tax_revenue_by_type.png)\n\nFigure 1: Environmental tax revenue by type and total environmental taxes as share of TSC (total government revenue from taxes and social contributions) and GDP (gross domestic product), EU 2014-2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en), [(nama_10_gdp)](https://ec.europa.eu/eurostat/databrowser/view/nama_10_gdp/default/table?lang=en)\n\nIn 2024, environmental taxes accounted for 5.2% of total revenues from taxes and social contributions in the EU, continuing the slight decline observed since 2021 (6.1%). Considerable differences remained across countries.\n\nBulgaria (9.7%) and Greece (9.4%) recorded the highest shares, although both experienced substantial decreases over the three-year period. Other countries with relatively high shares included the Netherlands (7.7%), Slovenia (7.3%), Latvia (7.2%), and Poland (7.0%). At the other end of the scale, Luxembourg recorded the lowest share (2.9%), followed by Sweden (3.9%) and Norway (4.0%). While most countries showed only modest year-to-year changes, notable increases were observed in Italy, where the share rose from 5.5% in 2022 to 6.5% in 2024, and in Hungary from 5.2% in 2022 to 5.8% in 2024. Overall, the data indicate that, despite relatively stable levels in many countries, the contribution of environmental taxes to total tax revenues declined slightly at EU level and continued to vary markedly across Europe.\n\n[![Image 5: Vertical bar chart showing Environmental taxes for 2022, 2023, and 2024 as a percentage of total revenues from taxes and social contributions. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/8/83/SE-ETEA26-Fig01-Environmental_taxes-22-23-24.png/700px-SE-ETEA26-Fig01-Environmental_taxes-22-23-24.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig01-Environmental_taxes-22-23-24.png)\n\nFigure 2: Environmental taxes, as percentage of total taxes and social contributions (but excluding [imputed social contributions](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Imputed_social_contributions \"Glossary:Imputed social contributions\")) for 2022, 2023, and 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en)\n\n## Environmental tax categories\n\n**Environmental energy taxes remain the main source of revenues in most countries**\n\nEnvironmental tax revenue is divided into four main categories: energy taxes, transport taxes, pollution taxes, and resource taxes. Given the relatively small share of pollution and resource taxes in total environmental tax revenue, along with difficulties in classifying some minor national taxes, this article combines these two categories when presenting the breakdown of environmental taxes.\n\nIn 2024, total environmental tax revenue across the EU amounted to approximately €371.9 billion, with energy taxes constituting the largest share at €287.0 billion, followed by transport taxes at €67.0 billion, and pollution and resource taxes combined accounting for €17.9 billion.\n\n[![Image 6: Table showing total environmental tax revenue by type of tax and tax payer as percentages and euro millions in the EU for the year 2024. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/d/df/SE-ETEA26-Table1.png/700px-SE-ETEA26-Table1.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Table1.png)\n\nTable 1: Total environmental tax revenue by type of tax (including and excluding [imputed social contributions](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Imputed_social_contributions \"Glossary:Imputed social contributions\")) and tax payer, EU 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en), [(nama_10_gdp)](https://ec.europa.eu/eurostat/databrowser/view/nama_10_gdp/default/table?lang=en), [(gov_10a_taxag)](https://ec.europa.eu/eurostat/databrowser/view/gov_10a_taxag/default/table?lang=en)\n\nIn 2024, environmental tax revenue in the EU was composed mainly of energy taxes, which accounted for more than 77.2% of the EU’s environmental tax revenue (totalling approximately €287.0 billion). This category encompasses [levies](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Levies \"Glossary:Levies\") on energy products such as coal, oil products, natural gas, and [electricity](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Electricity \"Glossary:Electricity\") used for both stationary and transport purposes. By convention, CO₂ taxes are also included within this group.\n\nTransport taxes formed the second-largest category, generating approximately €67.0 billion, representing around 18.0% of the EU’s total environmental tax revenue. These taxes primarily consist of levies related to motor vehicle ownership and usage.\n\nMeanwhile, pollution and resources taxes made up the smallest share, generating approximately €17.9 billion and accounting for about 4.8% of the EU’s total environmental tax revenue. Pollution and resource taxes include various types of taxes on [raw material](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Raw_material \"Glossary:Raw material\") extraction, air and water emissions, noise, and waste management.\n\nFigure 3 shows environmental tax revenues in 2024 as a percentage of [GDP](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:GDP \"Glossary:GDP\") and of total government revenue from taxes and social contributions, excluding imputed social contributions. The latter is further broken down into energy, transport, and pollution and resource taxes. Comparable data are also available for three EFTA countries.\n\nIn the EU, energy taxes accounted for the largest share of total government revenue from taxes and social contributions (4.04%), followed by transport taxes (0.94%), and pollution and resource taxes (0.25%). Among the Member States, the contribution of energy taxes ranged from 2.35% in Malta to 8.89% in Bulgaria, while transport taxes ranged from 0.06% in Czechia to 2.04% in the Netherlands. Pollution and resource taxes generally represented only a small proportion of total government revenue, although relatively high values were observed in Croatia (1.58%) and the Netherlands (1.10%). Overall environmental tax revenues amounted to 2.06% of GDP in the EU, ranging from 0.97% in Ireland to 3.76% in Greece.\n\nAmong the [EFTA](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:EFTA \"Glossary:EFTA\") countries, Switzerland recorded the highest contribution from transport taxes (2.24%), while Iceland stood out for its comparatively low contribution from energy taxes (1.55%) and relatively high contribution from pollution and resource taxes (1.07%). Environmental tax revenues amounted to 1.44% of GDP in Switzerland, 1.58% in Norway, and 1.56% in Iceland.\n\n[![Image 7: Stacked vertical bar chart showing environmental tax revenue in 2024 for EU countries and Switzerland, Norway, and Iceland as a percentage of total government revenue from taxes and social contributions (TSC), with a circle marker on each bar indicating the same revenue as a percentage of GDP. Each country’s bar is split into three categories: energy taxes, transport taxes, and pollution and resource taxes. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/2/23/SE-ETEA26-Fig03-Environmental_tax_revenue_by_category_as_share_of_TSC_and_GDP.png/700px-SE-ETEA26-Fig03-Environmental_tax_revenue_by_category_as_share_of_TSC_and_GDP.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig03-Environmental_tax_revenue_by_category_as_share_of_TSC_and_GDP.png)\n\nFigure 3: Environmental tax revenue by category as% of TSC (total government revenue from taxes and social contributions) and GDP, 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en), [(nama_10_gdp)](https://ec.europa.eu/eurostat/databrowser/view/nama_10_gdp/default/table?lang=en), [(gov_10a_taxag)](https://ec.europa.eu/eurostat/databrowser/view/gov_10a_taxag/default/table?lang=en)\n\n**Environmental tax revenue by payer and NACE**\n\nIn 2024, the 6.1% growth in environmental tax revenues (see Figure 4) differed considerably across institutional sectors and countries, with the largest variations observed for corporations.\n\nAt EU level, the contribution of corporations to the growth of environmental tax revenues was 2.8%. Several countries recorded a particularly strong contribution from corporations to tax revenues growth, notably Romania (+19.2%), Hungary (+14.8%), Latvia (+13.2%), Poland (+10.6%) and Lithuania (+8.2%). In contrast, corporations made a negative contribution to the growth of environmental tax revenues in Sweden (-18.5%), Luxembourg (-6.8%), Greece (-4.5%), Bulgaria (-3.9%), Germany and Slovakia (both -2.0%), and Finland (-1.1%).\n\nContributions to the growth of tax revenues by households were generally more moderate, with a positive contribution in most countries and with a negative contribution in a limited number of Member States. Contributions to growth by non-residents remained close to zero in almost all countries and had little impact on overall developments. Overall, the results indicate that changes in environmental tax revenues in 2024 were driven primarily by developments in the corporate sector rather than by households.\n\n[![Image 8: Stacked column chart showing the growth of environmental tax revenues from 2023 to 2024 for the EU Member States, Norway, Switzerland and Iceland, and candidate countries, decomposed into contributions from households, corporations, and non-residents. EU environmental tax revenues increased by around 6%, mainly due to corporations. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/4/4a/SE-ETEA26-Fig01b-Growth_of_environmental_taxes.png/700px-SE-ETEA26-Fig01b-Growth_of_environmental_taxes.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig01b-Growth_of_environmental_taxes.png)\n\nFigure 4: Growth in environmental taxes 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en), [(nama_10_gdp)](https://ec.europa.eu/eurostat/databrowser/view/nama_10_gdp/default/table?lang=en)\n\nTo succeed in the [EU's climate neutrality objective by 2050](https://climate.ec.europa.eu/eu-action/climate-strategies-targets/2050-long-term-strategy_en), taxation systems are a key policy tool. Well-designed tax reforms can stimulate economic growth, reduce [greenhouse gas](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Greenhouse_gas_(GHG) \"Glossary:Greenhouse gas (GHG)\") emissions through effective carbon pricing, and support an equitable transition.\n\nIn 2024, total environmental tax revenues are almost evenly split between households and the corporations sector. The donut chart below (Figure 5) shows the distribution of environmental tax revenues in the EU for the year 2024, categorised by payer type: Households, Non-Residents, and Corporations (classified under [NACE](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:NACE \"Glossary:NACE\"), which is the classification used for economic activities).\n\nEnvironmental taxes paid by households accounted for 47.5% of total environmental tax revenues, while corporations contributed 50.5% to total environmental taxes. Among corporations, those active in manufacturing activities (NACE C) contributed the most, accounting for 11.6% of total environmental taxes; corporations in transport and storage activities (NACE H) followed, contributing 10.1%. Non-residents paid 2.0% of total environmental taxes.\n\n[![Image 9: Doughnut chart showing the breakdown of environmental tax revenue in the EU in 2024 by payer. Industries (NACE) account for 50.5% of total environmental tax revenue, households for 47.5%, and non-residents for 2.0%.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/0/0a/SE-ETEA26-Fig05-Environmental_tax_revenue_EU_2024.png/700px-SE-ETEA26-Fig05-Environmental_tax_revenue_EU_2024.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig05-Environmental_tax_revenue_EU_2024.png)\n\nFigure 5: Contributions to environmental tax revenue 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en)\n\nAlthough in 2024 environmental tax revenues in the EU were nearly evenly split between households and corporations, national patterns vary significantly (see Figure 6 below).\n\nSome countries like Ireland, Denmark, the Netherlands, and France rely heavily on household contributions (over 55%), while Romania, Estonia, Czechia, and Bulgaria show a strong industrial tax contribution. Luxembourg stands out with more than one third (35.8%) of its environmental tax revenue coming from non-residents, likely due to cross-border fuel sales. In contrast, countries such as Germany, Cyprus, and Sweden display a more balanced distribution across payer groups. These variations reflect national economic structures, energy use, and policy choices affecting environmental taxation.\n\n[![Image 10: Stacked vertical bar chart showing environmental taxes by economic activity as percentage of environmental tax revenue in the EU for individual EU Member States, Iceland, Switzerland, and Norway, and candidate countries. Totalling 100 percent, each country column has five stacks representing five economic activities for the year 2024. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/e/e2/SE-ETEA26-Fig06-Breakdown_of_Environmental_taxes.png/700px-SE-ETEA26-Fig06-Breakdown_of_Environmental_taxes.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig06-Breakdown_of_Environmental_taxes.png)\n\nFigure 6: Environmental taxes by economic activity, 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en)\n\n**Environmental tax revenues fall while labour taxes remain stable**\n\nThe [Roadmap to a Resource Efficient Europe](https://www.europarl.europa.eu/thinktank/en/document/LDM_BRI(2012)120306) included the following milestone: a shift from the taxation of labour towards environmental taxation, which would lead to a substantial increase in the share of environmental taxes in government revenue, in line with best practice in EU countries. Figure 7 shows developments in environmental taxes and labour taxes as a result.\n\n[![Image 11: Line chart showing labour taxes and environmental taxes as a share of total taxation in the EU from 2014 to 2024 (index 2014 = 100). Labour taxes remain broadly stable around the 2014 level, whereas environmental taxes decrease markedly after 2021 and remain significantly below their 2014 level in 2022–2024.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/b/bd/SE-ETEA26-Fig04-Taxes_on_labour_and_environmental_taxes_as_share_of_total_taxation.png/700px-SE-ETEA26-Fig04-Taxes_on_labour_and_environmental_taxes_as_share_of_total_taxation.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig04-Taxes_on_labour_and_environmental_taxes_as_share_of_total_taxation.png)\n\nFigure 7: Taxes on labour and environmental taxes as share of total taxation   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en), [(gov_10a_taxag)](https://ec.europa.eu/eurostat/databrowser/view/gov_10a_taxag/default/table?lang=en)\n\nBetween 2014 and 2024, labour tax revenues in the EU remained relatively stable, fluctuating narrowly around the base [index value](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Index_number \"Glossary:Index number\") of 100, with minor variations between 98.8 and 101.9 until 2020. From 2019 onwards, environmental tax revenues experienced a marked decline, dropping sharply to an index value of 82.8 in 2023 and increasing slightly to an index value of 83.2 in 2024. This represents a 16.8% decrease compared to 2014 levels, highlighting a significant reduction in environmental tax revenues relative to the base year.\n\n## Energy taxes\n\n**Energy taxes: corporations surpass households as primary contributors**\n\nEnergy taxes are the primary source of environmental tax revenues in the EU, which is a trend that continued in 2024 for all different payer groups. In the EU, households contributed an average of 43.3% to energy taxes, underlining their key role in final energy consumption (see Figure 8).\n\n[![Image 12: Stacked vertical bar chart showing energy taxes by economic activity as percentage of energy tax revenue in the EU in individual EU Member States, Switzerland, Iceland, and Norway, and candidate countries. Totalling 100 percent, each country column has five stacks representing five economic activities for the year 2024. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/1/10/SE-ETEA26-Fig07-Breakdown_of_Energy.png/700px-SE-ETEA26-Fig07-Breakdown_of_Energy.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig07-Breakdown_of_Energy.png)\n\nFigure 8: Energy taxes by economic activity, 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en)\n\n**Emission permits**\n\nEU Member States generate substantial revenue through emission permits, which allow holders to release a specific amount of greenhouse gases into the atmosphere. Under the European [Emissions Trading System (ETS)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Emissions_trading_system_(ETS) \"Glossary:Emissions trading system (ETS)\"), these permits are classified as taxes according to ESA 2010, the standard used for compiling macroeconomic statistics, including National Accounts. Governments are increasingly using cap-and-trade schemes like the EU ETS to regulate CO2 emissions. Launched in 2005, the EU ETS initially allocated emission allowances for free. Since 2013, however, auctioning has become the primary method for distributing these permits. In the third phase of the ETS (2013–2020), over 70% of allowances were auctioned, and this figure has continued to rise, with phase 4 (2021–2030) introducing a gradual reduction in the total number of emission permits. This phase focuses on protecting sectors at risk of relocating production outside the EU by providing 100% free permits, while free allocations for less exposed sectors will be phased out after 2026. Revenue from ETS auctions is recorded as \"other taxes on production\" (D.29) under ESA 2010. This means the revenue is recognised in the year the permits are used for emissions, rather than when they are auctioned.\n\nIn 2024, EU countries reported €31.3 billion in revenues from EU emissions trading system (ETS) allowances (see Figure 9), representing a 3.5% decrease compared with 2023. Between 2014 and 2024, the marked growth, particularly after 2017, reflects strengthening carbon pricing and the expanding role of emissions trading.\n\nIn 2024, Poland (€5.7 billion) and Germany (€5.5 billion) were the largest contributors, while Spain and Italy each reported revenues exceeding €3 billion. Although revenues from ETS allowances declined in Hungary and Luxembourg, most Member States recorded increases. In total the EU aggregate increased by 3.5% in 2024. Overall, the data underline the continued importance of the EU ETS as a key instrument for carbon pricing across the European Union.\n\n[![Image 13: Combined bar and line chart showing total EU tax revenue from the EU Emissions Trading System (ETS) and its annual growth rate from 2014 to 2024. ETS tax revenue increases strongly over the period, while the growth rate peaks in 2019 before slowing and turning slightly negative in 2024. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/b/be/SE-ETEA26-Fig08-Total_EU_tax_revenue_from_ETS.png/700px-SE-ETEA26-Fig08-Total_EU_tax_revenue_from_ETS.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig08-Total_EU_tax_revenue_from_ETS.png)\n\nFigure 9: Total EU tax revenue from [ETS](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:ETS \"Glossary:ETS\"), 2014-2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en)\n\n## Transport taxes\n\n**Transport taxes: households shoulder the majority of the burden**\n\nThis category covers taxes on energy production and on energy products used for both transportation and stationary applications. Key transport fuels include petrol and diesel, while energy sources for stationary use comprise fuel oils, natural gas, coal, and electricity. Taxes on [biofuels](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Biofuels \"Glossary:Biofuels\") and other [renewable energy sources](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Renewable_energy_sources \"Glossary:Renewable energy sources\") are also included, as well as taxes on energy product stockpiles. Transport taxes, typically applied to vehicle purchases and road usage, have tended to fluctuate in line with vehicle sales.\n\nIn 2024, transport tax revenues in the EU amounted to €67.0 billion, of which €44.6 billion (66.6%) were paid by households, €21.7 billion (32.4%) by industries, and €0.7 billion (1.1%) by non-residents (see Figure 10). Compared with 2023, transport tax revenue increased for all payer groups, with the largest relative increase recorded in taxes paid by non-residents (+13.9%), although these represented only a small share of total transport tax revenue. Households remained the principal contributors to transport tax revenues throughout the EU.\n\n[![Image 14: Stacked vertical bar chart showing transport taxes by economic activity as percentage of transport tax revenue in the EU for individual EU Member States, Switzerland, Norway, and Iceland, and candidate countries. Totalling 100 percent, each country column has five stacks representing five economic activities for the year 2024. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/2/2c/SE-ETEA26-Fig09-Breakdown_of_Transport_taxes.png/700px-SE-ETEA26-Fig09-Breakdown_of_Transport_taxes.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig09-Breakdown_of_Transport_taxes.png)\n\nFigure 10: Transport taxes by paying economic activities, 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en)\n\nIn 2024, households were by far the main contributors to transport tax revenues in the EU, accounting for 66.6% on average. This reflects the strong link between transport taxes and private vehicle ownership and use. Transport taxes include, in particular, vehicle registration taxes and other related taxes. The services sector followed with 23.1%, while industry (8.2%), agriculture (1.1%), and non-residents (1.1%) made up smaller shares.\n\nNational patterns vary widely: Ireland (80.4%), Malta (78.7%), and Finland (76.2%) show particularly high household shares, indicating a tax structure focused on private vehicle users. In contrast, Slovakia (11.4%) and Czechia (11.5%) report much lower household shares, with the bulk of transport taxes paid by businesses, especially in the services sector, which contributes over 55% in both countries. These differences reflect national transport habits, tax policies, and vehicle ownership trends across Europe.\n\n## Pollution and resource taxes\n\n**Pollution and resource taxes: data indicate a diverse approach across the EU**\n\nFor 2024, pollution and resource taxes remain the smallest category with a consistent upward trend (see Figure 11). Starting at about €10 billion in 2008, they increased to around €17.9 billion in 2024. This reflects a growing recognition of the need to address broader environmental issues, not just energy and transportation, but the more extensive impact of resource use and pollution.\n\n[![Image 15: Stacked vertical bar chart showing transport taxes by economic activity as percentage of pollution and resource tax revenue in the EU for individual EU Member States, Switzerland, Norway, and Iceland, and candidate countries. Totalling 100 percent, each country column has five stacks representing five economic activities for the year 2024. For more details, please use the link to the source dataset code below the image.](https://ec.europa.eu/eurostat/statistics-explained/images/thumb/a/a8/SE-ETEA26-Fig10-Breakdown_of_Taxes_on_PollutionRes.png/700px-SE-ETEA26-Fig10-Breakdown_of_Taxes_on_PollutionRes.png)](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=File:SE-ETEA26-Fig10-Breakdown_of_Taxes_on_PollutionRes.png)\n\nFigure 11: Pollution and resource taxes by paying economic activities, 2024   \n_Source:_ Eurostat [(env_ac_taxind2)](https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en)\n\nIn 2024, pollution and resource tax revenues in the EU were mainly paid by households (44.1%), followed by industries (31.5%), and the services sector (18.8%). The share from agriculture remained relatively small, averaging 2.8%, while non-residents contributed 2.0%. The distribution of these taxes reflects the varying ways countries apply environmental taxes and levies, with some focusing more on household-level waste and pollution charges, and others on industrial emissions or resource use. Overall, the data indicates a diverse approach across the EU to taxing environmental impacts beyond energy and transport.\n\n## Conclusion\n\nEnvironmental taxes should not be interpreted independently of other environmental accounts—they are embedded within the broader framework of monetary environmental accounts and closely linked to related statistical areas such as Environmental Protection Expenditure Accounts (EPEA), Environmental Subsidies and Similar Transfers (ESST), and potentially environmentally damaging subsidies (PEDS). At the same time, analysing environmental tax revenues alongside other datasets—such as [air emission accounts](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Air_emissions_accounts_(AEA) \"Glossary:Air emissions accounts (AEA)\") or energy balances—provides valuable insights into the interactions between economic instruments and environmental pressures. This integrated perspective supports more comprehensive and effective policy analysis and decision-making.\n\n## Source data for tables and graphs\n\n*   ![Image 16: Excel](https://ec.europa.eu/eurostat/statistics-explained/images/0/0b/Excel.jpg)[Environmental tax statistics — figures and tables](https://ec.europa.eu/eurostat/statistics-explained/images/5/59/SE26-ETEA-v3.xlsx \"SE26-ETEA-v3.xlsx\")\n\n## Data sources\n\nEurostat collects data on environmental taxes at a detailed level, by economic activity, under [Regulation (EU) N° 691/2011](https://eur-lex.europa.eu/eli/reg/2011/691/oj/eng) on European environmental economic accounts. The Eurostat publication titled '[Environmental taxes — a statistical guide](http://ec.europa.eu/eurostat/product?code=KS-GQ-23-016&language=en)' constitutes the methodological basis for this data collection. In addition, using 'National Tax Lists', a supporting dataset to Table 9 from the ESA transmission programme, Eurostat gathers data on environmental taxes for 3 categories: energy, transport, and pollution/resource taxes. The data are then validated and published.\n\nData relating to environmental taxes can be used to analyse the revenue stream from such taxes and to provide a relative measure of the importance of these taxes through the calculation of ratios relative to GDP or to the total revenue from all taxes and social contributions. In the first case (ratio relative to GDP), the comparison helps to provide an understanding of the tax burden. In the second case, the comparison helps to assess whether or not the tax burden is shifting from other tax bases (for example, labour income) towards environmental taxes. It has to be noted that the total revenue of taxes and social contributions used to compute the ratio does not include imputed social contributions. For further information concerning various tax aggregates, see ['Main national accounts tax aggregates'](https://ec.europa.eu/eurostat/databrowser/bookmark/974dcfe2-4a39-4870-b8a3-70d58f56ff79?lang=en).\n\nEnvironmental tax revenue can also be allocated according to the different economic activities paying the taxes. Eurostat collects data on environmental taxes using a categorisation by economic activity (based on the [NACE Rev. 2](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Statistical_classification_of_economic_activities_in_the_European_Community_(NACE) \"Glossary:Statistical classification of economic activities in the European Community (NACE)\") classification supplemented by information for households, non-residents, and a residual category for taxes that could not be allocated).\n\nIncreasing revenue from environmental taxes should be interpreted with caution. The increases may be caused by the introduction of new taxes or an increase in tax rates, or alternatively may be linked to an increase in the tax base caused, for instance, by a higher consumption of energy products.\n\n## Context\n\nIn today’s economy, production and consumption decisions have a significant impact on the environment. Environmental policies, in particular fiscal policies through taxes, seek to balance economic growth with ecological sustainability. These environmentally related taxes are based on the ‘polluter-pays’ principle, encouraging more sustainable behaviour while generating revenue to address environmental damage. Environmental taxes are an important policy instrument in the EU’s strategic agenda, aimed at strengthening its competitiveness and ensuring the success of the climate neutrality objective.\n\nEconomic instruments for pollution control and natural resource management are an important part of environmental policy in the EU Member States. The range of instruments that are available includes, among others, environmental taxes, fees and charges, tradeable permits, deposit-refund systems, and [subsidies](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Glossary:Subsidies \"Glossary:Subsidies\").\n\nThe [European Green Deal](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52019DC0640) creates the context for well-designed tax reforms which boost economic growth and resilience to climate shocks and help contribute to a fairer society and to a just transition. Environmental taxes play a direct role by sending the right price signals and providing the right incentives for sustainable behaviour by producers, users, and consumers.\n\nThe use of economic tools for the benefit of the environment is also promoted in Goal 17 of the [EU sustainable development goals](http://ec.europa.eu/environment/sustainable-development/SDGs/implementation/index_en.htm).\n\n## Footnotes\n\n## Explore further\n\n### Other articles\n\n*   [Tax revenue statistics](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Tax_revenue_statistics \"Tax revenue statistics\")\n\n### Database\n\n*   [Environment (env)](https://ec.europa.eu/eurostat/web/environment/database)\n*   [Environmental taxes (env_eta)](https://ec.europa.eu/eurostat/web/environment/information-data/environmental-taxes-subsidies), see:\n\n[Environmental tax revenues (env_ac_tax)](http://ec.europa.eu/eurostat/product?code=env_ac_tax&language=en)[Environmental taxes by economic activity (NACE Rev. 2) (env_ac_taxind2)](http://ec.europa.eu/eurostat/product?code=env_ac_taxind2&language=en)[Main national accounts tax aggregates (gov_10a_taxag)](http://ec.europa.eu/eurostat/product?code=gov_10a_taxag&language=en)\n\n### Thematic section\n\n*   [Environment](https://ec.europa.eu/eurostat/web/environment/overview)\n*   [Environmental taxes and subsidies](https://ec.europa.eu/eurostat/web/environment/information-data/environmental-taxes-subsidies)\n\n### Publications\n\n*   [Key figures on Europe — Statistics Illustrated - 2023 edition](http://ec.europa.eu/eurostat/product?code=KS-EI-23-001&language=en) — Statistical book, 2023\n*   [Taxation trends in the European Union - Data for the EU Member States, Iceland and Norway, 2020](https://ec.europa.eu/taxation_customs/business/economic-analysis-taxation/taxation-trends-eu-union_en)\n\n### Methodology\n\n*   [Environmental tax revenues](http://ec.europa.eu/eurostat/cache/metadata/en/env_ac_tax_esms.htm) (ESMS metadata file — env_ac_tax_esms)\n*   [Environmental taxes by economic activity (NACE Rev. 2 )](http://ec.europa.eu/eurostat/cache/metadata/en/env_ac_taxind2_esms.htm) (ESMS metadata file — env_ac_taxind2_esms)\n*   [Implicit tax rate on energy (ITR)](http://ec.europa.eu/eurostat/cache/metadata/en/ten00120_esmsip2.htm) (ESMS metadata file — ten00120_esmsip)\n\n### Legislation\n\n*   [Regulation (EU) No 691/2011](http://eur-lex.europa.eu/LexUriServ/LexUriServ.do?uri=CELEX:32011R0691:EN:NOT) of 6 July 2011 on European environmental economic accounts\n*   [Summaries of EU legislation: European environmental economic accounts](https://eur-lex.europa.eu/legal-content/EN/LSU/?uri=CELEX:32011R0691)\n\n### External links\n\n*   [European Commission — Environment — Policies](http://ec.europa.eu/environment/index_en.htm)\n*   [European Commission — Energy Strategy](https://ec.europa.eu/energy/topics/energy-strategy-and-energy-union_en)\n*   [European Commission — Taxation and Customs Union](http://ec.europa.eu/taxation_customs/index_en.htm)\n*   [European Commission - Taxes in Europe database](https://ec.europa.eu/taxation_customs/economic-analysis-taxation/taxes-europe-database-tedb_en)\n\n### Selected datasets\n\n*   [Environment (t_env)](https://ec.europa.eu/eurostat/web/environment/database)\n*   [Environmental taxes (t_env_eta)](https://ec.europa.eu/eurostat/web/environment/information-data/environmental-taxes-subsidies), see:\n\nEnvironmental tax revenues (ten00141)Energy taxes (ten00139)Implicit tax rate on energy (ten00120)\n\nRetrieved from \"[https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics&oldid=715097](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_tax_statistics&oldid=715097)\" \n\n[Categories](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Special:Categories \"Special:Categories\"): \n*   [Environment and energy](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:Environment_and_energy \"Category:Environment and energy\")\n*   [Environment](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:Environment \"Category:Environment\")\n*   [Environment - economic issues](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:Environment_-_economic_issues \"Category:Environment - economic issues\")\n*   [Statistical article](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:Statistical_article \"Category:Statistical article\")\n\nHidden categories: \n*   [Unit E2](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:Unit_E2 \"Category:Unit E2\")\n*   [X Environmental accounts](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:X_Environmental_accounts \"Category:X Environmental accounts\")\n*   [July2027](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Category:July2027 \"Category:July2027\")\n\nThe **European system of national and regional accounts (ESA 2010)** is the ...\n\n  \n An **environmental tax** is a tax whose tax base is a physical unit (or a ...\n\nThe **European Union**, abbreviated as **EU**, is an economic and political ...\n\n**Tax revenue** is typically the major source of government revenue. In national ...\n\n**Social contributions** are paid on a compulsory or voluntary basis by ...\n\n**Social contributions** are paid on a compulsory or voluntary basis by ...\n\n**Social contributions** are paid on a compulsory or voluntary basis by ...\n\nThe net benefits module (restricted approach) determines the final net value of ...\n\n**Social contributions** are paid on a compulsory or voluntary basis by ...\n\nElectricity denotes the set of physical phenomena related to electrical charges. It ...\n\nA **commodity**, also called **primary product** or **primary good**, is a ...\n\n**Gross domestic product**, abbreviated as **GDP**, is a basic measure of the ...\n\nThe **European Free Trade Association**, abbreviated as **EFTA**, is an ...\n\nThe **Statistical classification of economic activities in the European ...**\n\n**Greenhouse gases** constitute a group of gases contributing to global warming ...\n\nAn **index number** represents the development of certain economic aggregates ...\n\nAn **emissions trading system**, also known as **emissions trading scheme** ...\n\nAn **emissions trading system**, also known as **emissions trading scheme** ...\n\n**Biofuels** are fuels derived directly or indirectly from biomass. Biofuels ...\n\n**Renewable energy sources**, also called **renewables**, are energy sources ...\n\nAir emissions accounts record flows of gaseous and particulate materials (7 ...\n\nThe **Statistical classification of economic activities in the European ...**\n\n**Subsidies** are current payments by the general government or European Union ...\n\n[![Image 17: Eurostat logo](https://ec.europa.eu/eurostat/statistics-explained/se/skins/Statexprevamp/ressources/media/estat-logo-horizontal.svg?browserId=other&minifierType=js&languageId=en_GB&t=1745595192000)](https://ec.europa.eu/eurostat/web/main/home)\n\n This site is managed by [Eurostat](https://ec.europa.eu/eurostat/web/main/home) and is an official website of the European Union \n\n ISSN 2443-8219 \n\n## Need help?\n\n*   [Contact us](https://ec.europa.eu/eurostat/web/main/contact-us)\n*   [Accessibility](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Statistics_Explained:Accessibility)\n*   [About Statistics Explained - Eurostat](https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Statistics_Explained:About)\n\n## Follow us\n\n*   [Twitter](https://twitter.com/EU_Eurostat)\n*   [Facebook](https://www.facebook.com/EurostatStatistics/)\n*   [Instagram](https://www.instagram.com/eu_eurostat/)\n*   [LinkedIn](https://www.linkedin.com/company/eurostat/)\n*   [Youtube](https://youtube.com/c/Eurostat-EC)\n*   [RSS](https://ec.europa.eu/eurostat/web/rss/about-rss)\n\n[![Image 18: European Union logo](https://ec.europa.eu/eurostat/statistics-explained/se/skins/Statexprevamp/ressources/media/logo-eu--en.svg?browserId=other&minifierType=js&languageId=en_GB&t=1730734726000)](https://european-union.europa.eu/index_en)\n\n[Discover more on europa.eu](https://european-union.europa.eu/index_en)\n\n## Contact the EU\n\n*   [Call us 00 800 6 7 8 9 10 11](tel:0080067891011)\n*   [Use other telephone options](https://european-union.europa.eu/contact-eu/call-us_en)\n*   [Write us via our contact form](https://european-union.europa.eu/contact-eu/write-us_en)\n*   [Meet us at one of the EU centres](https://european-union.europa.eu/contact-eu/meet-us_en)\n\n## Social media\n\n*   [Search for EU social media channels](https://european-union.europa.eu/contact-eu/social-media-channels_en)\n\n## Legal\n\n*   [Languages on our websites](https://commission.europa.eu/languages-our-websites_en)\n*   [Privacy policy](https://commission.europa.eu/privacy-policy-websites-managed-european-commission_en)\n*   [Legal notice](https://commission.europa.eu/legal-notice_en)\n*   [Cookies](https://commission.europa.eu/cookies-policy_en)\n\n## EU institutions and bodies\n\n*   [Search all EU institutions and bodies](https://european-union.europa.eu/institutions-law-budget/institutions-and-bodies/search-all-eu-institutions-and-bodies_en)\n"
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "reasoning": "We need specific data for 2018: Nordic countries: Denmark, Finland, Iceland, Norway, Sweden, maybe also Estonia? \"Nordic\" typical: Denmark, Finland, Iceland, Norway, Sweden. They ask: environmental tax revenues less than 3% of GDP, national expenditure on environmental protection less than 2.5% of GDP across all sectors, and domestic net greenhouse gas emissions >3 tonnes per capita. Then rank by GDP.\n\nWe need Eurostat data for each of these metrics for 2018.\n\nData sources:\n- Environmental tax revenue share of GDP: dataset env_ac_tax (or env_ac_taxind2). Need share values for 2018 for each country.\n\n- Expenditure on environmental protection: dataset env_sub? Actually European environmental protection expenditure across all sectors: dataset \"env_sub\" maybe? There is 'sub' for subsidy or 'env_sub' for environmental protection expenditure, need percent of GDP. Search.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Eurostat environmental protection expenditure % of GDP 2018 Sweden"
+          },
+          "result_chars": 3441,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1066.1,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Environmental protection - spending and investments",
+                "link": "https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_protection_-_spending_and_investments",
+                "snippet": "According to Eurostat estimates, EU investment in environmental protection increased by 37%, from €58 billion in 2014 to €79 billion in 2025.",
+                "date": "Jun 22, 2026"
+              },
+              {
+                "title": "Environmental Protection Expenditure Accounts",
+                "link": "https://data-explorer.oecd.org/vis?df[ds]=DisseminateFinalDMZ&df[id]=DSD_EPEA@DF_EPEA&df[ag]=OECD.ENV.EPI",
+                "snippet": "EPEA is directly linked to the three definitions of GDP, the production measure, the expenditure measure and the income measure of GDP.",
+                "date": "May 5, 2026"
+              },
+              {
+                "title": "JSDEWES: Environmental Investments and Climate Change",
+                "link": "https://www.sdewes.org/jsdewes/pid12.0528",
+                "snippet": "by V Georgieva · 2024 · Cited by 19 — Environmental Protection Expenditures: A consistent positive change is observed each year, with particularly significant increases in 2018 (10.95%) and 2022 (6 ..."
+              },
+              {
+                "title": "Environmental protection expenditure | Indicators",
+                "link": "https://www.eea.europa.eu/en/analysis/indicators/environmental-protection-expenditure-8th-eap",
+                "snippet": "Expenditure increased between 2018 and 2024 from 352 billion to 367 billion euros in the European Union. This represents a modest real term ...",
+                "date": "Oct 2, 2025"
+              },
+              {
+                "title": "How much do governments spend on environmental ...",
+                "link": "https://www.facebook.com/EurostatStatistics/posts/how-much-do-governments-spend-on-environmental-protection-%EF%B8%8F-for-more-information/2611957879089130/",
+                "snippet": "As a percentage of gross domestic product (GDP), expenditure on environmental protection remained relatively stable for the last fifteen ...",
+                "date": "Feb 27, 2020"
+              },
+              {
+                "title": "Contents",
+                "link": "https://unece.org/fileadmin/DAM/stats/documents/ece/ces/2016/mtg/Session_1_10h10_Eurostat_EN.pdf",
+                "snippet": "EU European strategy for environmental accounts 2014-2018 • environmental protection expenditure environmental sector (green growth, green jobs) For EU ..."
+              },
+              {
+                "title": "Environmental protection expenditure in selected countries ...",
+                "link": "https://www.researchgate.net/figure/Environmental-protection-expenditure-in-selected-countries-EU-as-of-GDP-data-from-the_fig3_221912917",
+                "snippet": "Environmental protection expenditure in selected countries EU as % of GDP, In other EU countries this indicator came to 160 – 620 euro per inhabitant (Fig. ..."
+              },
+              {
+                "title": "Environmental Protection Expenditure in European Union",
+                "link": "https://www.intechopen.com/chapters/16281",
+                "snippet": "by E Broniewicz · 2011 · Cited by 49 — European economy around 220 billion euro Household's expenditure are excluded. In other EU countries this indicator came to 160 – 620 euro per inhabitant"
+              },
+              {
+                "title": "Expenditures on Environmental Protection and Resource ...",
+                "link": "https://unstats.un.org/unsd/environment/fdes/EGES4/5Session%201_Mexico%20EPE.pdf",
+                "snippet": "This methodology sheet discusses environment statistics contained in topic 6.1.1 Government environment protection and resource management expenditure."
+              }
+            ],
+            "related_searches": [
+              "Eurostat environmental protection expenditure of gdp 2018 sweden 2022",
+              "Environmental spending",
+              "Eea environmental protection expenditure",
+              "Eurostat COFOG",
+              "Employment in the environmental goods and services sector"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "reasoning": "The question:\n\n\"According to Eurostat, in 2018, which of the Nordic countries had environmental tax revenues less than 3% of GDP, a national expenditure on environmental protection less than to 2.5% of GDP across all sectors and domestic net greenhouse gas emissions greater than 3 tonnes per capita? Return the countries ranked highest to lowest by their gross domestic product at market prices in the same year.\"\n\nSo we need Nordic countries (Danish, Finland, Iceland, Norway, Sweden) that meet all three criteria:\n\n1) Environmental tax revenues < 3% of GDP in 2018.\n2) National expenditure on environmental protection < 2.5% of GDP across all sectors in 2018.\n3) Domestic net greenhouse gas emissions > 3 tonnes per capita in 2018.\n\nWe need to get data for each of those parameters from Eurostat.\n\nWe have to retrieve:\n\n- environmental tax revenue (% of GDP)\n- environmental protection expenditure (% of GDP)\n- net GHG emissions per capita (tonnes)\n\nWe need 2018 values.\n\nWe need to rank countries by GDP market prices 2018.\n\nOk.\n\nWe need to fetch Eurostat datasets.\n\nWe can search for dataset codes.\n\nEnvironmental tax revenue dataset: env_ac_taxind2 via Eurostat dataportal.\n\nEnvironmental protection expenditure dataset: maybe env_eps? Let's search: \"Eurostat environmental protection expenditure % of GDP 2018\"\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "Eurostat environmental protection expenditure % of GDP 2018 Sweden"
+          },
+          "result_chars": 3476,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2199.4,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Environmental protection - spending and investments",
+                "link": "https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Environmental_protection_-_spending_and_investments",
+                "snippet": "According to Eurostat estimates, EU investment in environmental protection increased by 37%, from €58 billion in 2014 to €79 billion in 2025.",
+                "date": "Jun 22, 2026"
+              },
+              {
+                "title": "Environmental Protection Expenditure Accounts",
+                "link": "https://data-explorer.oecd.org/vis?df[ds]=DisseminateFinalDMZ&df[id]=DSD_EPEA@DF_EPEA&df[ag]=OECD.ENV.EPI",
+                "snippet": "EPEA is directly linked to the three definitions of GDP, the production measure, the expenditure measure and the income measure of GDP.",
+                "date": "May 5, 2026"
+              },
+              {
+                "title": "How much do governments spend on environmental ...",
+                "link": "https://www.facebook.com/EurostatStatistics/posts/how-much-do-governments-spend-on-environmental-protection-%EF%B8%8F-for-more-information/2611957879089130/",
+                "snippet": "In 2020, the national expenditure on environmental protection, of the EU Member States amounted to €273 billion. Rising on average by over 2% ...",
+                "date": "Feb 27, 2020"
+              },
+              {
+                "title": "Environmental protection expenditure | Indicators",
+                "link": "https://www.eea.europa.eu/en/analysis/indicators/environmental-protection-expenditure-8th-eap",
+                "snippet": "Expenditure increased between 2018 and 2024 from 352 billion to 367 billion euros in the European Union. This represents a modest real term ...",
+                "date": "Oct 2, 2025"
+              },
+              {
+                "title": "JSDEWES: Environmental Investments and Climate Change",
+                "link": "https://www.sdewes.org/jsdewes/pid12.0528",
+                "snippet": "by V Georgieva · 2024 · Cited by 19 — Environmental Protection Expenditures: A consistent positive change is observed each year, with particularly significant increases in 2018 (10.95%) and 2022 (6 ..."
+              },
+              {
+                "title": "Contents",
+                "link": "https://unece.org/fileadmin/DAM/stats/documents/ece/ces/2016/mtg/Session_1_10h10_Eurostat_EN.pdf",
+                "snippet": "EU European strategy for environmental accounts 2014-2018 • environmental protection expenditure environmental sector (green growth, green jobs) For EU ..."
+              },
+              {
+                "title": "Environmental protection expenditure in selected countries ...",
+                "link": "https://www.researchgate.net/figure/Environmental-protection-expenditure-in-selected-countries-EU-as-of-GDP-data-from-the_fig3_221912917",
+                "snippet": "Environmental protection expenditure in selected countries EU as % of GDP, In other EU countries this indicator came to 160 – 620 euro per inhabitant (Fig."
+              },
+              {
+                "title": "Environmental Protection Expenditure in European Union",
+                "link": "https://www.intechopen.com/chapters/16281",
+                "snippet": "by E Broniewicz · 2011 · Cited by 49 — European economy around 220 billion euro Household's expenditure are excluded. In other EU countries this indicator came to 160 – 620 euro per inhabitant"
+              },
+              {
+                "title": "Environmental protection expenditure below EU average",
+                "link": "https://bbj.hu/politics/foreign-affairs/eu/environmental-protection-expenditure-below-eu-average/",
+                "snippet": "In 2018, member states spent almost EUR 106 billion of government expenditure on environmental protection, representing 1.7% of total government ...",
+                "date": "Feb 27, 2020"
+              }
+            ],
+            "related_searches": [
+              "Eurostat environmental protection expenditure of gdp 2018 sweden 2022",
+              "Eea environmental protection expenditure",
+              "Environmental spending",
+              "Eurostat COFOG",
+              "Employment in the environmental goods and services sector"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "reasoning": "The user asks: According to Eurostat, in 2018, which of the Nordic countries had environmental tax revenues less than 3% of GDP, a national expenditure on environmental protection less than to 2.5% of GDP across all sectors and domestic net greenhouse gas emissions greater than 3 tonnes per capita? Return the countries ranked highest to lowest by their gross domestic product at market prices in the same year.\n\nSo we need data for 2018: environmental tax revenue as % of GDP, environmental protection expenditure as % of GDP across all sectors, domestic net GHG emissions per capita (must be >3 t/cap). Nordic countries: Denmark, Finland, Iceland, Norway, Sweden. Possibly also the broader Nordic? Usually Nordic includes those. Also maybe the European part: Iceland is EFTA, but still Nordic.\n\nWe need Eurostat data; we can get datasets:\n- Environmental tax revenue: env_ac_taxind2 dataset: http://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en. We need 2018 values for each country and \"% of GDP\".\n\nBut env_ac_taxind2 gives absolute revenue? There's also env_ac_tax dataset? Alternatively, env_ac_taxind2 might have percent share of GDP (I need to confirm). I know env_ac_taxind2 contains \"Environmental tax revenues (in million euro)\". We could use env_ac_tax dataset for \"environmental tax revenue\" with indicator env_ac_taxchg? Let's search for dataset.\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "env_ac_taxind2 % of GDP Denmark 2018"
+          },
+          "result_chars": 2871,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 4435.3,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Environmental taxes by economic activity (NACE Rev. 2 ...",
+                "link": "https://ec.europa.eu/eurostat/cache/metadata/EN/env_ac_taxind2_simset_dk.htm",
+                "snippet": "Environmental taxes by economic activity (NACE Rev. 2) (env_ac_taxind2) In the transmission of 2018, revisions have been made in the. The purpose is allocating ..."
+              },
+              {
+                "title": "Economy of Denmark",
+                "link": "https://en.wikipedia.org/wiki/Economy_of_Denmark",
+                "snippet": "Economy of Denmark ; $484.8 billion (2016) · 64.6% of GDP (1 July 2018) · 33.2% of GDP (2019) · DKK 770.832 billion (2019)."
+              },
+              {
+                "title": "Denmark GDP and Economic Data",
+                "link": "https://gfmag.com/country/denmark-gdp-country-report/",
+                "snippet": "Economic and financial data including Denmark GDP growth, GDP per capita and more, plus trade and finance sector data."
+              },
+              {
+                "title": "Denmark Economic Snapshot",
+                "link": "https://www.oecd.org/en/topics/sub-issues/economic-surveys/denmark-economic-snapshot.html",
+                "snippet": "Denmark's GDP per capita is one of the highest in the OECD, reflecting relatively high productivity levels. Productivity growth remained broadly in line"
+              },
+              {
+                "title": "An overview of the Danish economy - Statistics Denmark",
+                "link": "https://www.dst.dk/en/Statistik/temaer/overblik-dansk-oekonomi",
+                "snippet": "An overview of the Danish economy ; Economic growth (GDP) · 0.3 % Q2/26 · Demand and supply · The chart has 1 Y axis displaying values. Range: -10 to 10."
+              },
+              {
+                "title": "Denmark's Environmental Data",
+                "link": "https://www.worldeconomics.com/ESG/Environment/Denmark.aspx",
+                "snippet": "Denmark produced over 22.0 million tonnes of carbon in 2025. Denmark's data is highlighted in the table below, use the filter and sort order options"
+              },
+              {
+                "title": "Taxes In Denmark",
+                "link": "https://taxfoundation.org/location/denmark/page/4/",
+                "snippet": "Denmark ranks 27th overall on the 2025 International Tax Competitiveness Index. Explore the latest Denmark tax rates and rankings."
+              },
+              {
+                "title": "ECONOMY AND ENVIRONMENT, 2019 SUMMARY AND ...",
+                "link": "https://dors.dk/files/media/rapporter/2019/m19/m19_english_summary_and_recommendations.pdf",
+                "snippet": "The second chapter presents calculations of the overall leakage rate for Denmark as well as leakage rates for different sectors in the Dan- ish economy. The ..."
+              },
+              {
+                "title": "Tax revenue (% of GDP) - Denmark",
+                "link": "https://data.worldbank.org/indicator/GC.TAX.TOTL.GD.ZS?locations=DK",
+                "snippet": "Tax revenue (% of GDP) - Denmark. Government Finance Statistics Yearbook ... 2018, 2017, 2016, 2015, 2014, 2013, 2012, 2011, 2010, 2009, 2008, 2007, 2006, 2005 ..."
+              }
+            ],
+            "related_searches": [
+              "Env_ac_taxind2 of gdp denmark 2018 2022",
+              "Sweden economic decline latest",
+              "Sweden's economic system",
+              "How does norway's economy work",
+              "Sweden mixed economy",
+              "Economic History of Sweden",
+              "Sweden capitalist economy",
+              "Top industries in sweden"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "reasoning": "",
+      "text": "We need specific values for Nordic countries:\n\nNordic: Denmark, Finland, Iceland, Norway, Sweden (maybe also Estonia? but not). Also maybe Greenland, but likely these five.\n\nCriteria:\n\n1. Environmental tax revenues < 3% of GDP in 2018.\n\n2. National expenditure on environmental protection < 2.5% of GDP across all sectors.\n\n3. Domestic net greenhouse gas emissions > 3 tonnes per capita.\n\nWe need Eurostat data for 2018. We need the three datasets:\n\n- env_ac_taxind2 dataset for environmental tax revenue as % of GDP for each country in 2018.\n\n- environmental protection expenditure – assume dataset: env_prec or something; need percentage of GDP: maybe from Eurostat database 'environmental protection expenditure' which is recorded as 'stat' (call dataset e.g., 't_env_expend'). Might be 't_env_expend' or 't_env_ee'. Search.\n\n- net GHG emissions per capita – dataset 'env_em_emiss' maybe; or 't_env_emiss' with 'GHG emissions per capita'.\n\nWe need to fetch specific values, maybe easiest to use Eurostat API? Use web_fetch for dataset? Might be easier to open a dataset page that shows the table.\n\nSearch for \"env_ac_taxind2 dk 2018\" result. Let's open the env_ac_taxind2 metadata link.",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en"
+          },
+          "result_chars": 7785,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 9946.5,
+          "explorations": [],
+          "result": "Title: [env_ac_taxind2] Environmental taxes by economic activity (NACE Rev. 2)\n\nURL Source: https://ec.europa.eu/eurostat/databrowser/view/env_ac_taxind2/default/table?lang=en\n\nMarkdown Content:\n*   [Skip to Content](https://ec.europa.eu/eurostat/databrowser/#main-title)\n\nAn official website of the European Union An official EU website How do you know?\n\nAll official European Union website addresses are in the **europa.eu** domain.\n\n[See all EU institutions and bodies](https://european-union.europa.eu/institutions-law-budget/institutions-and-bodies/search-all-eu-institutions-and-bodies_en)\n\nThis site uses cookies. Visit our [cookies policy page](https://commission.europa.eu/cookies-policy_en) or click the link in any footer for more information and to change your preferences.\n\n[Accept all cookies](https://ec.europa.eu/eurostat/databrowser/#accept)[Accept only essential cookies](https://ec.europa.eu/eurostat/databrowser/#refuse)\n\nYou may have been idle on the current page for too long\n\nClose\n\nIs no longer idle\n\nLogout Stay\n\n[![Image 1: Eurostat](https://ec.europa.eu/eurostat/databrowser/assets/images/eurostat/estat-logo-horizontal.svg)](https://ec.europa.eu/eurostat/en/)[Log in](https://ec.europa.eu/eurostat/databrowser/#)[EN](https://ec.europa.eu/eurostat/databrowser/#)\n\nEnter search term \n\n Search \n\n Participate in our user survey \n\nClose\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor, ...\n\nNo thanks[Fill in the survey](http://ec.europa.eu/eurostat/data/database)\n\nData Browser\n\nMenu Close\n\nMenu\n\nBack Previous Next\n[Database](https://ec.europa.eu/eurostat/databrowser/)[Bulk download](https://ec.europa.eu/eurostat/databrowser/)[Info](https://ec.europa.eu/eurostat/databrowser/)\n    [Contact & Feedback](https://ec.europa.eu/eurostat/en/contact-us)\n    [Cookies](https://commission.europa.eu/cookies-policy_en)\n    [Legal notice](https://commission.europa.eu/legal-notice_en)\n    [Privacy policy](https://ec.europa.eu/info/privacy-policy_en)\n    [Accept/decline cookies](https://ec.europa.eu/eurostat/databrowser/)\n\n[Help](https://ec.europa.eu/eurostat/databrowser/)\n    [Help](https://ec.europa.eu/eurostat/web/user-guides/data-browser/)\n    [First visit](https://ec.europa.eu/eurostat/web/user-guides/data-browser/first-visit)\n    [Help on viewing a dataset](https://ec.europa.eu/eurostat/web/user-guides/data-browser/introduction-navigation-data/dataset-navigation)\n    [About](https://ec.europa.eu/eurostat/databrowser/)\n\nVersion information (Latest commit 4ec38a8, built on 2026-07-23T12:18:51.524Z)\n\nClose\n\n**Databrowser frontend version**{\n  \"version\": \"5.18.6\",\n  \"buildTimestamp\": \"2026-07-23T12:18:51.524Z\",\n  \"revision\": \"4ec38a8\"\n}\n\n**Navigation tree version**{}\n\n**Databrowser backend version**{\n  \"applicationVersion\": \"5.17.5-2026-07-22T05:22:42Z\",\n  \"sdmxAgency\": \"ESTAT\"\n}\n\nClose\n\nCookies\n\nClose\n\nThis site uses cookies to offer you a better browsing experience.[How we use cookies and how you can change your settings](https://ec.europa.eu/info/cookies_en)\n\nCancel Reset cookie permission \n\n*   [...](https://ec.europa.eu/eurostat/databrowser/)\n\n1.   [Home](https://ec.europa.eu/eurostat/en/)\n2.   [Database](https://ec.europa.eu/eurostat/databrowser/explore/all/all_themes?sort=category&lang=en&display=list)\n3.   [Environment and energy](https://ec.europa.eu/eurostat/databrowser/explore/all/envir?sort=category&lang=en&display=list)\n4.   [Environment](https://ec.europa.eu/eurostat/databrowser/explore/all/envir?sort=category&lang=en&subtheme=env&display=list)\n5.   [Environmental taxes](https://ec.europa.eu/eurostat/databrowser/explore/all/envir?sort=category&lang=en&subtheme=env.env_eta&display=list)\n6.   Environmental taxes by economic activity (NACE Rev. 2)\n\n# Environmental taxes by economic activity (NACE Rev. 2)\n\nOnline data code:**env_ac_taxind2**\n\n | \n\nD​O​I:**10.2908/env_ac_taxind2**Copy D​O​I link\n\n | \n\nlast update: **21/07/2026 21:00**\n\n | \n\nview: ALTERNATIVE DEFAULT PRESET FULL\n\nSource of data: Eurostat\n\n[Metadata](https://ec.europa.eu/eurostat/cache/metadata/en/env_ac_taxind2_esms.htm)Dataset information Add to ‘My datasets’\n\nSubscribe by email?\n\nClose\n\nDataset added to 'My datasets'. Do you want to subscribe by email?\n\nYou can create a maximum of 10 email alerts.\n\nThe email will be sent to the email address\n\nNo thanks Subscribe\n\nDataset information\n\nClose\n\n### Environmental taxes by economic activity (NACE Rev. 2)\n\n[Show in data tree](https://ec.europa.eu/eurostat/databrowser/explore/all/all_themes?lang=en&node_code=env_ac_taxind2)\n\nOnline data code:env_ac_taxind2 Source of data:Eurostat Derived dataset:[ten00139](https://ec.europa.eu/eurostat/databrowser/product/view/ten00139)Statistical theme:Environment and energy ; Cross cutting topics Last data update:21/07/2026 21:00 (1 month ago) Last structure update:12/07/2026 21:00 Data coverage:1995 - 2024 Number of cells:590 680\n\nClose\n\nSome selected positions are obsolete\n\nClose\n\nThis custom dataset contains some positions which are not available in the full dataset. In order to fix this situation you should recreate the custom dataset.\n\nClose\n\n[![Image 2: Eurostat](https://ec.europa.eu/eurostat/databrowser/assets/images/eurostat/estat-logo-horizontal.svg)](https://ec.europa.eu/eurostat/web/main/home)\n\nThis site is managed by [Eurostat](https://ec.europa.eu/eurostat/web/main/home) and is an official website of the European Union\n\n*   [Accessibility](https://ec.europa.eu/eurostat/databrowser/accessibility)\n\nNeed help?\n\n*   [Sitemap](https://ec.europa.eu/eurostat/web/main/sitemap)\n*   [Contact us](https://ec.europa.eu/eurostat/web/main/contact-us)\n\nFollow us\n\n*   [](https://twitter.com/EU_Eurostat)\n*   [](https://www.facebook.com/EurostatStatistics/)\n*   [](https://www.instagram.com/eu_eurostat/)\n*   [](https://www.linkedin.com/company/eurostat/)\n*   [](https://youtube.com/c/Eurostat-EC)\n*   [](https://ec.europa.eu/eurostat/web/rss/about-rss)\n\n[![Image 3: European Union logo](https://ec.europa.eu/eurostat/databrowser/assets/images/ecl/eu/logo/condensed-version/positive/logo-eu--en.svg)](https://european-union.europa.eu/index_en)\n*   [Discover more on europa.eu](https://european-union.europa.eu/index_en)\n\n Contact the EU \n\n*   [Call us 00 800 6 7 8 9 10 11](tel:0080067891011)\n*   [Use other telephone options](https://european-union.europa.eu/contact-eu/call-us_en)\n*   [Write to us via our contact form](https://european-union.europa.eu/contact-eu/write-us_en)\n*   [Meet us at one of the EU centres](https://european-union.europa.eu/contact-eu/meet-us_en)\n\n Social media \n\n*   [Search for EU social media channels](https://european-union.europa.eu/contact-eu/social-media-channels_en)\n\n Legal \n\n*   [Languages on our websites](https://european-union.europa.eu/languages-our-websites_en)\n*   [Privacy policy](https://european-union.europa.eu/privacy-policy_en)\n*   [Legal notice](https://european-union.europa.eu/legal-notice_en)\n*   [Cookies](https://european-union.europa.eu/cookies_en)\n*   [Accessibility](https://european-union.europa.eu/web-accessibility-policy_en)\n\n EU institutions and bodies \n\n*   [Search all EU institutions and bodies](https://european-union.europa.eu/institutions-law-budget/institutions-and-bodies/search-all-eu-institutions-and-bodies_en)\n\nClose\n\nDisallow application to store data locally, this blocks some functionalities\n\nYou must sign-in to add this to your datasets\n\nGenerated fallback view replacing unavailable default view\n\nA default view corresponds to specific positions for each dimension that are selected by Eurostat\n\nA preset view corresponds to specific positions for each dimension that are selected by Eurostat domain manager\n\nAll positions for each dimensions are available\n\nOpen metadata\n\nView dataset information\n\nEnergy taxes\n"
+        }
+      ]
+    },
+    {
+      "turn": 9,
+      "reasoning": "",
+      "text": "Scrolling further? Look for table. It needs API or use SQL. Might easier to use Eurostat API via data API. For quick, maybe we can use Eurostat tables exported as HTML with 'download' link. However the page is dynamic; might be harder.\n\nAlternative: use Eurostat API GET endpoint like https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/env_ac_taxind2?time=2018&geo=DK&measure=... We can try.",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/env_ac_taxind2?geo=DK&time=2018"
+          },
+          "result_chars": 18334,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1299.2,
+          "explorations": [],
+          "result": "Title: \n\nURL Source: https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/env_ac_taxind2?geo=DK&time=2018\n\nMarkdown Content:\n{\"version\":\"2.0\",\"class\":\"dataset\",\"label\":\"Environmental taxes by economic activity (NACE Rev. 2)\",\"source\":\"ESTAT\",\"updated\":\"2026-07-21T23:00:00+0200\",\"value\":{\"1\":249.01,\"2\":216.98,\"3\":12.45,\"4\":19.57,\"5\":17.44,\"6\":517.06,\"7\":147.66,\"8\":6.16,\"9\":10.49,\"10\":9.48,\"11\":5.16,\"12\":21.98,\"13\":46.97,\"14\":19.5,\"15\":21.04,\"16\":69.19,\"17\":19.92,\"18\":44.53,\"19\":6.47,\"20\":6.73,\"21\":44.24,\"22\":4.68,\"23\":2,\"24\":13.34,\"25\":17.53,\"26\":82.77,\"27\":59.07,\"28\":7.65,\"29\":51.43,\"71\":6263.84,\"72\":0,\"30\":397.45,\"31\":625.15,\"32\":131.28,\"33\":305.74,\"34\":188.13,\"35\":555.19,\"36\":458.6,\"37\":8.74,\"38\":4.72,\"39\":60.76,\"40\":22.37,\"42\":98.86,\"41\":2037.15,\"43\":6.06,\"44\":19.26,\"45\":16.75,\"46\":24.49,\"47\":633.53,\"48\":6.6,\"49\":3.14,\"50\":49.17,\"51\":32.61,\"52\":32.85,\"53\":4.25,\"54\":6.09,\"55\":10.29,\"56\":478.09,\"57\":7.02,\"58\":2.31,\"59\":78.17,\"74\":11,\"60\":127.65,\"61\":132.91,\"62\":81.12,\"63\":96.86,\"64\":35.41,\"65\":26.1,\"66\":12.91,\"67\":6.31,\"68\":8.34,\"69\":0,\"0\":4540.29,\"73\":10815.13,\"70\":0,\"76\":1855.89,\"77\":1617.23,\"78\":92.77,\"79\":145.89,\"80\":130.01,\"81\":3853.78,\"82\":1100.52,\"83\":45.94,\"84\":78.17,\"85\":70.63,\"86\":38.47,\"87\":163.79,\"88\":350.06,\"89\":145.32,\"90\":156.85,\"91\":515.71,\"92\":148.44,\"93\":331.89,\"94\":48.25,\"95\":50.16,\"96\":329.71,\"97\":34.91,\"98\":14.9,\"99\":99.4,\"100\":130.67,\"101\":616.87,\"102\":440.28,\"103\":56.99,\"104\":383.29,\"146\":46685.64,\"147\":0,\"105\":2962.3,\"106\":4659.37,\"107\":978.47,\"108\":2278.71,\"109\":1402.19,\"110\":4137.96,\"111\":3418.04,\"112\":65.12,\"113\":35.2,\"114\":452.89,\"115\":166.72,\"117\":736.84,\"116\":15183.26,\"118\":45.14,\"119\":143.57,\"120\":124.81,\"121\":182.51,\"122\":4721.82,\"123\":49.19,\"124\":23.42,\"125\":366.44,\"126\":243.07,\"127\":244.8,\"128\":31.69,\"129\":45.41,\"130\":76.72,\"131\":3563.34,\"132\":52.34,\"133\":17.19,\"134\":582.6,\"149\":81.99,\"135\":951.38,\"136\":990.59,\"137\":604.6,\"138\":721.92,\"139\":263.91,\"140\":194.56,\"141\":96.2,\"142\":47.02,\"143\":62.18,\"144\":0,\"75\":33839.71,\"148\":80607.34,\"145\":0,\"151\":166.52,\"152\":139.86,\"153\":8.5,\"154\":18.16,\"155\":13.97,\"156\":417.71,\"157\":113.33,\"158\":4.67,\"159\":8.64,\"160\":8.28,\"161\":4.13,\"162\":19.58,\"163\":41.34,\"164\":17.16,\"165\":18.48,\"166\":59.2,\"167\":19.13,\"168\":33.73,\"169\":4.9,\"170\":5.11,\"171\":33.01,\"172\":3.58,\"173\":1.45,\"174\":10.41,\"175\":11.57,\"176\":77.83,\"177\":43.75,\"178\":6.45,\"179\":37.3,\"221\":3407.78,\"222\":0,\"180\":243.64,\"181\":265.45,\"182\":67.91,\"183\":120.74,\"184\":76.8,\"185\":390.84,\"186\":311.19,\"187\":6.98,\"188\":2.54,\"189\":51.3,\"190\":18.83,\"192\":80.67,\"191\":748.36,\"193\":4.96,\"194\":17.5,\"195\":13.93,\"196\":19.33,\"197\":21.47,\"198\":5.3,\"199\":2.41,\"200\":31.4,\"201\":22.27,\"202\":25.72,\"203\":3.37,\"204\":4.39,\"205\":6.98,\"206\":9.3,\"207\":5.68,\"208\":1.73,\"209\":42.14,\"224\":0,\"210\":93,\"211\":113.05,\"212\":70.63,\"213\":80.41,\"214\":30.59,\"215\":22.61,\"216\":9.87,\"217\":3.89,\"218\":5.76,\"219\":0,\"150\":2368.07,\"223\":5775.84,\"220\":0,\"226\":1241.09,\"227\":1042.39,\"228\":63.37,\"229\":135.33,\"230\":104.11,\"231\":3113.27,\"232\":844.66,\"233\":34.81,\"234\":64.42,\"235\":61.75,\"236\":30.78,\"237\":145.96,\"238\":308.08,\"239\":127.92,\"240\":137.76,\"241\":441.21,\"242\":142.55,\"243\":251.42,\"244\":36.51,\"245\":38.1,\"246\":246.06,\"247\":26.66,\"248\":10.8,\"249\":77.6,\"250\":86.22,\"251\":580.08,\"252\":326.07,\"253\":48.08,\"254\":278,\"296\":25398.84,\"297\":0,\"255\":1815.9,\"256\":1978.48,\"257\":506.17,\"258\":899.92,\"259\":572.39,\"260\":2913.03,\"261\":2319.39,\"262\":52.05,\"263\":18.9,\"264\":382.35,\"265\":140.33,\"267\":601.27,\"266\":5577.65,\"268\":36.99,\"269\":130.45,\"270\":103.79,\"271\":144.06,\"272\":160.05,\"273\":39.54,\"274\":17.94,\"275\":234.05,\"276\":166,\"277\":191.67,\"278\":25.11,\"279\":32.75,\"280\":52,\"281\":69.3,\"282\":42.31,\"283\":12.9,\"284\":314.06,\"299\":0,\"285\":693.15,\"286\":842.57,\"287\":526.4,\"288\":599.29,\"289\":227.96,\"290\":168.5,\"291\":73.6,\"292\":29.03,\"293\":42.91,\"294\":0,\"225\":17649.68,\"298\":43048.52,\"295\":0,\"301\":31.63,\"302\":27.49,\"303\":1.48,\"304\":2.66,\"305\":6.45,\"306\":53.91,\"307\":15.43,\"308\":0.41,\"309\":0.63,\"310\":0.99,\"311\":0.28,\"312\":7.91,\"313\":2.62,\"314\":1.59,\"315\":1.06,\"316\":11.77,\"317\":1.32,\"318\":3.41,\"319\":0.4,\"320\":0.44,\"321\":3.11,\"322\":0.34,\"323\":0.14,\"324\":0.77,\"325\":1.31,\"326\":53.54,\"327\":8.79,\"328\":0.14,\"329\":8.65,\"371\":243.12,\"372\":0,\"330\":32.95,\"331\":26.16,\"332\":7.31,\"333\":12.64,\"334\":6.2,\"335\":52.06,\"336\":38.59,\"337\":5.62,\"338\":1.92,\"339\":3.68,\"340\":2.26,\"342\":4.66,\"341\":49.66,\"343\":0.35,\"344\":1.07,\"345\":0.47,\"346\":1.08,\"347\":1.29,\"348\":0.31,\"349\":0.11,\"350\":2.97,\"351\":1.54,\"352\":2.05,\"353\":0.25,\"354\":0.39,\"355\":0.67,\"356\":0.74,\"357\":0.68,\"358\":0.14,\"359\":5.04,\"374\":0,\"360\":8.01,\"361\":5.54,\"362\":3.29,\"363\":3.87,\"364\":1.83,\"365\":1.71,\"366\":0.57,\"367\":0.45,\"368\":0.6,\"369\":0,\"300\":315.15,\"373\":558.27,\"370\":0,\"376\":235.75,\"377\":204.88,\"378\":11.06,\"379\":19.8,\"380\":48.09,\"381\":401.79,\"382\":115,\"383\":3.03,\"384\":4.73,\"385\":7.37,\"386\":2.11,\"387\":58.99,\"388\":19.5,\"389\":11.83,\"390\":7.89,\"391\":87.75,\"392\":9.82,\"393\":25.44,\"394\":2.95,\"395\":3.25,\"396\":23.15,\"397\":2.51,\"398\":1.01,\"399\":5.74,\"400\":9.74,\"401\":399.01,\"402\":65.53,\"403\":1.05,\"404\":64.48,\"446\":1812.01,\"447\":0,\"405\":245.58,\"406\":194.95,\"407\":54.52,\"408\":94.21,\"409\":46.23,\"410\":388.02,\"411\":287.63,\"412\":41.88,\"413\":14.28,\"414\":27.43,\"415\":16.81,\"417\":34.72,\"416\":370.14,\"418\":2.59,\"419\":7.99,\"420\":3.53,\"421\":8.07,\"422\":9.58,\"423\":2.32,\"424\":0.82,\"425\":22.17,\"426\":11.45,\"427\":15.3,\"428\":1.86,\"429\":2.92,\"430\":5.03,\"431\":5.48,\"432\":5.06,\"433\":1.02,\"434\":37.55,\"449\":0,\"435\":59.68,\"436\":41.26,\"437\":24.49,\"438\":28.87,\"439\":13.61,\"440\":12.75,\"441\":4.22,\"442\":3.37,\"443\":4.45,\"444\":0,\"375\":2348.86,\"448\":4160.87,\"445\":0,\"451\":50.86,\"452\":50.54,\"453\":0.04,\"454\":0.28,\"455\":0.17,\"456\":49.45,\"457\":29.45,\"458\":0.27,\"459\":0.61,\"460\":0.88,\"461\":0.04,\"462\":2.3,\"463\":4.73,\"464\":2.11,\"465\":0.83,\"466\":1,\"467\":0.35,\"468\":1.48,\"469\":0.48,\"470\":0.42,\"471\":3.05,\"472\":0.43,\"473\":0.2,\"474\":0.5,\"475\":0.31,\"476\":1.16,\"477\":9.2,\"478\":0.29,\"479\":8.91,\"521\":96.15,\"522\":0,\"480\":2.92,\"481\":17.99,\"482\":0.71,\"483\":13.81,\"484\":3.47,\"485\":5,\"486\":0.98,\"487\":1.34,\"488\":1.81,\"489\":0.63,\"490\":0.23,\"492\":9.89,\"491\":42.84,\"493\":0.15,\"494\":0.54,\"495\":0.36,\"496\":0.6,\"497\":0.2,\"498\":0.04,\"499\":0.04,\"500\":1.28,\"501\":0.36,\"502\":0.56,\"503\":0.13,\"504\":0.06,\"505\":0.18,\"506\":0.16,\"507\":0.19,\"508\":0.02,\"509\":10.8,\"524\":6.32,\"510\":5.2,\"511\":2.01,\"512\":2.46,\"513\":5.61,\"514\":1.15,\"515\":0.47,\"516\":0.14,\"517\":0.11,\"518\":0.12,\"519\":0,\"450\":179.59,\"523\":282.06,\"520\":0,\"526\":379.07,\"527\":376.72,\"528\":0.27,\"529\":2.09,\"530\":1.25,\"531\":368.56,\"532\":219.49,\"533\":2.01,\"534\":4.58,\"535\":6.57,\"536\":0.32,\"537\":17.12,\"538\":35.28,\"539\":15.71,\"540\":6.17,\"541\":7.47,\"542\":2.58,\"543\":11.05,\"544\":3.56,\"545\":3.15,\"546\":22.76,\"547\":3.21,\"548\":1.46,\"549\":3.75,\"550\":2.33,\"551\":8.61,\"552\":68.58,\"553\":2.13,\"554\":66.45,\"596\":716.64,\"597\":0,\"555\":21.77,\"556\":134.12,\"557\":5.32,\"558\":102.92,\"559\":25.88,\"560\":37.23,\"561\":7.28,\"562\":10.02,\"563\":13.52,\"564\":4.68,\"565\":1.73,\"567\":73.7,\"566\":319.31,\"568\":1.12,\"569\":4.04,\"570\":2.7,\"571\":4.47,\"572\":1.5,\"573\":0.29,\"574\":0.31,\"575\":9.53,\"576\":2.68,\"577\":4.15,\"578\":0.99,\"579\":0.43,\"580\":1.36,\"581\":1.2,\"582\":1.43,\"583\":0.15,\"584\":80.49,\"599\":47.12,\"585\":38.77,\"586\":14.99,\"587\":18.32,\"588\":41.78,\"589\":8.57,\"590\":3.51,\"591\":1.08,\"592\":0.82,\"593\":0.9,\"594\":0,\"525\":1338.49,\"598\":2102.25,\"595\":0,\"601\":0.13,\"602\":0.13,\"603\":0,\"604\":0,\"605\":2.71,\"606\":6.04,\"607\":0,\"608\":0,\"609\":0,\"610\":0.03,\"611\":0,\"612\":0,\"613\":0.06,\"614\":0,\"615\":0.05,\"616\":5.55,\"617\":0,\"618\":0.33,\"619\":0,\"620\":0,\"621\":0.01,\"622\":0,\"623\":0,\"624\":0,\"625\":0,\"626\":0,\"627\":0.13,\"628\":0,\"629\":0.13,\"671\":204.8,\"672\":0,\"630\":11.41,\"631\":0.03,\"632\":0.01,\"633\":0,\"634\":0.01,\"635\":0.58,\"636\":0.27,\"637\":0.02,\"638\":0,\"639\":0.27,\"640\":0.02,\"642\":0,\"641\":17.47,\"643\":0,\"644\":0,\"645\":0,\"646\":0,\"647\":0.1,\"648\":0.04,\"649\":0.03,\"650\":0.62,\"651\":0,\"652\":0,\"653\":0.04,\"654\":0,\"655\":0.01,\"656\":0,\"657\":0,\"658\":0,\"659\":0.78,\"674\":0,\"660\":0.39,\"661\":5.03,\"662\":2.25,\"663\":5.92,\"664\":0.61,\"665\":1.37,\"666\":0.28,\"667\":0,\"668\":0,\"669\":0,\"600\":38.5,\"673\":243.3,\"670\":0,\"676\":0.96,\"677\":0.96,\"678\":0,\"679\":0,\"680\":20.23,\"681\":45,\"682\":0,\"683\":0,\"684\":0,\"685\":0.25,\"686\":0,\"687\":0,\"688\":0.44,\"689\":0,\"690\":0.4,\"691\":41.35,\"692\":0.02,\"693\":2.43,\"694\":0,\"695\":0,\"696\":0.1,\"697\":0,\"698\":0,\"699\":0,\"700\":0,\"701\":0,\"702\":0.95,\"703\":0,\"704\":0.95,\"746\":1526.42,\"747\":0,\"705\":85.07,\"706\":0.19,\"707\":0.1,\"708\":0,\"709\":0.1,\"710\":4.31,\"711\":2.03,\"712\":0.11,\"713\":0.01,\"714\":2.05,\"715\":0.12,\"717\":0,\"716\":130.23,\"718\":0,\"719\":0,\"720\":0,\"721\":0,\"722\":0.73,\"723\":0.31,\"724\":0.22,\"725\":4.61,\"726\":0.02,\"727\":0,\"728\":0.3,\"729\":0,\"730\":0.06,\"731\":0,\"732\":0,\"733\":0.01,\"734\":5.78,\"749\":0,\"735\":2.91,\"736\":37.48,\"737\":16.79,\"738\":44.15,\"739\":4.56,\"740\":10.19,\"741\":2.09,\"742\":0,\"743\":0.03,\"744\":0,\"675\":286.94,\"748\":1813.36,\"745\":0,\"751\":31.5,\"752\":26.45,\"753\":3.91,\"754\":1.14,\"755\":0.59,\"756\":43.87,\"757\":4.88,\"758\":1.22,\"759\":1.23,\"760\":0.28,\"761\":0.99,\"762\":0.1,\"763\":0.84,\"764\":0.23,\"765\":1.68,\"766\":3.45,\"767\":0.44,\"768\":8.99,\"769\":1.1,\"770\":1.2,\"771\":8.16,\"772\":0.68,\"773\":0.35,\"774\":2.42,\"775\":5.65,\"776\":3.78,\"777\":5.99,\"778\":0.91,\"779\":5.08,\"821\":2555.11,\"822\":0,\"780\":139.48,\"781\":341.68,\"782\":62.64,\"783\":171.18,\"784\":107.85,\"785\":158.78,\"786\":146.16,\"787\":0.39,\"788\":0.37,\"789\":8.56,\"790\":3.29,\"792\":8.3,\"791\":1228.48,\"793\":0.94,\"794\":1.22,\"795\":2.46,\"796\":4.56,\"797\":611.76,\"798\":1.21,\"799\":0.66,\"800\":15.86,\"801\":9.98,\"802\":6.57,\"803\":0.71,\"804\":1.64,\"805\":3.13,\"806\":468.64,\"807\":1.15,\"808\":0.55,\"809\":24.45,\"824\":4.68,\"810\":29.05,\"811\":12.82,\"812\":5.78,\"813\":4.92,\"814\":3.06,\"815\":1.66,\"816\":2.61,\"817\":2.3,\"818\":2.46,\"819\":0,\"750\":1954.14,\"823\":4513.93,\"820\":0,\"826\":234.76,\"827\":197.16,\"828\":29.13,\"829\":8.48,\"830\":4.42,\"831\":326.95,\"832\":36.37,\"833\":9.13,\"834\":9.17,\"835\":2.06,\"836\":7.37,\"837\":0.72,\"838\":6.25,\"839\":1.69,\"840\":12.52,\"841\":25.69,\"842\":3.29,\"843\":67,\"844\":8.18,\"845\":8.91,\"846\":60.8,\"847\":5.04,\"848\":2.63,\"849\":18.05,\"850\":42.11,\"851\":28.18,\"852\":44.68,\"853\":6.78,\"854\":37.9,\"896\":19043.75,\"897\":0,\"855\":1039.56,\"856\":2546.58,\"857\":466.89,\"858\":1275.87,\"859\":803.83,\"860\":1183.4,\"861\":1089.34,\"862\":2.94,\"863\":2.77,\"864\":63.81,\"865\":24.55,\"867\":61.87,\"866\":9156.07,\"868\":7.04,\"869\":9.07,\"870\":18.32,\"871\":33.98,\"872\":4559.53,\"873\":9.05,\"874\":4.96,\"875\":118.24,\"876\":74.37,\"877\":48.98,\"878\":5.29,\"879\":12.23,\"880\":23.31,\"881\":3492.83,\"882\":8.6,\"883\":4.14,\"884\":182.26,\"899\":34.87,\"885\":216.55,\"886\":95.54,\"887\":43.09,\"888\":36.7,\"889\":22.82,\"890\":12.37,\"891\":19.43,\"892\":17.17,\"893\":18.34,\"894\":0,\"825\":14564.6,\"898\":33643.21,\"895\":0},\"id\":[\"freq\",\"tax\",\"unit\",\"nace_r2\",\"geo\",\"time\"],\"size\":[1,6,2,75,1,1],\"dimension\":{\"freq\":{\"label\":\"Time frequency\",\"category\":{\"index\":{\"A\":0},\"label\":{\"A\":\"Annual\"}}},\"tax\":{\"label\":\"Taxes\",\"category\":{\"index\":{\"ENV\":0,\"NRG\":1,\"NRG_CO2\":2,\"POL\":3,\"RES\":4,\"TRA\":5},\"label\":{\"ENV\":\"Total environmental taxes\",\"NRG\":\"Energy taxes\",\"NRG_CO2\":\"Energy - carbon dioxide (CO2) related taxes\",\"POL\":\"Pollution taxes\",\"RES\":\"Resource taxes\",\"TRA\":\"Transport taxes\"}}},\"unit\":{\"label\":\"Unit of measure\",\"category\":{\"index\":{\"MIO_EUR\":0,\"MIO_NAC\":1},\"label\":{\"MIO_EUR\":\"Million euro\",\"MIO_NAC\":\"Million units of national currency\"}}},\"nace_r2\":{\"label\":\"Statistical classification of economic activities in the European Community (NACE Rev. 2)\",\"category\":{\"index\":{\"TOTAL\":0,\"A\":1,\"A01\":2,\"A02\":3,\"A03\":4,\"B\":5,\"C\":6,\"C10-C12\":7,\"C13-C15\":8,\"C16\":9,\"C17\":10,\"C18\":11,\"C19\":12,\"C20\":13,\"C21\":14,\"C22\":15,\"C23\":16,\"C24\":17,\"C25\":18,\"C26\":19,\"C27\":20,\"C28\":21,\"C29\":22,\"C30\":23,\"C31_C32\":24,\"C33\":25,\"D\":26,\"E\":27,\"E36\":28,\"E37-E39\":29,\"F\":30,\"G\":31,\"G45\":32,\"G46\":33,\"G47\":34,\"H\":35,\"H49\":36,\"H50\":37,\"H51\":38,\"H52\":39,\"H53\":40,\"I-U\":41,\"I\":42,\"J58\":43,\"J59_J60\":44,\"J61\":45,\"J62_J63\":46,\"K64\":47,\"K65\":48,\"K66\":49,\"L\":50,\"M69_M70\":51,\"M71\":52,\"M72\":53,\"M73\":54,\"M74_M75\":55,\"N77\":56,\"N78\":57,\"N79\":58,\"N80-N82\":59,\"O\":60,\"P\":61,\"Q86\":62,\"Q87_Q88\":63,\"R90-R92\":64,\"R93\":65,\"S94\":66,\"S95\":67,\"S96\":68,\"T\":69,\"U\":70,\"EP_HH\":71,\"EP_NRES\":72,\"TOTAL_HH_NRES\":73,\"NAL\":74},\"label\":{\"TOTAL\":\"Total - all NACE activities\",\"A\":\"Agriculture, forestry and fishing\",\"A01\":\"Crop and animal production, hunting and related service activities\",\"A02\":\"Forestry and logging\",\"A03\":\"Fishing and aquaculture\",\"B\":\"Mining and quarrying\",\"C\":\"Manufacturing\",\"C10-C12\":\"Manufacture of food products; beverages and tobacco products\",\"C13-C15\":\"Manufacture of textiles, wearing apparel, leather and related products\",\"C16\":\"Manufacture of wood and of products of wood and cork, except furniture; manufacture of articles of straw and plaiting materials\",\"C17\":\"Manufacture of paper and paper products\",\"C18\":\"Printing and reproduction of recorded media\",\"C19\":\"Manufacture of coke and refined petroleum products\",\"C20\":\"Manufacture of chemicals and chemical products\",\"C21\":\"Manufacture of basic pharmaceutical products and pharmaceutical preparations\",\"C22\":\"Manufacture of rubber and plastic products\",\"C23\":\"Manufacture of other non-metallic mineral products\",\"C24\":\"Manufacture of basic metals\",\"C25\":\"Manufacture of fabricated metal products, except machinery and equipment\",\"C26\":\"Manufacture of computer, electronic and optical products\",\"C27\":\"Manufacture of electrical equipment\",\"C28\":\"Manufacture of machinery and equipment n.e.c.\",\"C29\":\"Manufacture of motor vehicles, trailers and semi-trailers\",\"C30\":\"Manufacture of other transport equipment\",\"C31_C32\":\"Manufacture of furniture; other manufacturing\",\"C33\":\"Repair and installation of machinery and equipment\",\"D\":\"Electricity, gas, steam and air conditioning supply\",\"E\":\"Water supply; sewerage, waste management and remediation activities\",\"E36\":\"Water collection, treatment and supply\",\"E37-E39\":\"Sewerage, waste management, remediation activities\",\"F\":\"Construction\",\"G\":\"Wholesale and retail trade; repair of motor vehicles and motorcycles\",\"G45\":\"Wholesale and retail trade and repair of motor vehicles and motorcycles\",\"G46\":\"Wholesale trade, except of motor vehicles and motorcycles\",\"G47\":\"Retail trade, except of motor vehicles and motorcycles\",\"H\":\"Transportation and storage\",\"H49\":\"Land transport and transport via pipelines\",\"H50\":\"Water transport\",\"H51\":\"Air transport\",\"H52\":\"Warehousing and support activities for transportation\",\"H53\":\"Postal and courier activities\",\"I-U\":\"Services (except wholesale and retail trade, transportation and storage)\",\"I\":\"Accommodation and food service activities\",\"J58\":\"Publishing activities\",\"J59_J60\":\"Motion picture, video, television programme production; programming and broadcasting activities\",\"J61\":\"Telecommunications\",\"J62_J63\":\"Computer programming, consultancy, and information service activities\",\"K64\":\"Financial service activities, except insurance and pension funding\",\"K65\":\"Insurance, reinsurance and pension funding, except compulsory social security\",\"K66\":\"Activities auxiliary to financial services and insurance activities\",\"L\":\"Real estate activities\",\"M69_M70\":\"Legal and accounting activities; activities of head offices; management consultancy activities\",\"M71\":\"Architectural and engineering activities; technical testing and analysis\",\"M72\":\"Scientific research and development\",\"M73\":\"Advertising and market research\",\"M74_M75\":\"Other professional, scientific and technical activities; veterinary activities\",\"N77\":\"Rental and leasing activities\",\"N78\":\"Employment activities\",\"N79\":\"Travel agency, tour operator and other reservation service and related activities\",\"N80-N82\":\"Security and investigation, service and landscape, office administrative and support activities\",\"O\":\"Public administration and defence; compulsory social security\",\"P\":\"Education\",\"Q86\":\"Human health activities\",\"Q87_Q88\":\"Residential care activities and social work activities without accommodation\",\"R90-R92\":\"Creative, arts and entertainment activities; libraries, archives, museums and other cultural activities; gambling and betting activities\",\"R93\":\"Sports activities and amusement and recreation activities\",\"S94\":\"Activities of membership organisations\",\"S95\":\"Repair of computers and personal and household goods\",\"S96\":\"Other personal service activities\",\"T\":\"Activities of households as employers; undifferentiated goods- and services-producing activities of households for own use\",\"U\":\"Activities of extraterritorial organisations and bodies\",\"EP_HH\":\"Households\",\"EP_NRES\":\"Non-residents\",\"TOTAL_HH_NRES\":\"All NACE activities plus households, non-residents and not allocated\",\"NAL\":\"Not allocated\"}}},\"geo\":{\"label\":\"Geopolitical entity (reporting)\",\"category\":{\"index\":{\"DK\":0},\"label\":{\"DK\":\"Denmark\"}}},\"time\":{\"label\":\"Time\",\"category\":{\"index\":{\"2018\":0},\"label\":{\"2018\":\"2018\"}}}},\"extension\":{\"lang\":\"EN\",\"id\":\"ENV_AC_TAXIND2\",\"agencyId\":\"ESTAT\",\"version\":\"1.0\",\"datastructure\":{\"id\":\"ENV_AC_TAXIND2\",\"agencyId\":\"ESTAT\",\"version\":\"46.0\"},\"annotation\":[{\"type\":\"CREATED\",\"date\":\"2012-05-16T14:26:41+0200\"},{\"type\":\"DISSEMINATION_DOI_XML\",\"title\":\"<adms:identifier xmlns:adms=\\\"http://www.w3.org/ns/adms#\\\" xmlns:skos=\\\"http://www.w3.org/2004/02/skos/core.html\\\" xmlns:dct=\\\"http://purl.org/dc/terms/\\\" xmlns:rdf=\\\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\\\"><adms:Identifier rdf:about=\\\"https://doi.org/10.2908/ENV_AC_TAXIND2\\\"><skos:notation rdf:datatype=\\\"http://purl.org/spar/datacite/doi\\\">10.2908/ENV_AC_TAXIND2</skos:notation><dct:creator rdf:resource=\\\"http://publications.europa.eu/resource/authority/corporate-body/ESTAT\\\"/><dct:issued rdf:datatype=\\\"http://www.w3.org/2001/XMLSchema#date\\\">2023-01-19</dct:issued></adms:Identifier></adms:identifier>\"},{\"type\":\"DISSEMINATION_OBJECT_TYPE\",\"title\":\"DATASET\"},{\"type\":\"DISSEMINATION_TIMESTAMP_DATA\",\"date\":\"2026-07-21T23:00:00+0200\"},{\"type\":\"DISSEMINATION_TIMESTAMP_GLOBAL\",\"date\":\"2026-07-21T23:00:00+0200\"},{\"type\":\"DISSEMINATION_TIMESTAMP_PLANNED\",\"date\":\"2026-07-21T23:00:00+0200\"},{\"type\":\"ESMS_HTML\",\"title\":\"Explanatory texts (metadata)\",\"href\":\"https://ec.europa.eu/eurostat/cache/metadata/en/env_ac_taxind2_esms.htm\"},{\"type\":\"ESMS_SDMX\",\"title\":\"Explanatory texts (metadata)\",\"href\":\"https://ec.europa.eu/eurostat/api/dissemination/files?file=metadata/env_ac_taxind2_esms.sdmx.zip\"},{\"type\":\"OBS_COUNT\",\"title\":\"590680\"},{\"type\":\"OBS_PERIOD_OVERALL_LATEST\",\"title\":\"2024\"},{\"type\":\"OBS_PERIOD_OVERALL_OLDEST\",\"title\":\"1995\"},{\"type\":\"SOURCE_INSTITUTIONS\",\"text\":\"Eurostat\"},{\"type\":\"UPDATE_DATA\",\"date\":\"2026-07-21T23:00:00+0200\"},{\"type\":\"UPDATE_STRUCTURE\",\"date\":\"2026-07-12T23:00:00+0200\"}],\"positions-with-no-data\":{\"freq\":[],\"tax\":[],\"unit\":[],\"nace_r2\":[],\"geo\":[],\"time\":[]}}}\n"
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "reasoning": "The API returns raw values. We need the % of GDP. Maybe there's dimension for 'unit' = \"MIO_NAC\" etc. But NOT. This dataset gives environmental tax revenue in million euro. For % of GDP, we need another dimension 'unit' maybe 'Unit_of_measure' but it's million euros. Need to compute share: tax revenues / GDP. Instead of downloading dataset for each, easier to get % of GDP from another dataset: 'env_tax_gdp_perc' maybe. But maybe dataset 'env_tax_gdp' with measure 'V' etc.\n\nSearch: \"env_ac_taxind2_ per cent of GDP\"",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "env_tax_gdp_perc Eurostat"
+          },
+          "result_chars": 3201,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1480.9,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Statistics | Eurostat - European Union",
+                "link": "https://ec.europa.eu/eurostat/databrowser/",
+                "snippet": "This site is managed by Eurostat and is an official website of the European Union ... Discover more on europa.eu. Contact the EU. Call us 00 800 6 7 8 9 10 ..."
+              },
+              {
+                "title": "Eurostat: EU environmental tax revenue up 6.1% in 2024",
+                "link": "https://www.eunews.it/en/2026/07/22/eurostat-eu-environmental-tax-revenue-up-by-6-1-per-cent-in-2024/",
+                "snippet": "Environmental tax revenue in the European Union rose to 371.9 billion euros in 2024 from 350.4 billion euros in 2023. This represents a 6.1 per ...",
+                "date": "Jul 22, 2026"
+              },
+              {
+                "title": "[env_ac_rp] Resource productivity - European Commission",
+                "link": "https://ec.europa.eu/eurostat/databrowser/view/env_ac_rp/default/table?lang=en",
+                "snippet": "Eurostat. This site is managed by Eurostat and is an official website of the European Union. Accessibility. Need help? Sitemap · Contact us.",
+                "date": "Jul 2, 2026"
+              },
+              {
+                "title": "EU and euro area tax-to-GDP ratio, 2024 | Eurostat",
+                "link": "https://www.linkedin.com/posts/eurostat_eu-and-euro-area-tax-to-gdp-ratio-2024-activity-7389969732717801472-lGMt",
+                "snippet": "EU and euro area tax-to-GDP ratio up in 2024 The overall tax-to-GDP ratio, meaning the sum of taxes and ...",
+                "date": "10 months ago"
+              },
+              {
+                "title": "Environmental tax",
+                "link": "https://www.oecd.org/en/data/indicators/environmental-tax.html",
+                "snippet": "This dashboard is a practical tool for tax analysis, tax policy design and monitoring progress in domestic resource mobilisation. It is automatically updated ..."
+              },
+              {
+                "title": "Database - Statistics | Eurostat - European Union",
+                "link": "https://ec.europa.eu/eurostat/databrowser/explore/all/envir?sort=category&lang=en&subtheme=env.env_wat&display=list",
+                "snippet": "Database · General and regional statistics. general · Economy and finance. economy · Population and social conditions. popul · Industry, trade and services. icts."
+              },
+              {
+                "title": "Environmental tax revenues in the EU up by 6.1 percent",
+                "link": "https://www.recycling-magazine.com/en/30493/environmental-tax-revenues-in-the-eu-up-by-6-1-percent",
+                "snippet": "According to Eurostat, environmental tax revenues in the EU amounted to 371.9 billion euros in 2024. Environmental tax revenues in the EU up ...",
+                "date": "Jul 26, 2026"
+              },
+              {
+                "title": "Indicator: Taxes related to the environment",
+                "link": "https://www.umweltbundesamt.de/en/indicator-taxes-related-to-the-environment",
+                "snippet": "In 2024, environmental taxes amounted to a total of 76.7 billion euros. Their share of total taxes has been on a downward trend since 2005 ...",
+                "date": "Aug 3, 2026"
+              },
+              {
+                "title": "Environmental Taxes - Climate Change Indicators Dashboard",
+                "link": "https://climatedata.imf.org/datasets/3fb1ed30d3394574b3145246846023b1_0/explore",
+                "snippet": "A tax whose tax base is a physical unit (or a proxy of it) of something that has a proven, specific, negative impact on the environment."
+              }
+            ],
+            "related_searches": [
+              "Env_tax_gdp_perc eurostat salary",
+              "Eurostat data-browser",
+              "Database eurostat",
+              "Eurostat gdp by country",
+              "Eurostat HICP",
+              "Eurostat countries",
+              "Eurostat gdp by sector",
+              "Eurostat 2026"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 11,
+      "reasoning": "",
+      "text": "Maybe easier: Use Eurostat API for 'env_ac_taxind2' but we need the share of GDP. There's dataset 'env_tax_gdp' maybe? Let's search.",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "env_ac_tax_gdp Eurostat"
+          },
+          "result_chars": 3387,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1020.7,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "[env_ac_tax] Environmental tax revenues - European Commission",
+                "link": "https://ec.europa.eu/eurostat/databrowser/product/view/env_ac_tax",
+                "snippet": "Online data code:env_ac_tax |. This site is managed by Eurostat and is an official website of the European Union Accessibility"
+              },
+              {
+                "title": "Statistics | Eurostat - European Union",
+                "link": "https://ec.europa.eu/eurostat/databrowser/",
+                "snippet": "General and regional statistics. Eurostat This site is managed by Eurostat and is an official website of the European Union. Call us 00 800 6 7 8 9 10 11"
+              },
+              {
+                "title": "[env_ac_tax] Environmental tax revenues - European Commission",
+                "link": "https://ec.europa.eu/eurostat/databrowser/view/env_ac_tax/default/bar?lang=en",
+                "snippet": "Online data code:env_ac_tax |. This site is managed by Eurostat and is an official website of the European Union Accessibility",
+                "date": "Feb 10, 2026"
+              },
+              {
+                "title": "[nama_10_gdp] Gross domestic product (GDP) and main ...",
+                "link": "https://ec.europa.eu/eurostat/databrowser/product/view/nama_10_gdp",
+                "snippet": "Gross domestic product (GDP) and main components (output, expenditure and income) This dataset contains important flags and footnotes. This site is managed by ..."
+              },
+              {
+                "title": "Eurostat: EU environmental tax revenue up 6.1% in 2024 - Eunews",
+                "link": "https://www.eunews.it/en/2026/07/22/eurostat-eu-environmental-tax-revenue-up-by-6-1-per-cent-in-2024/",
+                "snippet": "Environmental tax revenue in the European Union rose to 371.9 billion euros in 2024 from 350.4 billion euros in 2023. This represents a 6.1 per ...",
+                "date": "Jul 22, 2026"
+              },
+              {
+                "title": "EU and euro area tax-to-GDP ratio, 2024 | Eurostat - LinkedIn",
+                "link": "https://www.linkedin.com/posts/eurostat_eu-and-euro-area-tax-to-gdp-ratio-2024-activity-7389969732717801472-lGMt",
+                "snippet": "The overall tax-to-GDP ratio, meaning the sum of taxes and net social contributions … stood at 40.4% in the EU and 40.9% in the euro area in ...",
+                "date": "Oct 31, 2025"
+              },
+              {
+                "title": "Database - Statistics | Eurostat - European Union",
+                "link": "https://ec.europa.eu/eurostat/databrowser/explore/all/all_themes?lang=en&node_code=env_wat_cat",
+                "snippet": "Environment (env) env Emissions of greenhouse gases and air pollutants. This site is managed by Eurostat and is an official website of the European Union"
+              },
+              {
+                "title": "Intra and Extra-EU trade by Member State and by product group",
+                "link": "https://ec.europa.eu/eurostat/databrowser/bookmark/b1c04f12-089e-4c9f-90b5-525f981bfa09?lang=en",
+                "snippet": "This site is managed by Eurostat and is an official website of the European Union Accessibility. Call us 00 800 6 7 8 9 10"
+              },
+              {
+                "title": "Home - Eurostat - European Commission",
+                "link": "https://ec.europa.eu/eurostat",
+                "snippet": "The home of high-quality statistics and data on Europe. Learn more about us. EU key indicators. Skip the carousel. Loading. Previous indicator"
+              },
+              {
+                "title": "EU and euro area tax-to-GDP ratio up in 2024 - Actualités - Eurostat",
+                "link": "https://ec.europa.eu/eurostat/fr/web/products-eurostat-news/w/ddn-20251031-2",
+                "snippet": "In the euro area, the tax-to-GDP ratio also increased from 40.5% in 2023 to 40.9% in 2024. In absolute terms, in 2024, revenue from taxes and ...",
+                "date": "Oct 31, 2025"
+              }
+            ],
+            "related_searches": [
+              "Env_ac_tax_gdp eurostat 2022",
+              "Env_ac_taxind2",
+              "Environmental taxes and subsidies",
+              "Green taxation"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 12,
+      "reasoning": "",
+      "text": "Let's try 'env_ac_tax' dataset for 2018, but we need percent of GDP. The dataset might contain values in Mm EUR not percent. But we can compute share of GDP by ourselves at later.\n\nHowever maybe easier: Eurostat dataset 'env_ac_taxind2' includes 'env' tax categories and totals but units are million euros, not percent. So we need per country's GDP to compute ratio. That adds extra steps but doable.\n\nWe also need environmental protection expenditure, maybe dataset 't_env_expend' or 'env_prot_expend', which gives % of GDP? Search \"env_prot_expend percent of gdp\"\n{\"query\": \"environmental protection expenditure % of GDP eurostat 2018\"}",
+      "tool_calls": []
+    }
+  ],
+  "usage": {
+    "input_tokens": 194965,
+    "output_tokens": 2993,
+    "reasoning_tokens": 2941,
+    "calls": 12
+  },
+  "latency_ms": 76042.5,
+  "error": null
+}

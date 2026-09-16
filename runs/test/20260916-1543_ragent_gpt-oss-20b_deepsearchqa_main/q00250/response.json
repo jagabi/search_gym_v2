@@ -1,0 +1,855 @@
+{
+  "index": 250,
+  "question": "Using data from civilrightsdata.ed.gov for the 2017-2018 school year, determine which of the following states - South Carolina, North Carolina, Georgia, or Virginia - had the highest ratio of full-time equivalent school counselors to students reported as victims of race-related harassment or bullying.",
+  "gold_answer": "North Carolina",
+  "category": "Education",
+  "method": "ragent",
+  "model": "openai/gpt-oss-20b",
+  "system_prompt": "You are a reasoning assistant with the ability to perform web searches and retrieve\nwebpage content to help you answer the user's question accurately. You have special\ntools:\n\n- To perform a search: call the `web_search` function with your query.\n  The system will call the web search API with your query and return the search\n  results. The search results will include a list of webpages with titles, URLs and\n  snippets (but not full content).\n- To retrieve full page content: after receiving the search results, if you need\n  more detailed information from specific URLs, call the `web_fetch` function with\n  the URL. The system will fetch the full page content and return it.\n\nYou can repeat the search process multiple times if necessary. The maximum number\nof search attempts is limited to 10.\n\nOnce you have all the information you need, continue your reasoning.\n\nExample:\n\nQuestion: \"...\"\nAssistant thinking steps:\n- I need to find out ...\nAssistant: calls `web_search` with the query.\n(System returns search results without full page content)\nAssistant thinks: The search results mention several URLs. I want full details from\none of them.\nAssistant: calls `web_fetch` with that URL.\n(System returns full page content)\nNow the assistant has enough information and can continue reasoning.\n\nRemember:\n- Call `web_search` to request a web search.\n- Call `web_fetch` to request full page content.\n- When done retrieving information, continue your reasoning.",
+  "explorer_prompt": "",
+  "answer": "We need count of victims of race-related harassment or bullying for each of the states. The sheet shows \"Total Students\" for each state. For Georgia: 1,410. For North Carolina: 1,856. South Carolina: 829. Virginia: 1,505.\n\nThese are counts of students reported as victims (not per school). Good.\n\nNow we need ratio of FTE counselors to that number.\n\nCounselors data: Georgia: 1,410? Wait that's students. Counselor count for Georgia: from counselors sheet: 1,410 count of counselors? Actually row shows \"Georgia 1,410\" under Count of FTE School Counselors. Yes.\n\nSimilarly for North Carolina: 1,856 counselors. South Carolina: 829 counselors. Virginia: 1,505 counselors.\n\nNow ratio = counselors / victims. Compute:\n\nSouth Carolina: 829 / 1,243? Wait victim count for SOC? Let's find victim counts for each state from the harassment sheet. We need row \"South Carolina 191... 1,243\" The \"Number of Schools\" column includes 1,243, but victim count is under \"Total Students\" column. For South Carolina 'Total Students' is 191? Wait earlier line shows \"South Carolina 191 1 0.5 ...\" That is in the sheet for male? Actually sheet total shows \"South Carolina 191 1 0.5 ...\" that's male? The sheet labelled 'Total' earlier had 'Total Students' number. Let's find the row with 'South Carolina' in the 'Total' sheet at start of the file, search for \"South Carolina\" in the total chunk.\n{\"query\": \"\\\"Georgia\\\" \\\"Total Students\\\" \\\"Harassment-Bullying-on-basis-of-race_reported.xlsx\\\"\"}",
+  "stop_reason": "answered",
+  "turns": 17,
+  "searches": 10,
+  "fetches": 6,
+  "expansion_nodes": 0,
+  "max_depth_reached": 1,
+  "explorer_calls": 0,
+  "dead_dives": 0,
+  "fetch_attempts": 6,
+  "fetch_failures": 0,
+  "search_attempts": 10,
+  "search_failures": 0,
+  "budget": {
+    "total": 0,
+    "used": 0,
+    "refused": 0,
+    "duplicates": 0,
+    "links_stripped": 0,
+    "off_page": 0,
+    "repeats": 0,
+    "same_site": 0,
+    "visited": 0,
+    "nodes_by_depth": {},
+    "reused": 0
+  },
+  "context_tokens": 33458,
+  "context_exhausted": false,
+  "reader_stats": {},
+  "invalid_tool_calls": 0,
+  "steps": [
+    {
+      "turn": 1,
+      "reasoning": "We need data from civilrightsdata.ed.gov for the 2017-2018 school year. Must find ratio of full-time equivalent (FTE) school counselors to students reported as victims of race-related harassment or bullying. States: South Carolina, North Carolina, Georgia, Virginia.\n\nWe need to browse web for each state or find dataset. Let's search.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "civilrightsdata.ed.gov 2017-2018 school counselors fte victims of race-related harassment ratio"
+          },
+          "result_chars": 3171,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1128.7,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Civil Rights Data | U.S. Department of Education",
+                "link": "https://civilrightsdata.ed.gov/",
+                "snippet": "Black or African American 27.0% Hispanic or Latino of any race 25.8% Two or more races 5.4% White 37.8% Arrest Harassment or Bullying Offenses"
+              },
+              {
+                "title": "2020-21 Civil Rights Data Collection A First Look",
+                "link": "https://www.ed.gov/media/document/2021-22-crdc-first-look-report-109194.pdf",
+                "snippet": "Over 80,000 public school students reported being harassed or bullied on the basis of sex, race, or disability.",
+                "date": "Jan 16, 2025"
+              },
+              {
+                "title": "2020-21 Civil Rights Data Collection A First Look",
+                "link": "https://www.ed.gov/media/document/crdc-educational-opportunities-reportpdf-21412.pdf",
+                "snippet": "About 29,100 public school students reported being harassed or bullied on the basis of sex, race, or disability 2% Public school students reported to school ..."
+              },
+              {
+                "title": "2020-21 Civil Rights Data Collection Student Discipline ...",
+                "link": "https://www.ed.gov/media/document/crdc-discipline-school-climate-reportpdf-21409.pdf",
+                "snippet": "grade 12 students disciplined for harassment or bullying in public schools on the basis of sex, race, or Hispanic or Latino of any race 46% 61% 64% 65% 5%"
+              },
+              {
+                "title": "2023-24 Civil Rights Data Collection now available",
+                "link": "https://www.facebook.com/CouncilofParentAttyAdvCOPAA/posts/civil-rights-data-collection-crdc-for-the-2023-24-school-year-now-available-the-/1509617844528327/",
+                "snippet": "The Civil Rights Data Collection has got you covered: https://ocrdata.ed.gov/ Explore & analyze data across schools or districts! Civil ...",
+                "date": "2 weeks ago"
+              },
+              {
+                "title": "Civil Rights Data Collection (CRDC) for the 2020-2021 ...",
+                "link": "http://www.ed.gov/laws-and-policy/civil-rights-laws/civil-rights-data-collection-crdc/civil-rights-data/civil-rights-data-collection-crdc-2020-2021-school-year",
+                "snippet": "The Office for Civil Rights (OCR) collected data about key education and civil rights issues for the 2020-21 school year from public school districts and ..."
+              },
+              {
+                "title": "Leadership Conference Comments on Civil Rights Data ...",
+                "link": "https://civilrights.org/resource/leadership-conference-comments-on-civil-rights-data-collection/",
+                "snippet": "The public has relied on OCR's continued collection of data elements concerning the full time equivalent (FTE) counts of school counselors, ...",
+                "date": "Nov 2, 2022"
+              },
+              {
+                "title": "2020–21 federal Civil Rights Data Collection released",
+                "link": "https://publications.csba.org/california-school-news/february-2024/2020-21-federal-civil-rights-data-collection-released/",
+                "snippet": "More than 42,500 allegations of harassment or bullying were reported by students on the basis of sex (40 percent), sexual orientation (19 percent), race (29 ..."
+              },
+              {
+                "title": "2017-18 Harassment or Bullying Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-harassment-or-bullying-civil-rights-data-collection",
+                "snippet": "This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of ...",
+                "date": "Oct 23, 2024"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "reasoning": "We need specific data: FTE school counselors per state for 2017-18, and number of students reported as victims of race-related harassment or bullying. Likely in CRDC reported data. Might need to fetch dataset. There might be a state level stats. Let's search for 2018 data state-specific.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"2017-18\" \"civil rights data\" \"full-time equivalent\" school counselors\""
+          },
+          "result_chars": 1053,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1403.4,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "2017-18 School Staff Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection. Published by ... It also contains data on full-time equivalent support staff, and ...",
+                "date": "Oct 23, 2024"
+              },
+              {
+                "title": "2017–18 Civil Rights Data Collection – School Form (PDF)",
+                "link": "https://www.ed.gov/sites/ed/files/about/offices/list/ocr/docs/2017-18-crdc-school-form.pdf",
+                "snippet": "2017–18 Civil Rights Data Collection –. School Form. WHATISTHE PURPOSEOF ... For the 12-month 2017-18 fiscal school year, enter the number of full-time equivalent ..."
+              }
+            ],
+            "related_searches": [
+              "Civil rights data collection 2024",
+              "2020 21 civil rights data collection student discipline and school climate in us public schools",
+              "Civil rights data collection a first look",
+              "Racial disparities in school discipline data",
+              "Department of Education Office of civil rights",
+              "CRDC survey",
+              "Department of Education Statistics"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "reasoning": "We need ratio FTE counselors to students reported as victims of race-related harassment or bullying, for each state.\n\nWe need data from civilrightsdata.ed.gov. The CRDC dataset provides values per state. Web search results show dataset. Potentially there is a CSV file downloadable. Could fetch.\n\nWe need the 2017-18 school year, specifically state-level tables. We need number of victims of race-related harassment or bullying, and number of FTE counselors. Compute ratio.\n\nWe must get data for each state: South Carolina, North Carolina, Georgia, Virginia.\n\nWe need to browse dataset. Let's search for dataset for students reported as victims of race-related harassment or bullying 2017-18.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "2017-18 students reported as victims of race related harassment or bullying civil rights data collection state"
+          },
+          "result_chars": 3535,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2258.4,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Civil Rights Data Collection - Department of Education",
+                "link": "https://civilrightsdata.ed.gov/",
+                "snippet": "Arrest Harassment or Bullying Offenses Restraint. Explore the Data Browse by State Browse National Data"
+              },
+              {
+                "title": "2017-18 Harassment or Bullying Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-harassment-or-bullying-civil-rights-data-collection",
+                "snippet": "This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex ...",
+                "date": "Oct 23, 2024"
+              },
+              {
+                "title": "2020–21 federal Civil Rights Data Collection released",
+                "link": "https://publications.csba.org/california-school-news/february-2024/2020-21-federal-civil-rights-data-collection-released/",
+                "snippet": "More than 42,500 allegations of harassment or bullying were reported by students on the basis of sex (40 percent), sexual orientation (19 percent), race (29 ..."
+              },
+              {
+                "title": "Leadership Conference Comments on Civil Rights Data Collection",
+                "link": "https://civilrights.org/resource/leadership-conference-comments-on-civil-rights-data-collection/",
+                "snippet": "OCR should collect and report comparable data about the number of students who were subjected to bullying or harassment based on their race, ...",
+                "date": "Nov 2, 2022"
+              },
+              {
+                "title": "A massive trove of data about the civil rights of American students ...",
+                "link": "https://www.facebook.com/KPBSSanDiego/posts/a-massive-trove-of-data-about-the-civil-rights-of-american-students-was-quietly-/1481457320457651/",
+                "snippet": "The Civil Rights Data Collection includes information about which groups of students are being bullied, 2017-18 Civil Rights Data Collection … ...",
+                "date": "Sep 4, 2026"
+              },
+              {
+                "title": "Civil Rights Data on Students' Access to Educational Opportunities ...",
+                "link": "https://www.k-12legalinsights.com/2024/02/civil-rights-data-on-students-access-to-educational-opportunities-during-the-pandemic-released-by-u-s-department-of-education/",
+                "snippet": "K-12 students reported to school employees over 42,500 allegations of harassment or bullying on the basis of sex, sexual orientation, race ...",
+                "date": "Feb 21, 2024"
+              },
+              {
+                "title": "Publications - Civil Rights Data Collection (CRDC)",
+                "link": "https://civilrightsdata.ed.gov/publications",
+                "snippet": "Sexual Violence and Sex-based Harassment or Bullying Snapshot … 2017-18 CRDC Series on School Discipline Practices. Reports and Findings 2017-18 Sexual ..."
+              },
+              {
+                "title": "Joint Comments on the 2022-23 Civil Rights Data Collection (CRDC)",
+                "link": "https://all4ed.org/publication/joint-comments-on-the-2022-23-civil-rights-data-collection-crdc/",
+                "snippet": "As noted in Supporting Statement, Part A, students who identify as LGBTQ+ are disproportionately victims of bullying and harassment. Therefore, having a ..."
+              },
+              {
+                "title": "Comparing Civil Rights Data Collection Sexual Victimization and ...",
+                "link": "https://www.air.org/sites/default/files/AIR-CRDC-Ext-Sources-Brief-508-Dec-2020.pdf",
+                "snippet": "The survey collects data on enrollment, harassment and bullying, sexual assault, course offerings, discipline, and other factors every other year, disaggregated ..."
+              },
+              {
+                "title": "About CRDC - Civil Rights Data Collection - Department of Education",
+                "link": "https://civilrightsdata.ed.gov/about/crdc",
+                "snippet": "The CRDC collects information about student enrollment; access to courses, programs and school staff; and school climate factors, such as bullying, harassment ..."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "reasoning": "We need data from civilrightsdata.ed.gov for 2017-2018 school year. Need ratio of full-time equivalent school counselors to students reported as victims of race-related harassment or bullying. For states: SC, NC, GA, VA. Need the highest ratio. That is counselor FTE per such victim. We need numbers: FTE counselors per state from Civil Rights Data Collection (School Staff). Also number of students reporting race-based harassment or bullying (harassment or bullying data). We will need data sets, likely in CSV/Excel. Might need to download from dataset pages.\n\nProbably easiest: Use web search for \"2017-18 school staff civil rights data collection full time equivalent counselors South Carolina\". Let's search that.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"2017-18\" \"school staff\" \"full time equivalent\" \"counselor\" \"South Carolina\""
+          },
+          "result_chars": 15,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1858.4,
+          "explorations": [],
+          "result": {
+            "organic": []
+          }
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "reasoning": "The user asks: \"Using data from civilrightsdata.ed.gov for the 2017-2018 school year, determine which of the following states - South Carolina, North Carolina, Georgia, or Virginia - had the highest ratio of full-time equivalent school counselors to students reported as victims of race-related harassment or bullying.\"\n\nWe need to get data from the CRDC website for 2017-18. Likely there's a table where each state includes:\n\n- Number of FTE school counselors (full time equivalent) from the \"School Staff\" data.\n- Number of students reported as victims of race-related harassment or bullying from the \"Harassment or Bullying\" data.\n\nWe need the ratio: FTE school counselors per student victim.\n\nSo we need to fetch specific data for each state.\n\nWe can search for \"2017-18 CRDC school staff full time equivalent counselors South Carolina\". Let's search again but maybe get from CRDC API or dataset.\n\nSearch: \"2017-18 CRDC school staff full time equivalent counselors South Carolina\"",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "2017-18 CRDC school staff full time equivalent counselors South Carolina"
+          },
+          "result_chars": 3002,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1684.7,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "2017–18 Civil Rights Data Collection – School Form (PDF)",
+                "link": "https://www.ed.gov/sites/ed/files/about/offices/list/ocr/docs/2017-18-crdc-school-form.pdf",
+                "snippet": "For the regular 2017-18 school year, enter the number of full-time equivalent (FTE) support services staff (including nurses, psychologists, and social workers)"
+              },
+              {
+                "title": "2017-18 School Staff Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection",
+                "snippet": "These Excel files contain data on classroom teachers, including full-time equivalency counts, certification, and years of experience for all ...",
+                "date": "Oct 23, 2024"
+              },
+              {
+                "title": "Full-time-equivalent Enrollments",
+                "link": "https://www.sreb.org/general-information/full-time-equivalent-enrollments",
+                "snippet": "Full-time-equivalent (FTE) enrollments, by state, type and institution. Teaching and Mentoring About Agenda",
+                "date": "Apr 11, 2016"
+              },
+              {
+                "title": "The State of the Teacher Workforce: Technical Supplement ...",
+                "link": "https://learningpolicyinstitute.org/state-of-teacher-workforce-notes-sources",
+                "snippet": "... school's student enrollment by the total number of full-time- equivalent (fTE) counselors in the school (not including intersession or summer). Schools with ..."
+              },
+              {
+                "title": "Where to find FTE count and certification for civil rights data ...",
+                "link": "https://www.facebook.com/groups/ILovePEIMS/posts/4823054854415235/",
+                "snippet": "Can someone guide me to where to get the information for the following for Civil Right Data Collection\nTeachers - Fte count and certification. I ...",
+                "date": "4 years ago"
+              },
+              {
+                "title": "School Counseling and Career Guidance",
+                "link": "https://dc.statelibrary.sc.gov/server/api/core/bitstreams/e5ee9e2b-9f9c-45f0-8389-5cf4cb909f67/content",
+                "snippet": "South Carolina Comprehensive School Counseling & Career Guidance. MOLLY M. SPEARMAN … 803-734-8781. call 1-800-421-3481. 2018 SC Comprehensive ...",
+                "date": "Aug 8, 2018"
+              },
+              {
+                "title": "S.C. Code Regs. § 43-205 - Administrative and Professional ...",
+                "link": "https://www.law.cornell.edu/regulations/south-carolina/R-43-205",
+                "snippet": "Schools with an enrollment of 501 or more students must employ one full-time certified school counselor. Schools with enrollments of 501 or more must employ ..."
+              },
+              {
+                "title": "Fiscal Year 2017-18 Accountability Report",
+                "link": "https://www.scstatehouse.gov/reports/aar2018/H590.pdf",
+                "snippet": "approximately 800 part-time and full-time faculty and staff have been trained through the Teaching and Learning Tuesdays (TLT) Series. middle ...",
+                "date": "Sep 21, 2018"
+              },
+              {
+                "title": "Civil Rights Data Collection \"Data Snapshot: Teacher Equity\"",
+                "link": "https://www2.ed.gov/about/offices/list/ocr/docs/crdc-teacher-equity-snapshot.pdf",
+                "snippet": "NOTE: Data in this chart represents 99% of CRDC responding schools, including 3.1 million full-time equivalent (FTE) teachers. SOURCE: U.S. ...",
+                "date": "by D Snapshot"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "reasoning": "We need to determine which state had the highest ratio of FTE counselors to students reported as victims of race-related harassment or bullying in the 2017-2018 year. We need data from civilrightsdata.ed.gov. That site provides tabular data, likely downloadable. Let's search for \"2017-18 state race harassment students\" from civil rights data.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "crdc 2017-18 race harassment victims state South Carolina South Carolina race harassment students list"
+          },
+          "result_chars": 3344,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1627.3,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "2017-18 Harassment or Bullying Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-harassment-or-bullying-civil-rights-data-collection",
+                "snippet": "This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex ...",
+                "date": "Oct 23, 2024"
+              },
+              {
+                "title": "Civil Rights Data | U.S. Department of Education",
+                "link": "https://civilrightsdata.ed.gov/",
+                "snippet": "The Office for Civil Rights (OCR) administers the Civil Rights Data Collection (CRDC), a mandatory survey of all public school districts and schools in the 50 ..."
+              },
+              {
+                "title": "Comparing Civil Rights Data Collection Sexual ...",
+                "link": "https://www.air.org/sites/default/files/AIR-CRDC-Ext-Sources-Brief-508-Dec-2020.pdf",
+                "snippet": "For the 2017–18 data collection year, the CRDC provided key definitions for three types of “harassment or bullying,” including harassment or bullying on the ..."
+              },
+              {
+                "title": "2023-24 Civil Rights Data Collection now available",
+                "link": "https://www.facebook.com/CouncilofParentAttyAdvCOPAA/posts/civil-rights-data-collection-crdc-for-the-2023-24-school-year-now-available-the-/1509617844528327/",
+                "snippet": "The CRDC collects a variety of information including student enrollment and educational programs and services, most of which is disaggregated by ...",
+                "date": "2 weeks ago"
+              },
+              {
+                "title": "Civil Rights Data Collection (CRDC)",
+                "link": "https://www.tn.gov/education/districts/federal-programs-and-oversight/data/data-downloads/civil-rights-data-collection--crdc-.html",
+                "snippet": "2017-18 CRDC File Structure · Advanced Placement · Enrollment · Expulsions · Harassment and Bullying · International Baccalaureate · Offenses · Referrals and Arrests ..."
+              },
+              {
+                "title": "Master List of CRDC Definitions",
+                "link": "https://www.isbe.net/Documents/RC-Civil-Rights-Data-Collection-Terms.pdf",
+                "snippet": "All students can be victims of harassment or bullying on the basis of sex, and the harasser or bully and the victim can be of the same sex. Bullying on the ..."
+              },
+              {
+                "title": "CIVIL RIGHTS DATA COLLECTION",
+                "link": "https://theaquilinegroup.com/wp-content/uploads/2023/08/DOE_CS_SexualViolenceBrief.pdf",
+                "snippet": "The 2017–18 Civil Rights Data Collection (CRDC) is a survey of nearly1 all public schools and school districts in the United States. The CRDC has long."
+              },
+              {
+                "title": "Civil Rights Data Collection (CRDC) 2021-2022",
+                "link": "https://ps-compliance.powerschool-docs.com/pssis-sc/latest/civil-rights-data-collection-crdc-2021-2022",
+                "snippet": "CRDC collects a variety of information, including student enrollment are disaggregated by race/ethnicity, sex, limited English proficiency, and disability."
+              },
+              {
+                "title": "2017-18 Harassment or Bullying Civil Rights Data Collection",
+                "link": "https://data.edmgr.kr/dataView.do?id=data-gov_2017-18-harassment-or-bullying-civil-rights-data-collection",
+                "snippet": "This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, ..."
+              }
+            ],
+            "related_searches": [
+              "Civil rights data collection 2025",
+              "Crdc submission portal",
+              "CRDC Data Collection",
+              "When is the next crdc data collection",
+              "CRDC website",
+              "Civil rights data collection 2024",
+              "CRDC portal",
+              "CRDC Harrisburg AR"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "reasoning": "The CRDC data is likely downloadable Excel files. The user wants the ratio of full-time equivalent school counselors to students reported as victims of race-related harassment or bullying, for 2017-2018 school year, for each of four states. We need to compute for each state the ratio: FTE counselors divided by number of students who were victims of race-related harassment or bullying. Ratio likely is per student? Actually ratio of counselors to victims: number of counselors per victim. But the phrasing: \"ratio of full-time equivalent school counselors to students reported as victims of race-related harassment or bullying.\" That can be interpreted as counselors / victims. For higher ratio meaning more counselors per victim (i.e., lower proportion of victims relative to counselors). They ask which state had highest ratio. So maybe we need to compute counselors per victim. So we need data for counselors and victims for each state.\n\nWe need to locate the CRDC dataset for 2017-2018. The \"Harassment or Bullying\" dataset includes for each school district the counts of students reported as victims. Additionally, the \"School Staff\" dataset includes counts of FTE counselors. Likely separate Excel files.\n\nWe need per state totals aggregated: sum counselors across schools, sum victims across schools. Compute ratio. Determine which of the four states has highest ratio.\n\nWe need the data. We'll fetch relevant datasets. Let's search for the \"2017-18 school staff\" dataset on data.gov.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"2017-18 school staff\" \"civil rights\" \"data\""
+          },
+          "result_chars": 2656,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1927.2,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "2017-18 School Staff Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection ... These Excel files contain data on classroom teachers, including full-time equivalency counts ...",
+                "date": "Oct 23, 2024"
+              },
+              {
+                "title": "Data Profile - Open Data Platform - Department of Education",
+                "link": "https://data.ed.gov/dataset?tags=ocr&page=2",
+                "snippet": "2017-18 Preschool Discipline Civil Rights Data Collection ... This set of Excel... Checked Machine Readable · 2017-18 School Staff Civil Rights Data Collection."
+              },
+              {
+                "title": "Search datasets",
+                "link": "https://catalog.data.gov/?keyword=civil-rights",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection Trending. Organization: Department of Education; Dataset Last Updated: October 23, 2024 at 02:36 PM. These ..."
+              },
+              {
+                "title": "Data Profile - Open Data Platform - Department of Education",
+                "link": "https://data.ed.gov/dataset?tags=teachers",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection. These Excel files contain data on classroom teachers, including full-time equivalency counts ..."
+              },
+              {
+                "title": "OGC SDI Modernization Pilot",
+                "link": "https://ogc-dp23.voyagersearch.com/navigo/search?fq=indexed:2026-03-23T14:02:43.653Z&disp=default",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection. Format: DCAT Dataset. These Excel files contain data on ..."
+              },
+              {
+                "title": "Search datasets",
+                "link": "https://catalog.data.gov/?q=civil+rights",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection Trending ... These Excel files contain data on classroom teachers, including full-time equivalency counts, ..."
+              },
+              {
+                "title": "Search datasets",
+                "link": "https://catalog.data.gov/?keyword=OCR",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection. Organization: Department of Education; Dataset Last Updated: October 23, 2024 at 02:36 PM. These Excel files ..."
+              },
+              {
+                "title": "Department of Education - Organization",
+                "link": "https://catalog.data.gov/organization/ed",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection Trending ... These Excel files contain data on classroom teachers, including full-time equivalency counts, ..."
+              },
+              {
+                "title": "Search datasets",
+                "link": "https://catalog.data.gov/?q=staff",
+                "snippet": "2017-18 School Staff Civil Rights Data Collection. Organization: Department of Education; Dataset Last Updated: October 23, 2024 at 02:36 PM. These Excel files ..."
+              }
+            ],
+            "related_searches": [
+              "2017 18 school staff civil rights data list",
+              "2017 18 school staff civil rights data lookup"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "reasoning": "We need ratios: FTE counselors / students reporting victim of race-related harassment or bullying. This data is likely available in CRDC dataset 2017-18 with school staff and harassment data separate. We need totals per state. Data likely in CSV or Excel. Could use API? Could fetch a dataset file. Let's search for dataset \"2017-18 harassment or bullying civil rights data collection\" and get Excel.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "http://catalog.data.gov/dataset/2017-18-harassment-or-bullying-civil-rights-data-collection"
+          },
+          "result_chars": 10964,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 4671.1,
+          "explorations": [],
+          "result": "Title: Department of Education - 2017-18 Harassment or Bullying Civil Rights Data Collection\n\nURL Source: http://catalog.data.gov/dataset/2017-18-harassment-or-bullying-civil-rights-data-collection\n\nMarkdown Content:\n[Skip to main content](http://catalog.data.gov/dataset/2017-18-harassment-or-bullying-civil-rights-data-collection#content)\n\n![Image 1: U.S. flag](http://catalog.data.gov/assets/uswds/img/us_flag_small.167edfb.png)\n\nAn official website of the United States government\n\nHere’s how you know\n\nHere’s how you know\n\n![Image 2: Dot gov](http://catalog.data.gov/assets/uswds/img/icon-dot-gov.167edfb.svg)\n\n**Official websites use .gov**  \n A **.gov** website belongs to an official government organization in the United States.\n\n![Image 3: Https](http://catalog.data.gov/assets/uswds/img/icon-https.167edfb.svg)\n\n**Secure .gov websites use HTTPS**  \n A **lock** (  ) or **https://** means you’ve safely connected to the .gov website. Share sensitive information only on official, secure websites.\n\n[](https://data.gov/ \"Home\")\n\nMenu\n\n![Image 4: Close](http://catalog.data.gov/assets/uswds/img/usa-icons/close.167edfb.svg)\n*   [Data](http://catalog.data.gov/)\n*   [Metrics](https://data.gov/metrics)\n*   [Organizations](http://catalog.data.gov/organization)\n*   [User Guide](https://data.gov/user-guide/)\n*   [Contact](https://data.gov/contact/)\n\nSearch \n\n# 2017-18 Harassment or Bullying Civil Rights Data Collection\n\n Published by **Office for Civil Rights (OCR)** | [Department of Education](http://catalog.data.gov/organization/ed) | Catalog Last Checked: **September 10, 2026 at 07:41 PM** | Dataset Last Updated: **October 23, 2024 at 02:45 PM**\n\n This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, or disability category for all states. Each file contains three spreadsheets: total students, male students, and female students. \n\n## Resources\n\n6 resources available\n\n*    On basis of disability - disciplined\n\nXLSX   [Download](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-disability_discplined.xlsx) \n*    On basis of disability - reported\n\nXLSX   [Download](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-disability_reported.xlsx) \n*    On basis of race - disciplined\n\nXLSX   [Download](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_disciplined.xlsx) \n*    On basis of race - reported\n\nXLSX   [Download](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx) \n*    On basis of sex - disciplined\n\nXLSX   [Download](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-sex_disciplined.xlsx) \n*    On basis of sex - reported\n\nXLSX   [Download](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-sex_reported.xlsx) \n\n## Find Related Datasets\n\n### Search by Tags\n\nClick any tag below to search for similar datasets\n\n[Elementary-and-secondary](http://catalog.data.gov/?keyword=Elementary-and-secondary)[Language](http://catalog.data.gov/?keyword=Language)[bullying](http://catalog.data.gov/?keyword=bullying)[civil-rights](http://catalog.data.gov/?keyword=civil-rights)[crdc](http://catalog.data.gov/?keyword=crdc)[harassment](http://catalog.data.gov/?keyword=harassment)[minority](http://catalog.data.gov/?keyword=minority)[national](http://catalog.data.gov/?keyword=national)\n\n[ocr](http://catalog.data.gov/?keyword=)[race](http://catalog.data.gov/?keyword=)[students](http://catalog.data.gov/?keyword=)\n\n + 3 more \n\n## Complete Metadata\n\n| @type | dcat:Dataset |\n| --- |\n| accessLevel | public |\n| bureauCode | [ \"018:00\" ] |\n| contactPoint | { \"fn\": \"CRDC Team\", \"@type\": \"vcard:Contact\", \"hasEmail\": \"mailto:odp@ed.gov\" } |\n| description | This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, or disability category for all states. Each file contains three spreadsheets: total students, male students, and female students. |\n| distribution | [ { \"@type\": \"dcat:Distribution\", \"title\": \"On basis of disability - disciplined\", \"format\": \"XLSX\", \"mediaType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"description\": \"This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, or disability category for all states. Each file contains three spreadsheets: total students, male students, and female students.\", \"downloadURL\": \"https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-disability_discplined.xlsx\" }, { \"@type\": \"dcat:Distribution\", \"title\": \"On basis of disability - reported\", \"format\": \"XLSX\", \"mediaType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"description\": \"This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, or disability category for all states. Each file contains three spreadsheets: total students, male students, and female students.\", \"downloadURL\": \"https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-disability_reported.xlsx\" }, { \"@type\": \"dcat:Distribution\", \"title\": \"On basis of race - disciplined\", \"format\": \"XLSX\", \"mediaType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"description\": \"This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, or disability category for all states. Each file contains three spreadsheets: total students, male students, and female students.\", \"downloadURL\": \"https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_disciplined.xlsx\" }, { \"@type\": \"dcat:Distribution\", \"title\": \"On basis of race - reported\", \"format\": \"XLSX\", \"mediaType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"description\": \"This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, or disability category for all states. Each file contains three spreadsheets: total students, male students, and female students.\", \"downloadURL\": \"https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx\" }, { \"@type\": \"dcat:Distribution\", \"title\": \"On basis of sex - disciplined\", \"format\": \"XLSX\", \"mediaType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"description\": \"This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, or disability category for all states. Each file contains three spreadsheets: total students, male students, and female students.\", \"downloadURL\": \"https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-sex_disciplined.xlsx\" }, { \"@type\": \"dcat:Distribution\", \"title\": \"On basis of sex - reported\", \"format\": \"XLSX\", \"mediaType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"description\": \"This set of Excel files contains data on students reported as harassed or bullied or disciplined for harassment or bullying on the basis of sex, race, or disability category for all states. Each file contains three spreadsheets: total students, male students, and female students.\", \"downloadURL\": \"https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-sex_reported.xlsx\" } ] |\n| identifier | c1816abc-d633-4fbd-aa48-b8998f9e9f66 |\n| keyword | [ \"Elementary-and-secondary\", \"Language\", \"bullying\", \"civil-rights\", \"crdc\", \"harassment\", \"minority\", \"national\", \"ocr\", \"race\", \"students\" ] |\n| landingPage | [https://data.ed.gov/dataset/2017-18-harassment-or-bullying-civil-rights-data-collection](https://data.ed.gov/dataset/2017-18-harassment-or-bullying-civil-rights-data-collection) |\n| license | http://www.opendefinition.org/licenses/cc-by |\n| modified | 2024-10-23T14:45:22.979766 |\n| programCode | [ \"018:000\" ] |\n| publisher | { \"name\": \"Office for Civil Rights (OCR)\", \"@type\": \"org:Organization\" } |\n| title | 2017-18 Harassment or Bullying Civil Rights Data Collection |\n\n### Contact\n\nHave questions or suggestions about this dataset? Reach out to the contact below.\n\nName\n\nCRDC Team\n\nEmail\n\n[odp@ed.gov](mailto:odp@ed.gov)\n\n### Access & Use\n\nLicense\n\nhttp://www.opendefinition.org/licenses/cc-by\n\nAccess Level\n\npublic\n\n### Dataset Information\n\nDataset Last Updated\n\n October 23, 2024 at 02:45 PM \n\n### Metadata Information\n\nCatalog Last Checked\n\n September 10, 2026 at 07:41 PM \n\nHarvest Record\n\n[View Raw Data](http://catalog.data.gov/harvest_record/50debd97-5459-4208-b73b-c14d2e01717b/raw)\n\n[![Image 5: Data.gov logo](http://catalog.data.gov/assets/img/logo.167edfb.svg)](https://data.gov/)\n\n*   [About](http://www.data.gov/about)\n*   [Open Government](http://www.data.gov/open-gov/)\n*   [Website Policies](http://www.data.gov/privacy-policy)\n*   [PERFORMANCE.GOV](http://www.performance.gov/)\n*   [Data.gov on Github](http://github.com/GSA/data.gov)\n\n[Follow @GSA](https://github.com/GSA)\n\n![Image 6: GSA logo](https://s3-us-gov-west-1.amazonaws.com/cg-0817d6e3-93c4-4de8-8b32-da6919464e61/gsa_starmark.png)\n\ndata.gov\n\nAn official website of the GSA's [Technology Transformation Services](https://www.gsa.gov/about-us/organization/federal-acquisition-service/technology-transformation-services)\n\n*   [About GSA](https://www.gsa.gov/about-us)\n*   [Accessibility statement](https://www.gsa.gov/website-information/accessibility-statement)\n*   [FOIA requests](https://www.gsa.gov/reference/freedom-of-information-act-foia)\n*   [No FEAR Act data](https://www.gsa.gov/reference/civil-rights-programs/notification-and-federal-employee-antidiscrimination-and-retaliation-act-of-2002)\n*   [Office of the Inspector General](https://www.gsaig.gov/)\n*   [Performance reports](https://www.gsa.gov/reference/reports/budget-performance)\n*   [Privacy policy](https://www.gsa.gov/website-information/website-policies#privacy)\n\nLooking for U.S. government information and services?\n\n[Visit USA.gov](https://www.usa.gov/)\n"
+        }
+      ]
+    },
+    {
+      "turn": 9,
+      "reasoning": "We need to compute ratio FTE counselors to students who reported race-related harassment. We need FTE counselors data for each state and number of victims: students reported as victims of race-related harassment or bullying. Then ratio = FTE counselors / victim count? Likely ratio per student? The wording: \"ratio of full-time equivalent school counselors to students reported as victims\" So ratio counselors per victim. So higher ratio means more counselors per victim? Could interpret as counselors per victim (e.g., higher is better). We need which state had highest ratio.\n\nWe need data from civilrightsdata.ed.gov. For each state: retrieve number of students reported as victims of race-related harassment or bullying for 2017-18. That is in the \"Harassment-Bullying-on-basis-of-race_reported\" dataset.\n\nAlso number of FTE school counselors: That data is in School Staff dataset. There's a sheet for counselors. So we need to fetch those. Might be in \"School-Staff/School_Staff_fte_counts\" maybe.\n\nSearch for FTE counselors dataset.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "2017-18 School Staff Civil Rights Data Collection full-time equivalent counselors South Carolina"
+          },
+          "result_chars": 3500,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2040.7,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "2020-21 Civil Rights Data Collection A First Look",
+                "link": "https://www.ed.gov/media/document/crdc-educational-opportunities-reportpdf-21412.pdf",
+                "snippet": "OCR administers the CRDC and uses the data to enforce civil rights laws that prohibit discrimination based on race, color, national origin, sex, and disability."
+              },
+              {
+                "title": "2023-24 Civil Rights Data Collection now available",
+                "link": "https://www.facebook.com/CouncilofParentAttyAdvCOPAA/posts/civil-rights-data-collection-crdc-for-the-2023-24-school-year-now-available-the-/1509617844528327/",
+                "snippet": "the number of full-time equivalent staff has fallen from 629 to 556. Responded to more than 4,000 rights, privacy, and access. The data from ...",
+                "date": "2 weeks ago"
+              },
+              {
+                "title": "2017-18 School Staff Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection",
+                "snippet": "These Excel files contain data on classroom teachers, including full-time equivalency counts, certification, and years of experience for all ...",
+                "date": "Oct 23, 2024"
+              },
+              {
+                "title": "2020–21 federal Civil Rights Data Collection released",
+                "link": "https://publications.csba.org/california-school-news/february-2024/2020-21-federal-civil-rights-data-collection-released/",
+                "snippet": "Access to teachers and other school staff. Many students, particularly students of color, did not have access to certified teachers and school counselors."
+              },
+              {
+                "title": "Civil Rights Data Collection (CRDC) for the 2013-14 ...",
+                "link": "https://www.attendanceworks.org/civil-rights-data-collection-crdc-for-the-2013-14-school-year/",
+                "snippet": "The CRDC collects information from schools on a variety of measures such as student access to courses, staff and resources and school climate measures"
+              },
+              {
+                "title": "National Data | Civil Rights Data - Department of Education",
+                "link": "https://civilrightsdata.ed.gov/profile/us?surveyYear=2017",
+                "snippet": "Access to Teachers and Support Staff. Teacher FTE Count; School Counselors FTE Count; School Nurses FTE Count; School ..."
+              },
+              {
+                "title": "2020-21 Civil Rights Data Collection",
+                "link": "https://www.k12dive.com/news/civil-right-data-collection-pandemic-schools/700022/",
+                "snippet": "Civil Rights Data Collection, which is a mandatory survey of public schools conducted by the Office for Civil Rights. The most recent previous data collection ..."
+              },
+              {
+                "title": "Federal Civil Rights Data on Students Finally Released",
+                "link": "https://theeducatorsroom.com/federal-civil-rights-data-on-students-finally-released-months-late-and-missing-key-details/",
+                "snippet": "OCR's Civil Rights Data Collection has tracked student access to educational opportunity — enrollment, courses, staff and school-climate ...",
+                "date": "Sep 4, 2026"
+              },
+              {
+                "title": "Since 2018, there have been progress in the education ...",
+                "link": "https://www.facebook.com/100091327449403/posts/since-2018-there-have-been-progress-in-the-education-system-but-the-challenges-a/1045644931823079/",
+                "snippet": "The Civil Rights Data Collection serves as an important tool for assessing equality in public schools, though the pandemic's disruption has ...",
+                "date": "2 weeks ago"
+              }
+            ],
+            "related_searches": [
+              "Civil rights data collection 2025",
+              "CRDC Data Collection",
+              "Crdc submission portal",
+              "Civil rights data collection 2024",
+              "Us department of education office for civil rights complaint form",
+              "CRDC portal",
+              "CRDC phone number",
+              "Civil rights data collection a first look"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "reasoning": "",
+      "text": "We need FTE counselors data for states 2017-18. The CRDC provides this in school staff dataset. Let's fetch that dataset.",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://civilrightsdata.ed.gov/assets/downloads/2017-2018/General/School-Staff/School-Staff-2017-18.xlsx"
+          },
+          "result_chars": 5223,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 4012.7,
+          "explorations": [],
+          "result": "Title: 404 Error | Civil Rights Data\n\nURL Source: https://civilrightsdata.ed.gov/assets/downloads/2017-2018/General/School-Staff/School-Staff-2017-18.xlsx\n\nMarkdown Content:\n[Skip to content](https://civilrightsdata.ed.gov/404#content)\n\n[![Image 1: Department of Education logo](https://civilrightsdata.ed.gov/assets/images/logo_new.png)](https://civilrightsdata.ed.gov/)\n\n Civil Rights Data Collection   \n Office for Civil Rights   \nU.S. Department of Education\n\n*   [About](https://civilrightsdata.ed.gov/about)\n    *   [Office For Civil Rights](https://civilrightsdata.ed.gov/about/ocr)\n    *   [Civil Rights Data Collection](https://civilrightsdata.ed.gov/about/crdc)\n    *   [Frequently Asked Questions](https://civilrightsdata.ed.gov/about/faqs)\n\n*   [Explore the Data](https://civilrightsdata.ed.gov/view)\n    *   [Browse by State](https://civilrightsdata.ed.gov/view)\n    *   [Browse National Data](https://civilrightsdata.ed.gov/)\n    *   [Download Data Files](https://civilrightsdata.ed.gov/data)\n    *   [Access Historical Data](https://civilrightsdata.ed.gov/archive)\n    *   [Public Data Analysis Tool](https://civilrightsdata.ed.gov/public-data-tool)\n    *   [Summary of Selected Facts](https://civilrightsdata.ed.gov/summary)\n\n*   [Publications](https://civilrightsdata.ed.gov/publications)\n*   Search by school, district, or state     \n*   no_accounts\n\nError: 404\n\n# Oops! Looks like that page doesn't exist.\n\nWe couldn't find a page at https://civilrightsdata.ed.gov/assets/downloads/2017-2018/General/School-Staff/School-Staff-2017-18.xlsx. Go back, or head over to the CRDC home page to choose a new direction.\n\nReturn to Home\n\n###### About\n\n[Office For Civil Rights](https://civilrightsdata.ed.gov/about/ocr)[Civil Rights Data Collection](https://civilrightsdata.ed.gov/about/crdc)[CRDC Resource Center](https://crdc.communities.ed.gov/)[Frequently Asked Questions](https://civilrightsdata.ed.gov/about/faqs)\n\n###### Explore the Data\n\n[Browse by State](https://civilrightsdata.ed.gov/view)[Browse National Data](https://civilrightsdata.ed.gov/profile/us?surveyYear=2020)[Download Data Files](https://civilrightsdata.ed.gov/data)[Access Historical Data](https://civilrightsdata.ed.gov/archive)\n\n###### Office for Civil Rights\n\n[OCR Newsroom](https://www2.ed.gov/about/offices/list/ocr/newsroom.html)[OCR CRDC Page](https://www2.ed.gov/about/offices/list/ocr/data.html)[OCR Reports & Resources](https://www.ed.gov/about/ed-offices/ocr/serial-reports-regarding-ocr-activities)[File Discrimination Complaint](https://www2.ed.gov/about/offices/list/ocr/docs/howto.html)\n\n###### Enforcement Staff\n\n[Internal Data Analysis Tool](https://civilrightsdata.ed.gov/data-tool-login-landing)\n\n###### Contact\n\n[CRDC Questions](mailto:ocrdata@ed.gov)[Media Inquiries](https://www.ed.gov/about/ed-offices/oco)[Contact OCR](https://ocrcas.ed.gov/contact-ocr)[![Image 2: X Social Media](https://civilrightsdata.ed.gov/assets/logos/x-social-media-white-icon.png)](https://twitter.com/edcivilrights)\n\nThe mission of the Office for Civil Rights is to ensure equal access to education and to promote educational excellence throughout the nation through vigorous enforcement of civil rights.\n\n![Image 3: Department of Education logo](https://civilrightsdata.ed.gov/assets/images/logo_new.png)\n\nCivil Rights Data Collection\n\nOffice for Civil Rights\n\nU.S. Department of Education\n\nSite last updated: August 31, 2026\n\n|\n\n[Accessibility Statement](https://civilrightsdata.ed.gov/accessibility_statement)\n|\n\n[Privacy Policy](https://www2.ed.gov/notices/privacy/index.html)\n|\n\nLanguage Assistance\n\n[English](http://www.ed.gov/notices/english-la)[Español](http://www.ed.gov/notices/espanol-la)[中文: 繁體版](http://www.ed.gov/notices/chinese-la)[Việt-ngữ](http://www.ed.gov/notices/vietnamese-la)[한국어](http://www.ed.gov/notices/korean-la)[Tagalog](http://www.ed.gov/notices/tagalog-la)[Русский](http://www.ed.gov/notices/russian-la)\n\n![Image 4: Department of Education seal](https://civilrightsdata.ed.gov/assets/icons/dept_of_ed_seal.svg)\n\n![Image 5: Department of Education seal](https://civilrightsdata.ed.gov/assets/icons/dept_of_ed_seal.svg)\n\nThe mission of the Office for Civil Rights is to ensure equal access to education and to promote educational excellence throughout the nation through vigorous enforcement of civil rights.\n\n![Image 6: Department of Education logo](https://civilrightsdata.ed.gov/assets/images/logo_new.png)\n\nCivil Rights Data Collection\n\nOffice for Civil Rights\n\nU.S. Department of Education\n\nSite last updated: August 31, 2026\n\n[Accessibility Statement](https://civilrightsdata.ed.gov/accessibility_statement)[Privacy Policy](https://www2.ed.gov/notices/privacy/index.html)\n\nLanguage Assistance\n\n[English](http://www.ed.gov/notices/english-la)[Español](http://www.ed.gov/notices/espanol-la)[中文: 繁體版](http://www.ed.gov/notices/chinese-la)[Việt-ngữ](http://www.ed.gov/notices/vietnamese-la)[한국어](http://www.ed.gov/notices/korean-la)[Tagalog](http://www.ed.gov/notices/tagalog-la)[Русский](http://www.ed.gov/notices/russian-la)\n\n![Image 7: Compare report](https://civilrightsdata.ed.gov/assets/images/compare.svg)\n### Data Comparison\n\nclose\n\n###### Target School or LEA\n\n###### Items\n\n*   Resume\n*   New Report\n"
+        }
+      ]
+    },
+    {
+      "turn": 11,
+      "reasoning": "",
+      "text": "The website changed. Maybe easier to use the data preview tools. Let's go to \"Data\" page.",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "civilrightsdata.ed.gov/data 2017-2018 school staff counselors"
+          },
+          "result_chars": 3346,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1630.0,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Civil Rights Data | U.S. Department of Education",
+                "link": "https://civilrightsdata.ed.gov/",
+                "snippet": "The Office for Civil Rights (OCR) administers the Civil Rights Data Collection (CRDC), a mandatory survey of all public school districts and schools in the 50 ..."
+              },
+              {
+                "title": "[PDF] 2020-21 Civil Rights Data Collection A First Look",
+                "link": "https://www.ed.gov/media/document/crdc-educational-opportunities-reportpdf-21412.pdf",
+                "snippet": "The 2020-21 CRDC collected data related to teachers and school support staff, including school counselors, psychologists, social workers, nurses, and security ..."
+              },
+              {
+                "title": "2023-24 Civil Rights Data Collection now available - Facebook",
+                "link": "https://www.facebook.com/CouncilofParentAttyAdvCOPAA/posts/civil-rights-data-collection-cdrc-for-the-2023-24-school-year-now-available-the-/1509617844528327/",
+                "snippet": "The CRDC collects data and information about student access to educational courses and school staff, as well as school climate factors, such as ...",
+                "date": "Sep 2, 2026"
+              },
+              {
+                "title": "National Data - Civil Rights Data Collection - Department of Education",
+                "link": "https://civilrightsdata.ed.gov/profile/us?surveyYear=2017",
+                "snippet": "Access to Teachers and Support Staff. Teacher FTE Count; School Counselors FTE Count; School Nurses FTE Count; School Psychologists FTE Count; School Social ..."
+              },
+              {
+                "title": "Civil Rights Data Collection (CRDC) for the 2020-2021 school year",
+                "link": "http://www.ed.gov/laws-and-policy/civil-rights-laws/civil-rights-data-collection-crdc/civil-rights-data/civil-rights-data-collection-crdc-2020-2021-school-year",
+                "snippet": "The Office for Civil Rights (OCR) collected data about key education and civil rights issues for the 2020-21 school year from public school districts and ..."
+              },
+              {
+                "title": "2020–21 federal Civil Rights Data Collection released",
+                "link": "https://publications.csba.org/california-school-news/february-2024/2020-21-federal-civil-rights-data-collection-released/",
+                "snippet": "This is the first Civil Rights Data Collection (CRDC) since the 2017–18 school year. Accompanying the data are seven data reports and snapshots, including A ..."
+              },
+              {
+                "title": "2017-18 School Staff Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection",
+                "snippet": "These Excel files contain data on classroom teachers, including full-time equivalency counts, certification, and years of experience for all ...",
+                "date": "Oct 23, 2024"
+              },
+              {
+                "title": "2013-14 Estimations - Civil Rights Data Collection (CRDC)",
+                "link": "https://civilrightsdata.ed.gov/estimations/2013-2014",
+                "snippet": "This Excel file contains data on high school counselors for all states. The file contains one spreadsheet for total high school counselors. School counselors."
+              },
+              {
+                "title": "2013-14 Civil Rights Data Collection : First Look",
+                "link": "https://www.parentcenterhub.org/first-look/",
+                "snippet": "In Fall 2016, the public will be able to look up 2013-14 CRDC data for individual schools, school districts, and states by visiting the CRDC website at ocrdata."
+              },
+              {
+                "title": "Civil Rights Data | U.S. Department of Education",
+                "link": "https://ocrdata.ed.gov/estimations/2017-2018",
+                "snippet": "Loading ... Please enable JavaScript to continue using this application."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 12,
+      "reasoning": "Possibly the site uses an api; might be easier with ed.gov interface. But maybe easier: CRDC has summary tables. Let's try to fetch from summary website: https://civilrightsdata.ed.gov/summary? maybe this offers FTE counts.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://civilrightsdata.ed.gov/summary?surveyYear=2018"
+          },
+          "result_chars": 5822,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2217.3,
+          "explorations": [],
+          "result": "Title: Summary of Selected Facts | Civil Rights Data\n\nURL Source: https://civilrightsdata.ed.gov/summary?surveyYear=2018\n\nMarkdown Content:\n[Skip to content](https://civilrightsdata.ed.gov/summary?surveyYear=2018#content)\n\n[![Image 1: Department of Education logo](https://civilrightsdata.ed.gov/assets/images/logo_new.png)](https://civilrightsdata.ed.gov/)\n\n Civil Rights Data Collection   \n Office for Civil Rights   \nU.S. Department of Education\n\n*   [About](https://civilrightsdata.ed.gov/about)\n    *   [Office For Civil Rights](https://civilrightsdata.ed.gov/about/ocr)\n    *   [Civil Rights Data Collection](https://civilrightsdata.ed.gov/about/crdc)\n    *   [Frequently Asked Questions](https://civilrightsdata.ed.gov/about/faqs)\n\n*   [Explore the Data](https://civilrightsdata.ed.gov/view)\n    *   [Browse by State](https://civilrightsdata.ed.gov/view)\n    *   [Browse National Data](https://civilrightsdata.ed.gov/)\n    *   [Download Data Files](https://civilrightsdata.ed.gov/data)\n    *   [Access Historical Data](https://civilrightsdata.ed.gov/archive)\n    *   [Public Data Analysis Tool](https://civilrightsdata.ed.gov/public-data-tool)\n    *   [Summary of Selected Facts](https://civilrightsdata.ed.gov/summary)\n\n*   [Publications](https://civilrightsdata.ed.gov/publications)\n*   Search by school, district, or state     \n*   no_accounts\n\n[Home](https://civilrightsdata.ed.gov/) keyboard_arrow_right \nSelected Facts\n\n# Summary of Selected Facts\n\n* * *\n\n To review a single school or district, use filters like enrollment, academic offerings, and available courses to explore and create a custom data summary. \n\n![Image 2: Hand holding a pen with a blue grip going over a paper filled with stcacked bar charts and line graphs](https://civilrightsdata.ed.gov/assets/images/publications-1.png)\n\n1.   Start\n2.   Select\n3.   Configure\n4.   Review\n\nStep\n\n1\n\nof 4:\n\n# Start Your Search\n\nSearch information by school, district name, or data criteria.\n\nSearch for a school or district by name.\n\n Select Item \n\nSearch for a school or district by criteria.\n\n Select Criteria \n\n_Access the [User Guide](https://civilrightsdata.ed.gov/assets/downloads/CRDC%20SSF%20User%20Guide-2026.pdf) for assistance with using Summary of Selected Facts._\n\n###### About\n\n[Office For Civil Rights](https://civilrightsdata.ed.gov/about/ocr)[Civil Rights Data Collection](https://civilrightsdata.ed.gov/about/crdc)[CRDC Resource Center](https://crdc.communities.ed.gov/)[Frequently Asked Questions](https://civilrightsdata.ed.gov/about/faqs)\n\n###### Explore the Data\n\n[Browse by State](https://civilrightsdata.ed.gov/view)[Browse National Data](https://civilrightsdata.ed.gov/profile/us?surveyYear=2020)[Download Data Files](https://civilrightsdata.ed.gov/data)[Access Historical Data](https://civilrightsdata.ed.gov/archive)\n\n###### Office for Civil Rights\n\n[OCR Newsroom](https://www2.ed.gov/about/offices/list/ocr/newsroom.html)[OCR CRDC Page](https://www2.ed.gov/about/offices/list/ocr/data.html)[OCR Reports & Resources](https://www.ed.gov/about/ed-offices/ocr/serial-reports-regarding-ocr-activities)[File Discrimination Complaint](https://www2.ed.gov/about/offices/list/ocr/docs/howto.html)\n\n###### Enforcement Staff\n\n[Internal Data Analysis Tool](https://civilrightsdata.ed.gov/data-tool-login-landing)\n\n###### Contact\n\n[CRDC Questions](mailto:ocrdata@ed.gov)[Media Inquiries](https://www.ed.gov/about/ed-offices/oco)[Contact OCR](https://ocrcas.ed.gov/contact-ocr)[![Image 3: X Social Media](https://civilrightsdata.ed.gov/assets/logos/x-social-media-white-icon.png)](https://twitter.com/edcivilrights)\n\nThe mission of the Office for Civil Rights is to ensure equal access to education and to promote educational excellence throughout the nation through vigorous enforcement of civil rights.\n\n![Image 4: Department of Education logo](https://civilrightsdata.ed.gov/assets/images/logo_new.png)\n\nCivil Rights Data Collection\n\nOffice for Civil Rights\n\nU.S. Department of Education\n\nSite last updated: August 31, 2026\n\n|\n\n[Accessibility Statement](https://civilrightsdata.ed.gov/accessibility_statement)\n|\n\n[Privacy Policy](https://www2.ed.gov/notices/privacy/index.html)\n|\n\nLanguage Assistance\n\n[English](http://www.ed.gov/notices/english-la)[Español](http://www.ed.gov/notices/espanol-la)[中文: 繁體版](http://www.ed.gov/notices/chinese-la)[Việt-ngữ](http://www.ed.gov/notices/vietnamese-la)[한국어](http://www.ed.gov/notices/korean-la)[Tagalog](http://www.ed.gov/notices/tagalog-la)[Русский](http://www.ed.gov/notices/russian-la)\n\n![Image 5: Department of Education seal](https://civilrightsdata.ed.gov/assets/icons/dept_of_ed_seal.svg)\n\n![Image 6: Department of Education seal](https://civilrightsdata.ed.gov/assets/icons/dept_of_ed_seal.svg)\n\nThe mission of the Office for Civil Rights is to ensure equal access to education and to promote educational excellence throughout the nation through vigorous enforcement of civil rights.\n\n![Image 7: Department of Education logo](https://civilrightsdata.ed.gov/assets/images/logo_new.png)\n\nCivil Rights Data Collection\n\nOffice for Civil Rights\n\nU.S. Department of Education\n\nSite last updated: August 31, 2026\n\n[Accessibility Statement](https://civilrightsdata.ed.gov/accessibility_statement)[Privacy Policy](https://www2.ed.gov/notices/privacy/index.html)\n\nLanguage Assistance\n\n[English](http://www.ed.gov/notices/english-la)[Español](http://www.ed.gov/notices/espanol-la)[中文: 繁體版](http://www.ed.gov/notices/chinese-la)[Việt-ngữ](http://www.ed.gov/notices/vietnamese-la)[한국어](http://www.ed.gov/notices/korean-la)[Tagalog](http://www.ed.gov/notices/tagalog-la)[Русский](http://www.ed.gov/notices/russian-la)\n\n![Image 8: Compare report](https://civilrightsdata.ed.gov/assets/images/compare.svg)\n### Data Comparison\n\nclose\n\n###### Target School or LEA\n\n###### Items\n\n*   Resume\n*   New Report\n"
+        }
+      ]
+    },
+    {
+      "turn": 13,
+      "reasoning": "",
+      "text": "The website interactive; hard to scrape via fetch. Maybe use the downloadable CSVs for \"School Staff\" via the older archive. Let's search for \"schoolstaff2017-18_fte.csv\".",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "school staff 2017-18 CRDC FTE counselors download"
+          },
+          "result_chars": 3459,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1579.9,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "National Data | Civil Rights Data - Department of Education",
+                "link": "https://civilrightsdata.ed.gov/profile/us?surveyYear=2017",
+                "snippet": "Access to Teachers and Support Staff. Teacher FTE Count; School Counselors FTE Count; School Nurses FTE Count; School ..."
+              },
+              {
+                "title": "2017-18 School Staff Civil Rights Data Collection",
+                "link": "http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection",
+                "snippet": "These Excel files contain data on classroom teachers, including full-time equivalency counts, certification, and years of experience for all ...",
+                "date": "Oct 23, 2024"
+              },
+              {
+                "title": "2023-24 Civil Rights Data Collection now available",
+                "link": "https://www.facebook.com/CouncilofParentAttyAdvCOPAA/posts/civil-rights-data-collection-crdc-for-the-2023-24-school-year-now-available-the-/1509617844528327/",
+                "snippet": "The CRDC collects data and information about student access to educational courses and school staff, as well as school climate factors, such ...",
+                "date": "2 weeks ago"
+              },
+              {
+                "title": "Civil Rights Data Collection (CRDC) 2021/22 Collection",
+                "link": "https://mpaaa.org/images/downloads/CRDC_2023/civil_rights_data_collection_2021_22.pdf",
+                "snippet": "• STAF-6: School Counselors FTE. • Applies to all grade levels, schools. • Decimal sum of counseling staff FTE during the school year. • STAF-7: Support Staff ..."
+              },
+              {
+                "title": "2020–21 federal Civil Rights Data Collection released",
+                "link": "https://publications.csba.org/california-school-news/february-2024/2020-21-federal-civil-rights-data-collection-released/",
+                "snippet": "Many students, particularly students of color, did not have access to certified teachers and school counselors. Approximately 522,400 students, or 1 percent of ..."
+              },
+              {
+                "title": "2017–18 Civil Rights Data Collection – School Form (PDF)",
+                "link": "https://www.ed.gov/sites/ed/files/about/offices/list/ocr/docs/2017-18-crdc-school-form.pdf",
+                "snippet": "STAF-4: School Counselors Number FTE ... • Enter the number of FTE teachers who were absent more than 10 school days during the regular school."
+              },
+              {
+                "title": "Mandatory Civil Rights Data Collection October 2024",
+                "link": "https://downloads.regulations.gov/ED-2024-SCC-0128-0002/attachment_1.pdf",
+                "snippet": "Number of FTE school counselors. • Number of FTE psychologists. • Number of FTE social workers. • Number of FTE nurses. • Number of FTE security guards. • ..."
+              },
+              {
+                "title": "2016-17 Faculty and Staff Data Collection: Technical Guide",
+                "link": "https://osse.dc.gov/sites/default/files/dc/sites/osse/publication/attachments/2016-17%20Faculty%20and%20Staff%20Collection%20Technical%20Guide.pdf",
+                "snippet": "Faculty and Staff Roster a. Staff Member Identifiers and Demographic Information; b. LEA and School Information; c. Role and FTE Percentage;. 2.",
+                "date": "Jun 1, 2017"
+              },
+              {
+                "title": "Common Core of Data",
+                "link": "https://educationdata.urban.org/documentation/schools.html",
+                "snippet": "This endpoint provides information for public schools, including charters, and contains the school-level data on the number of full-time equivalent teachers."
+              }
+            ],
+            "related_searches": [
+              "School staff 2017 18 crdc fte counselors download pdf",
+              "CRDC login",
+              "CRDC survey",
+              "CRDC news",
+              "2020 21 civil rights data collection student discipline and school climate in us public schools",
+              "Department of education desegregation",
+              "Civil rights data collection 2024",
+              "Racial disparities in school discipline data"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 14,
+      "reasoning": "",
+      "text": "The dataset may be separate, but maybe easier: use the interactive export to CSV via the web? Another approach: Use the API endpoint for national data? Perhaps easier to find in data.gov: There might be a CSV \"SchoolStaff-2017-18.xlsx\" on data.gov. Let's click dataset.",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection"
+          },
+          "result_chars": 7803,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 4044.3,
+          "explorations": [],
+          "result": "Title: Department of Education - 2017-18 School Staff Civil Rights Data Collection\n\nURL Source: http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection\n\nMarkdown Content:\n[Skip to main content](http://catalog.data.gov/dataset/2017-18-school-staff-civil-rights-data-collection#content)\n\n![Image 1: U.S. flag](http://catalog.data.gov/assets/uswds/img/us_flag_small.167edfb.png)\n\nAn official website of the United States government\n\nHere’s how you know\n\nHere’s how you know\n\n![Image 2: Dot gov](http://catalog.data.gov/assets/uswds/img/icon-dot-gov.167edfb.svg)\n\n**Official websites use .gov**  \n A **.gov** website belongs to an official government organization in the United States.\n\n![Image 3: Https](http://catalog.data.gov/assets/uswds/img/icon-https.167edfb.svg)\n\n**Secure .gov websites use HTTPS**  \n A **lock** (  ) or **https://** means you’ve safely connected to the .gov website. Share sensitive information only on official, secure websites.\n\n[](https://data.gov/ \"Home\")\n\nMenu\n\n![Image 4: Close](http://catalog.data.gov/assets/uswds/img/usa-icons/close.167edfb.svg)\n*   [Data](http://catalog.data.gov/)\n*   [Metrics](https://data.gov/metrics)\n*   [Organizations](http://catalog.data.gov/organization)\n*   [User Guide](https://data.gov/user-guide/)\n*   [Contact](https://data.gov/contact/)\n\nSearch \n\n# 2017-18 School Staff Civil Rights Data Collection\n\n Published by **Office for Civil Rights (OCR)** | [Department of Education](http://catalog.data.gov/organization/ed) | Catalog Last Checked: **September 10, 2026 at 07:41 PM** | Dataset Last Updated: **October 23, 2024 at 02:36 PM**\n\n These Excel files contain data on classroom teachers, including full-time equivalency counts, certification, and years of experience for all states. Each file contains one spreadsheet for total teachers. It also contains data on full-time equivalent support staff, and schools with support staff, by type of staff and for all states. Each file contains one spreadsheet for elementary, middle, or high schools. \n\n## Resources\n\n2 resources available\n\n*    Teacher Certification and Years of Experience\n\nXLSX   [Download](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Staff/Classroom-Teachers/Teacher-Certification-and-Years-of-Experience.xlsx) \n*    Counselors High School\n\nXLSX   [Download](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Staff/School-Support-Staff/Counselors_High-School.xlsx) \n\n## Find Related Datasets\n\n### Search by Tags\n\nClick any tag below to search for similar datasets\n\n[Elementary-and-secondary](http://catalog.data.gov/?keyword=Elementary-and-secondary)[Language](http://catalog.data.gov/?keyword=Language)[civil-rights](http://catalog.data.gov/?keyword=civil-rights)[classroom-teachers](http://catalog.data.gov/?keyword=classroom-teachers)[minority](http://catalog.data.gov/?keyword=minority)[national](http://catalog.data.gov/?keyword=national)[ocr](http://catalog.data.gov/?keyword=ocr)[office-for-civil-rights-ocr](http://catalog.data.gov/?keyword=office-for-civil-rights-ocr)\n\n[race](http://catalog.data.gov/?keyword=)[student-enrollment](http://catalog.data.gov/?keyword=)[student-retention](http://catalog.data.gov/?keyword=)[students](http://catalog.data.gov/?keyword=)[support-staff](http://catalog.data.gov/?keyword=)[teachers](http://catalog.data.gov/?keyword=)\n\n + 6 more \n\n## Complete Metadata\n\n| @type | dcat:Dataset |\n| --- |\n| accessLevel | public |\n| bureauCode | [ \"018:00\" ] |\n| contactPoint | { \"fn\": \"CRDC Team\", \"@type\": \"vcard:Contact\", \"hasEmail\": \"mailto:odp@ed.gov\" } |\n| description | These Excel files contain data on classroom teachers, including full-time equivalency counts, certification, and years of experience for all states. Each file contains one spreadsheet for total teachers. It also contains data on full-time equivalent support staff, and schools with support staff, by type of staff and for all states. Each file contains one spreadsheet for elementary, middle, or high schools. |\n| distribution | [ { \"@type\": \"dcat:Distribution\", \"title\": \"Teacher Certification and Years of Experience\", \"format\": \"XLSX\", \"mediaType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"description\": \"These Excel files contain data on classroom teachers, including full-time equivalency counts, certification, and years of experience for all states. Each file contains one spreadsheet for total teachers.\", \"downloadURL\": \"https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Staff/Classroom-Teachers/Teacher-Certification-and-Years-of-Experience.xlsx\" }, { \"@type\": \"dcat:Distribution\", \"title\": \"Counselors High School\", \"format\": \"XLSX\", \"mediaType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"description\": \"This set of Excel files contains data on full-time equivalent support staff, and schools with support staff, by type of staff and for all states. Each file contains one spreadsheet for elementary, middle, or high schools.\", \"downloadURL\": \"https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Staff/School-Support-Staff/Counselors_High-School.xlsx\" } ] |\n| identifier | 487b44c9-7303-4fab-aa61-e2f6d18901d8 |\n| keyword | [ \"Elementary-and-secondary\", \"Language\", \"civil-rights\", \"classroom-teachers\", \"minority\", \"national\", \"ocr\", \"office-for-civil-rights-ocr\", \"race\", \"student-enrollment\", \"student-retention\", \"students\", \"support-staff\", \"teachers\" ] |\n| landingPage | [https://civilrightsdata.ed.gov/estimations/2017-2018](https://civilrightsdata.ed.gov/estimations/2017-2018) |\n| license | http://www.opendefinition.org/licenses/cc-by |\n| modified | 2024-10-23T14:36:48.959179 |\n| programCode | [ \"018:000\" ] |\n| publisher | { \"name\": \"Office for Civil Rights (OCR)\", \"@type\": \"org:Organization\" } |\n| title | 2017-18 School Staff Civil Rights Data Collection |\n\n### Contact\n\nHave questions or suggestions about this dataset? Reach out to the contact below.\n\nName\n\nCRDC Team\n\nEmail\n\n[odp@ed.gov](mailto:odp@ed.gov)\n\n### Access & Use\n\nLicense\n\nhttp://www.opendefinition.org/licenses/cc-by\n\nAccess Level\n\npublic\n\n### Dataset Information\n\nDataset Last Updated\n\n October 23, 2024 at 02:36 PM \n\n### Metadata Information\n\nCatalog Last Checked\n\n September 10, 2026 at 07:41 PM \n\nHarvest Record\n\n[View Raw Data](http://catalog.data.gov/harvest_record/ac673b2c-b64e-4569-ab13-bb0a04a5e05f/raw)\n\n[![Image 5: Data.gov logo](http://catalog.data.gov/assets/img/logo.167edfb.svg)](https://data.gov/)\n\n*   [About](http://www.data.gov/about)\n*   [Open Government](http://www.data.gov/open-gov/)\n*   [Website Policies](http://www.data.gov/privacy-policy)\n*   [PERFORMANCE.GOV](http://www.performance.gov/)\n*   [Data.gov on Github](http://github.com/GSA/data.gov)\n\n[Follow @GSA](https://github.com/GSA)\n\n![Image 6: GSA logo](https://s3-us-gov-west-1.amazonaws.com/cg-0817d6e3-93c4-4de8-8b32-da6919464e61/gsa_starmark.png)\n\ndata.gov\n\nAn official website of the GSA's [Technology Transformation Services](https://www.gsa.gov/about-us/organization/federal-acquisition-service/technology-transformation-services)\n\n*   [About GSA](https://www.gsa.gov/about-us)\n*   [Accessibility statement](https://www.gsa.gov/website-information/accessibility-statement)\n*   [FOIA requests](https://www.gsa.gov/reference/freedom-of-information-act-foia)\n*   [No FEAR Act data](https://www.gsa.gov/reference/civil-rights-programs/notification-and-federal-employee-antidiscrimination-and-retaliation-act-of-2002)\n*   [Office of the Inspector General](https://www.gsaig.gov/)\n*   [Performance reports](https://www.gsa.gov/reference/reports/budget-performance)\n*   [Privacy policy](https://www.gsa.gov/website-information/website-policies#privacy)\n\nLooking for U.S. government information and services?\n\n[Visit USA.gov](https://www.usa.gov/)\n"
+        }
+      ]
+    },
+    {
+      "turn": 15,
+      "reasoning": "",
+      "text": "Great! We have a 'Counselors_High-School.xlsx' file. Let's fetch it.",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Staff/School-Support-Staff/Counselors_High-School.xlsx"
+          },
+          "result_chars": 2959,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 6717.3,
+          "explorations": [],
+          "result": "Title: Counselors_High-School.xlsx\n\nURL Source: https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Staff/School-Support-Staff/Counselors_High-School.xlsx\n\nPublished Time: Thu, 28 May 2026 15:13:46 GMT\n\nNumber of Pages: 1\n\nMarkdown Content:\n**Number of public high school full-time equivalent (FTE) school counselors, and number and percentage of public high schools with FTE school counselors, by state: School Year 2017-18**********************\n********\n**State****Count of FTE School Counselors****Number of Schools With School Counselors****Percent of Schools with School Counselors****Number of Schools****Percent of Schools Reporting**\n\n****\n**50 states, District of Columbia, and Puerto Rico**56,447 21,397 80.7 26,515 100.0\nAlabama 739 401 94.1 426 100.0\nAlaska 176 168 57.5 292 100.0\nArizona 974 347 63.1 550 100.0\nArkansas 545 332 94.9 350 100.0\nCalifornia 6,081 2,099 79.9 2,626 100.0\nColorado 1,062 421 80.2 525 100.0\nConnecticut 962 244 75.1 325 100.0\nDelaware 159 47 75.8 62 100.0\nDistrict of Columbia 135 43 89.6 48 100.0\nFlorida 2,465 704 64.2 1,096 100.0\nGeorgia 1,410 489 83.0 589 100.0\nHawaii 269 61 89.7 68 100.0\nIdaho 315 185 76.4 242 100.0\nIllinois 2,428 757 81.3 931 100.0\nIndiana 1,104 406 91.9 442 100.0\nIowa 538 343 92.7 370 100.0\nKansas 504 329 86.1 382 100.0\nKentucky 635 271 67.6 401 100.0\nLouisiana 712 334 89.3 374 100.0\nMaine 263 123 93.9 131 100.0\nMaryland 938 255 88.5 288 100.0\nMassachusetts 1,828 385 86.3 447 99.8\nMichigan 1,374 735 60.5 1,214 100.0\nMinnesota 914 509 59.0 862 100.0\nMississippi 487 281 92.4 304 100.0\nMissouri 1,076 597 85.8 696 100.0\nMontana 203 171 94.5 181 100.0\nNebraska 410 280 88.3 317 100.0\nNevada 428 134 79.8 168 100.0\nNew Hampshire 315 89 91.8 97 100.0\nNew Jersey 2,100 459 85.3 538 100.0\nNew Mexico 496 169 70.4 240 100.0\nNew York 4,597 1,379 92.9 1,484 100.0\nNorth Carolina 1,856 635 90.3 703 100.0\nNorth Dakota 220 160 94.7 169 100.0\nOhio 1,816 847 86.0 985 100.0\nOklahoma 657 481 92.7 519 100.0\nOregon 576 246 67.4 365 100.0\nPennsylvania 2,135 738 91.4 807 100.0\nRhode Island 195 62 95.4 65 100.0\nSouth Carolina 829 270 93.4 289 100.0\nSouth Dakota 149 144 73.8 195 100.0\nTennessee 978 393 91.0 432 100.0\nTexas 5,177 1,803 78.8 2,287 100.0\nUtah 804 292 92.4 316 100.0\nVermont 193 64 95.5 67 100.0\nVirginia 1,505 371 83.2 446 100.0\nWashington 1,079 434 63.0 689 100.0\nWest Virginia 290 138 95.2 145 100.0\nWisconsin 901 498 82.5 605 99.8\nWyoming 131 90 89.1 101 100.0\nPuerto Rico 315 184 69.7 264 100.0\nNOTE: High schools are defined as schools with any grade 9-12 or ungraded high school age students.\nTable reads (for 50 states, District of Columbia, and Puerto Rico totals): There were 56,447 guidance counselors (full-time equivalents) in 21,397 (80.7%) of high schools.\nData reported in this table represent 100.0% of responding schools.\nSOURCE: U.S. Department of Education, Office for Civil Rights, Civil Rights Data Collection, 2017-18, available at http://ocrdata.ed.gov.\n"
+        }
+      ]
+    },
+    {
+      "turn": 16,
+      "reasoning": "",
+      "text": "Now we need victims of race-related harassment or bullying. That dataset is the Harassment-or-Bullying workbook. Let's fetch that sheet: \"Harassment-Bullying-on-basis-of-race_reported.xlsx\".",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx"
+          },
+          "result_chars": 33738,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 7879.8,
+          "explorations": [],
+          "result": "Title: Harassment-Bullying-on-basis-of-race_reported.xlsx\n\nURL Source: https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx\n\nPublished Time: Thu, 28 May 2026 15:13:46 GMT\n\nNumber of Pages: 3\n\nMarkdown Content:\n* * *\n\n# Overview\n\n[Total](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx)  \n[Male](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx)  \n[Female](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx)\n\n* * *\n\n# [Sheet 1: _Total_](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx)\n**Number and percentage of public school students reported to have been harassed or bullied on the basis of race, color or national origin, by race/ethnicity, disability status, and English proficiency, by state: School Year 2017-18**************************************************************************************\n****\n**State****Total Students****Race/Ethnicity****Students With Disabilities Served Under IDEA****Students With Disabilities Served Only Under Section 504****English Language Learners****Number of Schools****Percent of Schools Reporting**\n**American Indian or  \nAlaska Native****Asian****Hispanic or Latino of any race****Black or African American****White****Native Hawaiian or Other Pacific Islander****Two or more races**\n**********Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent1****Number****Percent1****Number****Percent**********\nreported to have been harassed or bullied on the basis of race, color or national origin**50 states, District of Columbia, and Puerto Rico**25,013 621 2.5 1,490 6.0 5,063 20.2 9,266 37.0 6,801 27.2 128 0.5 1,644 6.6 3,623 14.5 534 2.1 1,908 7.6 97,632 99.2\nreported to have been harassed or bullied on the basis of disability Alabama 445 3 0.7 7 1.6 38 8.5 264 59.3 126 28.3 0 0.0 7 1.6 20 4.5 3 0.7 15 3.4 1,390 94.0\nreported to have been harassed or bullied on the basis of disability Alaska 126 13 10.3 11 8.7 26 20.6 1 0.8 50 39.7 13 10.3 12 9.5 11 8.7 3 2.4 17 13.5 506 100.0\nreported to have been harassed or bullied on the basis of disability Arizona 606 43 7.1 12 2.0 245 40.4 163 26.9 118 19.5 3 0.5 22 3.6 79 13.0 6 1.0 42 6.9 2,000 100.0\nreported to have been harassed or bullied on the basis of disability Arkansas 512 0 0.0 5 1.0 58 11.3 230 44.9 188 36.7 1 0.2 30 5.9 35 6.8 11 2.1 9 1.8 1,088 100.0\nreported to have been harassed or bullied on the basis of disability California 1,671 77 4.6 122 7.3 664 39.7 417 25.0 294 17.6 6 0.4 91 5.4 289 17.3 24 1.4 257 15.4 10,121 99.2\nreported to have been harassed or bullied on the basis of disability Colorado 164 1 0.6 7 4.3 49 29.9 41 25.0 38 23.2 4 2.4 24 14.6 28 17.1 5 3.0 16 9.8 1,908 100.0\nreported to have been harassed or bullied on the basis of disability Connecticut 259 6 2.3 19 7.3 53 20.5 80 30.9 81 31.3 1 0.4 19 7.3 34 13.1 14 5.4 11 4.2 1,214 100.0\nreported to have been harassed or bullied on the basis of disability Delaware 32 0 0.0 1 3.1 5 15.6 9 28.1 16 50.0 0 0.0 1 3.1 3 9.4 1 3.1 0 0.0 231 100.0\nreported to have been harassed or bullied on the basis of disability District of Columbia 21 0 0.0 0 0.0 6 28.6 15 71.4 0 0.0 0 0.0 0 0.0 9 42.9 1 4.8 6 28.6 228 99.6\nreported to have been harassed or bullied on the basis of disability Florida 85 0 0.0 6 7.1 22 25.9 24 28.2 27 31.8 0 0.0 6 7.1 16 18.8 6 7.1 7 8.2 3,976 100.0\nreported to have been harassed or bullied on the basis of disability Georgia 530 4 0.8 26 4.9 83 15.7 239 45.1 159 30.0 1 0.2 18 3.4 34 6.4 11 2.1 18 3.4 2,416 100.0\nreported to have been harassed or bullied on the basis of disability Hawaii 110 1 0.9 19 17.3 9 8.2 10 9.1 5 4.5 51 46.4 15 13.6 61 55.5 60 54.5 38 34.5 292 100.0\nreported to have been harassed or bullied on the basis of disability Idaho 410 5 1.2 1 0.2 83 20.2 24 5.9 295 72.0 0 0.0 2 0.5 11 2.7 3 0.7 14 3.4 725 100.0\nreported to have been harassed or bullied on the basis of disability Illinois 1,331 0 0.0 79 5.9 278 20.9 499 37.5 365 27.4 3 0.2 107 8.0 171 12.8 27 2.0 86 6.5 4,145 87.2\nreported to have been harassed or bullied on the basis of disability Indiana 725 1 0.1 11 1.5 94 13.0 447 61.7 124 17.1 0 0.0 48 6.6 49 6.8 10 1.4 28 3.9 1,886 100.0\nreported to have been harassed or bullied on the basis of disability Iowa 267 0 0.0 7 2.6 38 14.2 113 42.3 84 31.5 0 0.0 25 9.4 36 13.5 2 0.7 10 3.7 1,343 100.0\nreported to have been harassed or bullied on the basis of disability Kansas 360 1 0.3 9 2.5 59 16.4 108 30.0 142 39.4 2 0.6 39 10.8 37 10.3 3 0.8 18 5.0 1,350 100.0\nreported to have been harassed or bullied on the basis of disability Kentucky 313 0 0.0 7 2.2 30 9.6 102 32.6 151 48.2 0 0.0 23 7.3 25 8.0 6 1.9 22 7.0 1,401 100.0\nreported to have been harassed or bullied on the basis of disability Louisiana 102 0 0.0 4 3.9 11 10.8 58 56.9 28 27.5 0 0.0 1 1.0 8 7.8 3 2.9 7 6.9 1,365 100.0\nreported to have been harassed or bullied on the basis of disability Maine 92 3 3.3 8 8.7 5 5.4 57 62.0 12 13.0 1 1.1 6 6.5 14 15.2 4 4.3 8 8.7 579 100.0\nreported to have been harassed or bullied on the basis of disability Maryland 169 2 1.2 15 8.9 28 16.6 64 37.9 43 25.4 1 0.6 16 9.5 24 14.2 12 7.1 16 9.5 1,414 100.0\nreported to have been harassed or bullied on the basis of disability Massachusetts 411 2 0.5 33 8.0 75 18.2 165 40.1 107 26.0 0 0.0 29 7.1 71 17.3 14 3.4 30 7.3 1,870 99.0\nreported to have been harassed or bullied on the basis of disability Michigan 1,021 21 2.1 20 2.0 154 15.1 371 36.3 409 40.1 0 0.0 46 4.5 96 9.4 18 1.8 49 4.8 3,559 100.0\nreported to have been harassed or bullied on the basis of disability Minnesota 803 61 7.6 29 3.6 133 16.6 343 42.7 182 22.7 0 0.0 55 6.8 128 15.9 3 0.4 69 8.6 2,232 98.8\nreported to have been harassed or bullied on the basis of disability Mississippi 168 0 0.0 4 2.4 12 7.1 88 52.4 57 33.9 0 0.0 7 4.2 11 6.5 1 0.6 7 4.2 960 100.0\nreported to have been harassed or bullied on the basis of disability Missouri 1,156 6 0.5 32 2.8 117 10.1 489 42.3 405 35.0 4 0.3 103 8.9 208 18.0 26 2.2 95 8.2 2,381 100.0\nreported to have been harassed or bullied on the basis of disability Montana 207 89 43.0 3 1.4 15 7.2 20 9.7 69 33.3 1 0.5 10 4.8 12 5.8 0 0.0 18 8.7 823 96.2\nreported to have been harassed or bullied on the basis of disability Nebraska 257 9 3.5 12 4.7 81 31.5 84 32.7 54 21.0 0 0.0 17 6.6 21 8.2 7 2.7 30 11.7 1,055 100.0\nreported to have been harassed or bullied on the basis of disability Nevada 373 5 1.3 34 9.1 106 28.4 133 35.7 46 12.3 3 0.8 46 12.3 62 16.6 3 0.8 50 13.4 704 100.0\nreported to have been harassed or bullied on the basis of disability New Hampshire 123 1 0.8 9 7.3 12 9.8 31 25.2 60 48.8 0 0.0 10 8.1 12 9.8 2 1.6 4 3.3 491 100.0\nreported to have been harassed or bullied on the basis of disability New Jersey 2,378 8 0.3 329 13.8 558 23.5 869 36.5 506 21.3 8 0.3 100 4.2 370 15.6 41 1.7 105 4.4 2,561 100.0\nreported to have been harassed or bullied on the basis of disability New Mexico 149 62 41.6 0 0.0 45 30.2 9 6.0 31 20.8 0 0.0 2 1.3 24 16.1 3 2.0 32 21.5 866 100.0\nreported to have been harassed or bullied on the basis of disability New York 3,120 26 0.8 346 11.1 686 22.0 1,154 37.0 757 24.3 8 0.3 143 4.6 683 21.9 49 1.6 231 7.4 4,873 100.0\nreported to have been harassed or bullied on the basis of disability North Carolina 272 1 0.4 11 4.0 37 13.6 147 54.0 50 18.4 0 0.0 26 9.6 43 15.8 1 0.4 23 8.5 2,661 100.0\nreported to have been harassed or bullied on the basis of disability North Dakota 123 42 34.1 1 0.8 11 8.9 42 34.1 26 21.1 0 0.0 1 0.8 13 10.6 2 1.6 8 6.5 483 100.0\nreported to have been harassed or bullied on the basis of disability Ohio 767 0 0.0 13 1.7 45 5.9 396 51.6 233 30.4 2 0.3 78 10.2 88 11.5 26 3.4 13 1.7 3,593 100.0\nreported to have been harassed or bullied on the basis of disability Oklahoma 466 74 15.9 9 1.9 72 15.5 130 27.9 141 30.3 1 0.2 39 8.4 46 9.9 0 0.0 15 3.2 1,816 100.0\nreported to have been harassed or bullied on the basis of disability Oregon 388 5 1.3 34 8.8 124 32.0 82 21.1 105 27.1 1 0.3 37 9.5 51 13.1 14 3.6 48 12.4 1,289 100.0\nreported to have been harassed or bullied on the basis of disability Pennsylvania 1,016 3 0.3 29 2.9 138 13.6 338 33.3 419 41.2 3 0.3 86 8.5 242 23.8 15 1.5 37 3.6 3,006 100.0\nreported to have been harassed or bullied on the basis of disability Rhode Island 79 1 1.3 7 8.9 25 31.6 26 32.9 16 20.3 0 0.0 4 5.1 6 7.6 0 0.0 18 22.8 312 100.0\nreported to have been harassed or bullied on the basis of disability South Carolina 191 1 0.5 9 4.7 24 12.6 99 51.8 49 25.7 0 0.0 9 4.7 22 11.5 4 2.1 12 6.3 1,243 100.0\nreported to have been harassed or bullied on the basis of disability South Dakota 58 10 17.2 2 3.4 5 8.6 17 29.3 19 32.8 0 0.0 5 8.6 5 8.6 0 0.0 4 6.9 698 100.0\nreported to have been harassed or bullied on the basis of disability Tennessee 396 1 0.3 9 2.3 52 13.1 190 48.0 117 29.5 0 0.0 27 6.8 15 3.8 6 1.5 19 4.8 1,777 100.0\nreported to have been harassed or bullied on the basis of disability Texas 596 3 0.5 32 5.4 171 28.7 242 40.6 109 18.3 0 0.0 39 6.5 43 7.2 48 8.1 66 11.1 8,758 100.0\nreported to have been harassed or bullied on the basis of disability Utah 325 9 2.8 17 5.2 166 51.1 79 24.3 42 12.9 4 1.2 8 2.5 24 7.4 3 0.9 106 32.6 1,029 100.0\nreported to have been harassed or bullied on the basis of disability Vermont 177 0 0.0 9 5.1 14 7.9 69 39.0 54 30.5 0 0.0 31 17.5 41 23.2 11 6.2 5 2.8 302 100.0\nreported to have been harassed or bullied on the basis of disability Virginia 375 2 0.5 14 3.7 42 11.2 191 50.9 93 24.8 0 0.0 33 8.8 64 17.1 6 1.6 29 7.7 1,982 98.4\nreported to have been harassed or bullied on the basis of disability Washington 504 10 2.0 28 5.6 117 23.2 196 38.9 79 15.7 6 1.2 68 13.5 86 17.1 11 2.2 74 14.7 2,339 100.0\nreported to have been harassed or bullied on the basis of disability West Virginia 130 0 0.0 5 3.8 6 4.6 50 38.5 56 43.1 0 0.0 13 10.0 11 8.5 1 0.8 1 0.8 691 100.0\nreported to have been harassed or bullied on the basis of disability Wisconsin 581 6 1.0 33 5.7 125 21.5 244 42.0 114 19.6 0 0.0 59 10.2 93 16.0 3 0.5 61 10.5 2,235 100.0\nreported to have been harassed or bullied on the basis of disability Wyoming 73 3 4.1 1 1.4 11 15.1 7 9.6 50 68.5 0 0.0 1 1.4 38 52.1 1 1.4 4 5.5 366 100.0\nreported to have been harassed or bullied on the basis of disability Puerto Rico 0 0 0.0 0 0.0 0 0.0 0†0 0.0 0 0.0 0 0.0 0 0.0 0 0.0 0 0.0 1,099 100.0\n\n1 Percentage over all public school students with and without disabilities (both students with disabilities served under IDEA and students with disabilities served solely under Section 504).\nNOTE: Table reads (for 50 states, District of Columbia, and Puerto Rico Totals): Of all 25,013 public school students reported to have been harassed or bullied on the basis of race, color or national origin, 621 (2.5%) were American Indian or Alaska Native, 3,623 (14.5%) were students with disabilities served under the Individuals with Disabilities Education Act (IDEA), and 534 (2.1%) were students with disabilities served solely under Section 504 of the Rehabilitation Act of 1973.\nData reported in this table represent 99.2% of responding schools.\nSOURCE: U.S. Department of Education, Office for Civil Rights, Civil Rights Data Collection, 2017-18, available at http://ocrdata.ed.gov.\n![Image 1](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/467f1300-13d4-4e24-9283-87f592656cc4_html_6826cfa85d693ab2.png)  \n\n* * *\n\n# [Sheet 2: _Male_](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx)\n**Number and percentage of public school male students reported to have been harassed or bullied on the basis of race, color or national origin, by race/ethnicity, disability status, and English proficiency, by state: School Year 2017-18**************************************************************************************\n****\n**State****Total Students****Race/Ethnicity****Students With Disabilities Served Under IDEA****Students With Disabilities Served Only Under Section 504****English Language Learners****Number of Schools****Percent of Schools Reporting**\n**American Indian or  \nAlaska Native****Asian****Hispanic or Latino of any race****Black or African American****White****Native Hawaiian or Other Pacific Islander****Two or more races**\n**********Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent1****Number****Percent1****Number****Percent**********\nreported to have been harassed or bullied on the basis of race, color or national origin**50 states, District of Columbia, and Puerto Rico**15,672 366 2.3 960 6.1 3,032 19.3 5,672 36.2 4,520 28.8 83 0.5 1,039 6.6 2,593 16.5 342 2.2 1,201 7.7 97,632 99.2\nreported to have been harassed or bullied on the basis of disability Alabama 273 2 0.7 3 1.1 25 9.2 153 56.0 86 31.5 0 0.0 4 1.5 12 4.4 1 0.4 7 2.6 1,390 94.0\nreported to have been harassed or bullied on the basis of disability Alaska 88 9 10.2 10 11.4 3 3.4 0 0.0 47 53.4 11 12.5 8 9.1 9 10.2 1 1.1 13 14.8 506 100.0\nreported to have been harassed or bullied on the basis of disability Arizona 365 21 5.8 8 2.2 148 40.5 94 25.8 81 22.2 2 0.5 11 3.0 55 15.1 5 1.4 25 6.8 2,000 100.0\nreported to have been harassed or bullied on the basis of disability Arkansas 303 0 0.0 4 1.3 40 13.2 116 38.3 124 40.9 1 0.3 18 5.9 29 9.6 7 2.3 8 2.6 1,088 100.0\nreported to have been harassed or bullied on the basis of disability California 1,039 33 3.2 84 8.1 416 40.0 259 24.9 186 17.9 4 0.4 57 5.5 216 20.8 16 1.5 175 16.8 10,121 99.2\nreported to have been harassed or bullied on the basis of disability Colorado 115 0 0.0 6 5.2 33 28.7 29 25.2 29 25.2 1 0.9 17 14.8 23 20.0 5 4.3 11 9.6 1,908 100.0\nreported to have been harassed or bullied on the basis of disability Connecticut 164 4 2.4 9 5.5 28 17.1 48 29.3 61 37.2 1 0.6 13 7.9 24 14.6 9 5.5 9 5.5 1,214 100.0\nreported to have been harassed or bullied on the basis of disability Delaware 17 0 0.0 0 0.0 3 17.6 5 29.4 8 47.1 0 0.0 1 5.9 1 5.9 0 0.0 0 0.0 231 100.0\nreported to have been harassed or bullied on the basis of disability District of Columbia 19 0 0.0 0 0.0 6 31.6 13 68.4 0 0.0 0 0.0 0 0.0 7 36.8 1 5.3 6 31.6 228 99.6\nreported to have been harassed or bullied on the basis of disability Florida 57 0 0.0 5 8.8 16 28.1 14 24.6 17 29.8 0 0.0 5 8.8 14 24.6 5 8.8 3 5.3 3,976 100.0\nreported to have been harassed or bullied on the basis of disability Georgia 334 4 1.2 25 7.5 48 14.4 144 43.1 107 32.0 0 0.0 6 1.8 22 6.6 6 1.8 10 3.0 2,416 100.0\nreported to have been harassed or bullied on the basis of disability Hawaii 57 1 1.8 13 22.8 2 3.5 4 7.0 4 7.0 27 47.4 6 10.5 28 49.1 28 49.1 29 50.9 292 100.0\nreported to have been harassed or bullied on the basis of disability Idaho 266 3 1.1 1 0.4 52 19.5 18 6.8 192 72.2 0 0.0 0 0.0 7 2.6 2 0.8 10 3.8 725 100.0\nreported to have been harassed or bullied on the basis of disability Illinois 917 0 0.0 60 6.5 194 21.2 302 32.9 279 30.4 3 0.3 79 8.6 132 14.4 19 2.1 63 6.9 4,145 87.2\nreported to have been harassed or bullied on the basis of disability Indiana 457 1 0.2 7 1.5 66 14.4 272 59.5 80 17.5 0 0.0 31 6.8 34 7.4 7 1.5 19 4.2 1,886 100.0\nreported to have been harassed or bullied on the basis of disability Iowa 161 0 0.0 2 1.2 17 10.6 71 44.1 55 34.2 0 0.0 16 9.9 22 13.7 1 0.6 2 1.2 1,343 100.0\nreported to have been harassed or bullied on the basis of disability Kansas 250 1 0.4 8 3.2 42 16.8 75 30.0 95 38.0 1 0.4 28 11.2 28 11.2 2 0.8 10 4.0 1,350 100.0\nreported to have been harassed or bullied on the basis of disability Kentucky 230 0 0.0 5 2.2 20 8.7 74 32.2 116 50.4 0 0.0 15 6.5 22 9.6 4 1.7 12 5.2 1,401 100.0\nreported to have been harassed or bullied on the basis of disability Louisiana 62 0 0.0 2 3.2 7 11.3 32 51.6 20 32.3 0 0.0 1 1.6 5 8.1 3 4.8 5 8.1 1,365 100.0\nreported to have been harassed or bullied on the basis of disability Maine 62 1 1.6 7 11.3 5 8.1 34 54.8 10 16.1 1 1.6 4 6.5 12 19.4 4 6.5 8 12.9 579 100.0\nreported to have been harassed or bullied on the basis of disability Maryland 107 1 0.9 10 9.3 16 15.0 38 35.5 31 29.0 1 0.9 10 9.3 19 17.8 6 5.6 11 10.3 1,414 100.0\nreported to have been harassed or bullied on the basis of disability Massachusetts 252 2 0.8 20 7.9 45 17.9 96 38.1 63 25.0 0 0.0 26 10.3 42 16.7 8 3.2 22 8.7 1,870 99.0\nreported to have been harassed or bullied on the basis of disability Michigan 667 19 2.8 10 1.5 95 14.2 255 38.2 263 39.4 0 0.0 25 3.7 65 9.7 11 1.6 31 4.6 3,559 100.0\nreported to have been harassed or bullied on the basis of disability Minnesota 487 40 8.2 16 3.3 70 14.4 221 45.4 107 22.0 0 0.0 33 6.8 94 19.3 1 0.2 41 8.4 2,232 98.8\nreported to have been harassed or bullied on the basis of disability Mississippi 112 0 0.0 2 1.8 7 6.3 70 62.5 30 26.8 0 0.0 3 2.7 8 7.1 0 0.0 3 2.7 960 100.0\nreported to have been harassed or bullied on the basis of disability Missouri 757 4 0.5 18 2.4 77 10.2 310 41.0 278 36.7 3 0.4 67 8.9 143 18.9 20 2.6 62 8.2 2,381 100.0\nreported to have been harassed or bullied on the basis of disability Montana 112 48 42.9 2 1.8 9 8.0 11 9.8 36 32.1 0 0.0 6 5.4 10 8.9 0 0.0 4 3.6 823 96.2\nreported to have been harassed or bullied on the basis of disability Nebraska 158 8 5.1 6 3.8 49 31.0 48 30.4 39 24.7 0 0.0 8 5.1 16 10.1 7 4.4 15 9.5 1,055 100.0\nreported to have been harassed or bullied on the basis of disability Nevada 209 3 1.4 20 9.6 57 27.3 78 37.3 25 12.0 2 1.0 24 11.5 47 22.5 3 1.4 33 15.8 704 100.0\nreported to have been harassed or bullied on the basis of disability New Hampshire 86 1 1.2 6 7.0 8 9.3 21 24.4 42 48.8 0 0.0 8 9.3 12 14.0 2 2.3 2 2.3 491 100.0\nreported to have been harassed or bullied on the basis of disability New Jersey 1,364 5 0.4 205 15.0 310 22.7 472 34.6 311 22.8 6 0.4 55 4.0 252 18.5 30 2.2 51 3.7 2,561 100.0\nreported to have been harassed or bullied on the basis of disability New Mexico 83 33 39.8 0 0.0 21 25.3 9 10.8 19 22.9 0 0.0 1 1.2 16 19.3 2 2.4 22 26.5 866 100.0\nreported to have been harassed or bullied on the basis of disability New York 1,890 13 0.7 218 11.5 390 20.6 682 36.1 498 26.3 5 0.3 84 4.4 471 24.9 27 1.4 129 6.8 4,873 100.0\nreported to have been harassed or bullied on the basis of disability North Carolina 168 0 0.0 10 6.0 24 14.3 83 49.4 33 19.6 0 0.0 18 10.7 26 15.5 1 0.6 12 7.1 2,661 100.0\nreported to have been harassed or bullied on the basis of disability North Dakota 74 25 33.8 1 1.4 5 6.8 21 28.4 22 29.7 0 0.0 0 0.0 9 12.2 1 1.4 5 6.8 483 100.0\nreported to have been harassed or bullied on the basis of disability Ohio 472 0 0.0 3 0.6 28 5.9 242 51.3 154 32.6 2 0.4 43 9.1 63 13.3 22 4.7 10 2.1 3,593 100.0\nreported to have been harassed or bullied on the basis of disability Oklahoma 297 51 17.2 4 1.3 42 14.1 78 26.3 92 31.0 1 0.3 29 9.8 44 14.8 0 0.0 6 2.0 1,816 100.0\nreported to have been harassed or bullied on the basis of disability Oregon 268 4 1.5 25 9.3 87 32.5 59 22.0 63 23.5 1 0.4 29 10.8 39 14.6 10 3.7 32 11.9 1,289 100.0\nreported to have been harassed or bullied on the basis of disability Pennsylvania 647 2 0.3 19 2.9 60 9.3 232 35.9 279 43.1 3 0.5 52 8.0 183 28.3 10 1.5 19 2.9 3,006 100.0\nreported to have been harassed or bullied on the basis of disability Rhode Island 46 1 2.2 4 8.7 15 32.6 10 21.7 13 28.3 0 0.0 3 6.5 4 8.7 0 0.0 12 26.1 312 100.0\nreported to have been harassed or bullied on the basis of disability South Carolina 123 1 0.8 5 4.1 12 9.8 64 52.0 35 28.5 0 0.0 6 4.9 16 13.0 3 2.4 5 4.1 1,243 100.0\nreported to have been harassed or bullied on the basis of disability South Dakota 43 5 11.6 2 4.7 4 9.3 11 25.6 17 39.5 0 0.0 4 9.3 5 11.6 0 0.0 3 7.0 698 100.0\nreported to have been harassed or bullied on the basis of disability Tennessee 262 0 0.0 8 3.1 34 13.0 125 47.7 73 27.9 0 0.0 22 8.4 13 5.0 4 1.5 15 5.7 1,777 100.0\nreported to have been harassed or bullied on the basis of disability Texas 333 2 0.6 22 6.6 92 27.6 130 39.0 67 20.1 0 0.0 20 6.0 28 8.4 25 7.5 41 12.3 8,758 100.0\nreported to have been harassed or bullied on the basis of disability Utah 219 7 3.2 12 5.5 102 46.6 58 26.5 30 13.7 3 1.4 7 3.2 20 9.1 1 0.5 74 33.8 1,029 100.0\nreported to have been harassed or bullied on the basis of disability Vermont 111 0 0.0 7 6.3 6 5.4 37 33.3 38 34.2 0 0.0 23 20.7 26 23.4 8 7.2 2 1.8 302 100.0\nreported to have been harassed or bullied on the basis of disability Virginia 215 0 0.0 6 2.8 26 12.1 107 49.8 49 22.8 0 0.0 27 12.6 49 22.8 3 1.4 17 7.9 1,982 98.4\nreported to have been harassed or bullied on the basis of disability Washington 360 5 1.4 20 5.6 87 24.2 146 40.6 53 14.7 4 1.1 45 12.5 66 18.3 7 1.9 59 16.4 2,339 100.0\nreported to have been harassed or bullied on the basis of disability West Virginia 88 0 0.0 1 1.1 6 6.8 29 33.0 42 47.7 0 0.0 10 11.4 9 10.2 1 1.1 0 0.0 691 100.0\nreported to have been harassed or bullied on the basis of disability Wisconsin 361 3 0.8 18 5.0 68 18.8 167 46.3 75 20.8 0 0.0 30 8.3 60 16.6 2 0.6 35 9.7 2,235 100.0\nreported to have been harassed or bullied on the basis of disability Wyoming 65 3 4.6 1 1.5 9 13.8 5 7.7 46 70.8 0 0.0 1 1.5 36 55.4 1 1.5 3 4.6 366 100.0\nreported to have been harassed or bullied on the basis of disability Puerto Rico 0 0 0.0 0 0.0 0 0.0 0†0 0.0 0 0.0 0 0.0 0 0.0 0 0.0 0 0.0 1,099 100.0\n\n1 Percentage over all public school students with and without disabilities (both students with disabilities served under IDEA and students with disabilities served solely under Section 504).\nNOTE: Table reads (for 50 states, District of Columbia, and Puerto Rico Totals): Of all 15,672 public school male students reported to have been harassed or bullied on the basis of race, color or national origin, 366 (2.3%) were American Indian or Alaska Native, 2,593 (16.5%) were students with disabilities served under the Individuals with Disabilities Education Act (IDEA), and 342 (2.2%) were students with disabilities served solely under Section 504 of the Rehabilitation Act of 1973.\nData reported in this table represent 99.2% of responding schools.\nSOURCE: U.S. Department of Education, Office for Civil Rights, Civil Rights Data Collection, 2017-18, available at http://ocrdata.ed.gov.\n![Image 2](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/467f1300-13d4-4e24-9283-87f592656cc4_html_6826cfa85d693ab2.png)  \n\n* * *\n\n# [Sheet 3: _Female_](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/Harassment-Bullying-on-basis-of-race_reported.xlsx)\n**Number and percentage of public school female students reported to have been harassed or bullied on the basis of race, color or national origin, by race/ethnicity, disability status, and English proficiency, by state: School Year 2017-18**************************************************************************************\n****\n**State****Total Students****Race/Ethnicity****Students With Disabilities Served Under IDEA****Students With Disabilities Served Only Under Section 504****English Language Learners****Number of Schools****Percent of Schools Reporting**\n**American Indian or  \nAlaska Native****Asian****Hispanic or Latino of any race****Black or African American****White****Native Hawaiian or Other Pacific Islander****Two or more races**\n**********Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent****Number****Percent1****Number****Percent1****Number****Percent**********\nreported to have been harassed or bullied on the basis of race, color or national origin**50 states, District of Columbia, and Puerto Rico**9,341 255 2.7 530 5.7 2,031 21.7 3,594 38.5 2,281 24.4 45 0.5 605 6.5 1,030 11.0 192 2.1 707 7.6 97,632 99.2\nreported to have been harassed or bullied on the basis of disability Alabama 172 1 0.6 4 2.3 13 7.6 111 64.5 40 23.3 0 0.0 3 1.7 8 4.7 2 1.2 8 4.7 1,390 94.0\nreported to have been harassed or bullied on the basis of disability Alaska 38 4 10.5 1 2.6 23 60.5 1 2.6 3 7.9 2 5.3 4 10.5 2 5.3 2 5.3 4 10.5 506 100.0\nreported to have been harassed or bullied on the basis of disability Arizona 241 22 9.1 4 1.7 97 40.2 69 28.6 37 15.4 1 0.4 11 4.6 24 10.0 1 0.4 17 7.1 2,000 100.0\nreported to have been harassed or bullied on the basis of disability Arkansas 209 0 0.0 1 0.5 18 8.6 114 54.5 64 30.6 0 0.0 12 5.7 6 2.9 4 1.9 1 0.5 1,088 100.0\nreported to have been harassed or bullied on the basis of disability California 632 44 7.0 38 6.0 248 39.2 158 25.0 108 17.1 2 0.3 34 5.4 73 11.6 8 1.3 82 13.0 10,121 99.2\nreported to have been harassed or bullied on the basis of disability Colorado 49 1 2.0 1 2.0 16 32.7 12 24.5 9 18.4 3 6.1 7 14.3 5 10.2 0 0.0 5 10.2 1,908 100.0\nreported to have been harassed or bullied on the basis of disability Connecticut 95 2 2.1 10 10.5 25 26.3 32 33.7 20 21.1 0 0.0 6 6.3 10 10.5 5 5.3 2 2.1 1,214 100.0\nreported to have been harassed or bullied on the basis of disability Delaware 15 0 0.0 1 6.7 2 13.3 4 26.7 8 53.3 0 0.0 0 0.0 2 13.3 1 6.7 0 0.0 231 100.0\nreported to have been harassed or bullied on the basis of disability District of Columbia 2 0 0.0 0 0.0 0 0.0 2 100.0 0 0.0 0 0.0 0 0.0 2 100.0 0 0.0 0 0.0 228 99.6\nreported to have been harassed or bullied on the basis of disability Florida 28 0 0.0 1 3.6 6 21.4 10 35.7 10 35.7 0 0.0 1 3.6 2 7.1 1 3.6 4 14.3 3,976 100.0\nreported to have been harassed or bullied on the basis of disability Georgia 196 0 0.0 1 0.5 35 17.9 95 48.5 52 26.5 1 0.5 12 6.1 12 6.1 5 2.6 8 4.1 2,416 100.0\nreported to have been harassed or bullied on the basis of disability Hawaii 53 0 0.0 6 11.3 7 13.2 6 11.3 1 1.9 24 45.3 9 17.0 33 62.3 32 60.4 9 17.0 292 100.0\nreported to have been harassed or bullied on the basis of disability Idaho 144 2 1.4 0 0.0 31 21.5 6 4.2 103 71.5 0 0.0 2 1.4 4 2.8 1 0.7 4 2.8 725 100.0\nreported to have been harassed or bullied on the basis of disability Illinois 414 0 0.0 19 4.6 84 20.3 197 47.6 86 20.8 0 0.0 28 6.8 39 9.4 8 1.9 23 5.6 4,145 87.2\nreported to have been harassed or bullied on the basis of disability Indiana 268 0 0.0 4 1.5 28 10.4 175 65.3 44 16.4 0 0.0 17 6.3 15 5.6 3 1.1 9 3.4 1,886 100.0\nreported to have been harassed or bullied on the basis of disability Iowa 106 0 0.0 5 4.7 21 19.8 42 39.6 29 27.4 0 0.0 9 8.5 14 13.2 1 0.9 8 7.5 1,343 100.0\nreported to have been harassed or bullied on the basis of disability Kansas 110 0 0.0 1 0.9 17 15.5 33 30.0 47 42.7 1 0.9 11 10.0 9 8.2 1 0.9 8 7.3 1,350 100.0\nreported to have been harassed or bullied on the basis of disability Kentucky 83 0 0.0 2 2.4 10 12.0 28 33.7 35 42.2 0 0.0 8 9.6 3 3.6 2 2.4 10 12.0 1,401 100.0\nreported to have been harassed or bullied on the basis of disability Louisiana 40 0 0.0 2 5.0 4 10.0 26 65.0 8 20.0 0 0.0 0 0.0 3 7.5 0 0.0 2 5.0 1,365 100.0\nreported to have been harassed or bullied on the basis of disability Maine 30 2 6.7 1 3.3 0 0.0 23 76.7 2 6.7 0 0.0 2 6.7 2 6.7 0 0.0 0 0.0 579 100.0\nreported to have been harassed or bullied on the basis of disability Maryland 62 1 1.6 5 8.1 12 19.4 26 41.9 12 19.4 0 0.0 6 9.7 5 8.1 6 9.7 5 8.1 1,414 100.0\nreported to have been harassed or bullied on the basis of disability Massachusetts 159 0 0.0 13 8.2 30 18.9 69 43.4 44 27.7 0 0.0 3 1.9 29 18.2 6 3.8 8 5.0 1,870 99.0\nreported to have been harassed or bullied on the basis of disability Michigan 354 2 0.6 10 2.8 59 16.7 116 32.8 146 41.2 0 0.0 21 5.9 31 8.8 7 2.0 18 5.1 3,559 100.0\nreported to have been harassed or bullied on the basis of disability Minnesota 316 21 6.6 13 4.1 63 19.9 122 38.6 75 23.7 0 0.0 22 7.0 34 10.8 2 0.6 28 8.9 2,232 98.8\nreported to have been harassed or bullied on the basis of disability Mississippi 56 0 0.0 2 3.6 5 8.9 18 32.1 27 48.2 0 0.0 4 7.1 3 5.4 1 1.8 4 7.1 960 100.0\nreported to have been harassed or bullied on the basis of disability Missouri 399 2 0.5 14 3.5 40 10.0 179 44.9 127 31.8 1 0.3 36 9.0 65 16.3 6 1.5 33 8.3 2,381 100.0\nreported to have been harassed or bullied on the basis of disability Montana 95 41 43.2 1 1.1 6 6.3 9 9.5 33 34.7 1 1.1 4 4.2 2 2.1 0 0.0 14 14.7 823 96.2\nreported to have been harassed or bullied on the basis of disability Nebraska 99 1 1.0 6 6.1 32 32.3 36 36.4 15 15.2 0 0.0 9 9.1 5 5.1 0 0.0 15 15.2 1,055 100.0\nreported to have been harassed or bullied on the basis of disability Nevada 164 2 1.2 14 8.5 49 29.9 55 33.5 21 12.8 1 0.6 22 13.4 15 9.1 0 0.0 17 10.4 704 100.0\nreported to have been harassed or bullied on the basis of disability New Hampshire 37 0 0.0 3 8.1 4 10.8 10 27.0 18 48.6 0 0.0 2 5.4 0 0.0 0 0.0 2 5.4 491 100.0\nreported to have been harassed or bullied on the basis of disability New Jersey 1,014 3 0.3 124 12.2 248 24.5 397 39.2 195 19.2 2 0.2 45 4.4 118 11.6 11 1.1 54 5.3 2,561 100.0\nreported to have been harassed or bullied on the basis of disability New Mexico 66 29 43.9 0 0.0 24 36.4 0 0.0 12 18.2 0 0.0 1 1.5 8 12.1 1 1.5 10 15.2 866 100.0\nreported to have been harassed or bullied on the basis of disability New York 1,230 13 1.1 128 10.4 296 24.1 472 38.4 259 21.1 3 0.2 59 4.8 212 17.2 22 1.8 102 8.3 4,873 100.0\nreported to have been harassed or bullied on the basis of disability North Carolina 104 1 1.0 1 1.0 13 12.5 64 61.5 17 16.3 0 0.0 8 7.7 17 16.3 0 0.0 11 10.6 2,661 100.0\nreported to have been harassed or bullied on the basis of disability North Dakota 49 17 34.7 0 0.0 6 12.2 21 42.9 4 8.2 0 0.0 1 2.0 4 8.2 1 2.0 3 6.1 483 100.0\nreported to have been harassed or bullied on the basis of disability Ohio 295 0 0.0 10 3.4 17 5.8 154 52.2 79 26.8 0 0.0 35 11.9 25 8.5 4 1.4 3 1.0 3,593 100.0\nreported to have been harassed or bullied on the basis of disability Oklahoma 169 23 13.6 5 3.0 30 17.8 52 30.8 49 29.0 0 0.0 10 5.9 2 1.2 0 0.0 9 5.3 1,816 100.0\nreported to have been harassed or bullied on the basis of disability Oregon 120 1 0.8 9 7.5 37 30.8 23 19.2 42 35.0 0 0.0 8 6.7 12 10.0 4 3.3 16 13.3 1,289 100.0\nreported to have been harassed or bullied on the basis of disability Pennsylvania 369 1 0.3 10 2.7 78 21.1 106 28.7 140 37.9 0 0.0 34 9.2 59 16.0 5 1.4 18 4.9 3,006 100.0\nreported to have been harassed or bullied on the basis of disability Rhode Island 33 0 0.0 3 9.1 10 30.3 16 48.5 3 9.1 0 0.0 1 3.0 2 6.1 0 0.0 6 18.2 312 100.0\nreported to have been harassed or bullied on the basis of disability South Carolina 68 0 0.0 4 5.9 12 17.6 35 51.5 14 20.6 0 0.0 3 4.4 6 8.8 1 1.5 7 10.3 1,243 100.0\nreported to have been harassed or bullied on the basis of disability South Dakota 15 5 33.3 0 0.0 1 6.7 6 40.0 2 13.3 0 0.0 1 6.7 0 0.0 0 0.0 1 6.7 698 100.0\nreported to have been harassed or bullied on the basis of disability Tennessee 134 1 0.7 1 0.7 18 13.4 65 48.5 44 32.8 0 0.0 5 3.7 2 1.5 2 1.5 4 3.0 1,777 100.0\nreported to have been harassed or bullied on the basis of disability Texas 263 1 0.4 10 3.8 79 30.0 112 42.6 42 16.0 0 0.0 19 7.2 15 5.7 23 8.7 25 9.5 8,758 100.0\nreported to have been harassed or bullied on the basis of disability Utah 106 2 1.9 5 4.7 64 60.4 21 19.8 12 11.3 1 0.9 1 0.9 4 3.8 2 1.9 32 30.2 1,029 100.0\nreported to have been harassed or bullied on the basis of disability Vermont 66 0 0.0 2 3.0 8 12.1 32 48.5 16 24.2 0 0.0 8 12.1 15 22.7 3 4.5 3 4.5 302 100.0\nreported to have been harassed or bullied on the basis of disability Virginia 160 2 1.3 8 5.0 16 10.0 84 52.5 44 27.5 0 0.0 6 3.8 15 9.4 3 1.9 12 7.5 1,982 98.4\nreported to have been harassed or bullied on the basis of disability Washington 144 5 3.5 8 5.6 30 20.8 50 34.7 26 18.1 2 1.4 23 16.0 20 13.9 4 2.8 15 10.4 2,339 100.0\nreported to have been harassed or bullied on the basis of disability West Virginia 42 0 0.0 4 9.5 0 0.0 21 50.0 14 33.3 0 0.0 3 7.1 2 4.8 0 0.0 1 2.4 691 100.0\nreported to have been harassed or bullied on the basis of disability Wisconsin 220 3 1.4 15 6.8 57 25.9 77 35.0 39 17.7 0 0.0 29 13.2 33 15.0 1 0.5 26 11.8 2,235 100.0\nreported to have been harassed or bullied on the basis of disability Wyoming 8 0 0.0 0 0.0 2 25.0 2 25.0 4 50.0 0 0.0 0 0.0 2 25.0 0 0.0 1 12.5 366 100.0\nreported to have been harassed or bullied on the basis of disability Puerto Rico 0 0 0.0 0 0.0 0 0.0 0†0 0.0 0 0.0 0 0.0 0 0.0 0 0.0 0 0.0 1,099 100.0\n\n1 Percentage over all public school students with and without disabilities (both students with disabilities served under IDEA and students with disabilities served solely under Section 504).\nNOTE: Table reads (for 50 states, District of Columbia, and Puerto Rico Totals): Of all 9,341 public school female students reported to have been harassed or bullied on the basis of race, color or national origin, 255 (2.7%) were American Indian or Alaska Native, 1,030 (11.0%) were students with disabilities served under the Individuals with Disabilities Education Act (IDEA), and 192 (2.1%) were students with disabilities served solely under Section 504 of the Rehabilitation Act of 1973.\nData reported in this table represent 99.2% of responding schools.\nSOURCE: U.S. Department of Education, Office for Civil Rights, Civil Rights Data Collection, 2017-18, available at http://ocrdata.ed.gov.\n![Image 3](https://civilrightsdata.ed.gov/assets/downloads/2017-2018/School-Climate/Harassment-or-Bullying/467f1300-13d4-4e24-9283-87f592656cc4_html_fd151f0caf7c5068.png)\n"
+        }
+      ]
+    },
+    {
+      "turn": 17,
+      "reasoning": "In the total sheet, we see:\n\n\"South Carolina 829 270 93.4 289 100.0\" is for counselors.\n\nFor harassment sheet, in total sheet we saw earlier snippet: \"South Carolina 191 1 0.5 ...\" That is likely males? Wait the male sheet shows South Carolina 123 row. The total sheet earlier had row:\n\n\"South Carolina 191 1 0.5 9 4.7 24 12.6 99 51.8 49 25.7 0 0.0 9 4.7 22 11.5 4 2.1 12 6.3 1,243 100.0\" That's the male sheet's row maybe? Let's verify: The male sheet snippet shows \"South Carolina 123 1 0.8 ... 1,243 100.0\". The male row shows \"South Carolina 123 ... 1,243\", but female row shows \"South Carolina 68 ... 1,243\". The total sheet row shows \"South Carolina 191 ... 1,243\". So total victims count = 191? Wait that's number of total students reported as victims of race. So total victims for South Carolina = 191.\n\nBut earlier we saw total students counts for each state: Let's find each state's value in total sheet (the initial header). The total sheet includes \"Total Students\" column. For Georgia, it was \"1,410\" earlier? Wait lines: \"Georgia 1,410 489 ... 589 100.0\". That row appears in counselors sheet; but for harassment sheet, total rows show \"Georgia 1,410 ... 589 ...\"? Let's check snippet near Georgia: In the total sheet earlier, there was row for Georgia: \"Georgia 1,410 489 83.0 589 100.0\" That seems from counselors sheet. For harassment sheet, earlier snippet shows: \"Georgia 1,410 489 83.0 ...\". Wait but in harassment sheet, same numbers?\n\nLet's re-check the harassment sheet 'Total' table lines for Georgia. Search for \"Georgia\" in that file.",
+      "text": "We need count of victims of race-related harassment or bullying for each of the states. The sheet shows \"Total Students\" for each state. For Georgia: 1,410. For North Carolina: 1,856. South Carolina: 829. Virginia: 1,505.\n\nThese are counts of students reported as victims (not per school). Good.\n\nNow we need ratio of FTE counselors to that number.\n\nCounselors data: Georgia: 1,410? Wait that's students. Counselor count for Georgia: from counselors sheet: 1,410 count of counselors? Actually row shows \"Georgia 1,410\" under Count of FTE School Counselors. Yes.\n\nSimilarly for North Carolina: 1,856 counselors. South Carolina: 829 counselors. Virginia: 1,505 counselors.\n\nNow ratio = counselors / victims. Compute:\n\nSouth Carolina: 829 / 1,243? Wait victim count for SOC? Let's find victim counts for each state from the harassment sheet. We need row \"South Carolina 191... 1,243\" The \"Number of Schools\" column includes 1,243, but victim count is under \"Total Students\" column. For South Carolina 'Total Students' is 191? Wait earlier line shows \"South Carolina 191 1 0.5 ...\" That is in the sheet for male? Actually sheet total shows \"South Carolina 191 1 0.5 ...\" that's male? The sheet labelled 'Total' earlier had 'Total Students' number. Let's find the row with 'South Carolina' in the 'Total' sheet at start of the file, search for \"South Carolina\" in the total chunk.\n{\"query\": \"\\\"Georgia\\\" \\\"Total Students\\\" \\\"Harassment-Bullying-on-basis-of-race_reported.xlsx\\\"\"}",
+      "tool_calls": []
+    }
+  ],
+  "usage": {
+    "input_tokens": 153809,
+    "output_tokens": 3126,
+    "reasoning_tokens": 2688,
+    "calls": 17
+  },
+  "latency_ms": 89214.8,
+  "error": null
+}
