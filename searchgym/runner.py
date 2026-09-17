@@ -401,10 +401,24 @@ class Runner:
                 handle.write(line + "\n")
 
 
+# 캐시 키에서 빼는 필드. **결과가 아니라 어디서·어떻게 부르는지에 관한 값들이다.**
+#
+# base_url 을 넣어 두었더니 RunPod 주소가 바뀔 때마다 캐시가 통째로 무효가 됐다
+# (실측: 300문항 중 58개를 돌려 둔 상태에서 팟을 갈아타자 --resume 이 "완료 0"으로
+# 나왔다). 같은 모델을 같은 설정으로 부르면 어느 주소에서 부르든 결과의 의미는
+# 같으므로 키에 들어갈 이유가 없다. model_name 은 팟이 다른 이름으로 서빙할 때
+# 맞춰 주는 값이고, timeout_s 는 기다리는 시간이다 — 둘 다 같은 이유로 제외한다.
+# model_name 은 뺄 수 없다 — 팟이 다른 모델을 다른 이름으로 서빙하면 결과가
+# 달라지는데 profile.repo 만으로는 그것을 잡지 못한다.
+_DEPLOYMENT_ONLY = ("api_key", "base_url", "timeout_s")
+
+
 def _agent_fingerprint(config: AgentConfig) -> str:
     """캐시 키에 들어갈 에이전트 설정. 결과에 영향을 주는 값만 넣는다."""
-    return json.dumps({k: v for k, v in asdict(config).items() if k != "api_key"},
-                      sort_keys=True, ensure_ascii=False)
+    return json.dumps(
+        {k: v for k, v in asdict(config).items() if k not in _DEPLOYMENT_ONLY},
+        sort_keys=True, ensure_ascii=False,
+    )
 
 
 def _explorer_fingerprint(config: ExplorerConfig | None, method: str) -> str:
