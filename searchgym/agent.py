@@ -327,11 +327,15 @@ class SearchAgent:
                 function = spec["function"]
                 if function["name"] == "web_search":
                     function["description"] += (
-                        "\nFind an entry page or one missing fact. Start with the source/topic "
-                        "and a few distinctive terms; do not pack every condition of the "
-                        "question into one query. Let web_fetch readers follow links and "
-                        "check detailed conditions. Narrow only when results justify it; "
-                        "if results miss the topic, remove constraints or change the anchor."
+                        "\nFind an entry page or a candidate's missing condition. Use a few "
+                        "source/topic terms; do not add unverified answer values as filters. "
+                        "If results already contain a useful entry link, fetch it."
+                    )
+                elif function["name"] == "web_fetch":
+                    function["description"] += (
+                        "\nReturns source-labelled notes and can follow useful page links "
+                        "recursively. Open official entry pages, indexes and candidate profiles "
+                        "to fill missing conditions, even when the entry page has no answer itself."
                     )
         explorer_cfg = self.explorer_config or ExplorerConfig()
         budget = Budget(explorer_cfg.max_expansion_nodes if self.uses_explorer else 0)
@@ -342,7 +346,9 @@ class SearchAgent:
             return await self._document(url, tools, question, trace, result)
 
         explorer = (
-            Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch)
+            Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch,
+                     enforce_tool_availability=self.method == "depthsearch",
+                     preserve_source_evidence=self.method == "depthsearch")
             if self.uses_explorer
             else None
         )
@@ -372,20 +378,30 @@ class SearchAgent:
                 step = Step(turn=turn)
                 result.steps.append(step)
 
-                trace.event("llm.request", turn=turn, context_tokens=result.context_tokens)
+                active_specs = self._available_specs(specs, result)
+                request_messages = messages
+                choice = {}
+                if self.method == "depthsearch":
+                    request_messages = messages + [{"role": "user", "content":
+                        self._action_notice(active_specs, result, budget)}]
+                    if not active_specs:
+                        choice["tool_choice"] = "none"
+                trace.event("llm.request", turn=turn, context_tokens=result.context_tokens,
+                            available_tools=[s["function"]["name"] for s in active_specs])
                 reply = await self.llm.chat(
-                    messages,
+                    request_messages,
                     max_tokens=cfg.max_tokens,
-                    tools=specs,
+                    tools=active_specs or None,
                     usage=result.usage,
+                    **choice,
                 )
                 if reply.context_tokens:
                     result.context_tokens = reply.context_tokens
 
                 # 특수토큰은 **받는 즉시** 턴다. 답변으로도, 대화 이력으로도 나쁘다.
                 raw_text = reply.text
-                recovered_call = recover_tool_calls(reply, specs)
-                normalized = normalize_tool_names(reply, specs)
+                recovered_call = recover_tool_calls(reply, active_specs)
+                normalized = normalize_tool_names(reply, active_specs)
                 reply.text = "" if recovered_call else _clean_answer(reply.text)
                 step.reasoning = reply.reasoning
                 step.text = reply.text
@@ -410,16 +426,20 @@ class SearchAgent:
                         (s["function"]["name"] == "web_search" and result.searches < cfg.max_searches)
                         or (s["function"]["name"] == "web_fetch" and
                             (not cfg.max_fetches or result.fetches < cfg.max_fetches))
-                        for s in specs
+                        for s in active_specs
                     )
                     if (can_use_tools and tool_resume_attempts < cfg.max_tool_recoveries and turn < cfg.max_turns
                             and (not step.text.strip() or _looks_like_action(step.text))):
                         tool_resume_attempts += 1
                         trace.event("run.resume_tools", turn=turn, attempt=tool_resume_attempts,
                                     reason="missing_or_malformed_tool_call")
+                        retry_actions = (
+                            ", ".join(s["function"]["name"] for s in active_specs)
+                            if self.method == "depthsearch" else "web_search or web_fetch"
+                        )
                         messages.append({"role": "user", "content": (
                             "The previous turn supplied no usable answer or tool call. "
-                            "Research may continue: use an actual web_search or web_fetch "
+                            f"Research may continue: use an actual {retry_actions} "
                             "function call for the next missing fact. Do not print a tool "
                             "header or JSON as prose. If the evidence is already sufficient, "
                             "give the final answer."
@@ -434,8 +454,10 @@ class SearchAgent:
                         trace.event("run.finalizing", turn=turn, reason=(
                             "truncated" if reply.truncated else "verification" if cfg.finalize_answer else "empty_or_action"
                         ))
-                        final = await self._salvage(messages, trace, result.usage)
                         usable_draft = step.text.strip() if not reply.truncated and not _looks_like_action(step.text) else ""
+                        review = ({"draft": usable_draft, "draft_reasoning": step.reasoning}
+                                  if self.method == "depthsearch" and usable_draft else {})
+                        final = await self._salvage(messages, trace, result.usage, **review)
                         result.answer = final or usable_draft
                         result.stop_reason = "finalized" if final else (
                             "answered" if usable_draft else "truncated" if reply.truncated else "no_answer"
@@ -448,6 +470,20 @@ class SearchAgent:
 
                 messages.append(_assistant_message(reply))
                 for call in reply.tool_calls:
+                    if self.method == "depthsearch" and call.function.name not in {
+                        s["function"]["name"] for s in self._available_specs(specs, result)
+                    }:
+                        # A stale or batched call must not bypass the current tool list.
+                        output = (f"{call.function.name} is unavailable and was not executed. "
+                                  + self._action_notice(self._available_specs(specs, result), result, budget))
+                        record = ToolCall(name=call.function.name,
+                                          arguments=_parse_arguments(call.function.arguments))
+                        record.refused, record.result = True, output
+                        record.result_chars = len(output)
+                        step.tool_calls.append(record)
+                        trace.event("tool.unavailable", turn=turn, tool=call.function.name)
+                        messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
+                        continue
                     output = await self._run_tool(
                         call=call,
                         tools=tools,
@@ -493,13 +529,45 @@ class SearchAgent:
         trace.event("run.end", **result.as_dict())
         return result
 
-    async def _salvage(self, messages: list[dict[str, Any]], trace: Trace, usage: Usage) -> str:
-        """죽은 대화에서 마지막으로 답을 한 번 받아 본다. 실패하면 빈 문자열.
+    def _available_specs(self, specs: list[dict[str, Any]], result: RunResult) -> list[dict[str, Any]]:
+        if self.method != "depthsearch":
+            return specs
+        if result.context_exhausted:
+            return []
+        return [s for s in specs if (
+            s["function"]["name"] == "web_search" and result.searches < self.config.max_searches
+        ) or (
+            s["function"]["name"] == "web_fetch" and
+            (not self.config.max_fetches or result.fetches < self.config.max_fetches)
+        )]
 
-        어시스턴트 턴을 전부 버리고 **시스템 프롬프트 · 원 질문 · 도구 결과**만 남긴
-        뒤 도구 없이 부른다. 버리는 쪽이 모델이 맴돌던 사고이고, 남기는 쪽이 실제로
-        모아 온 근거다. 이것까지 실패하면 조용히 포기한다 — 여기서 예외를 올리면
-        원래 에러를 덮어 진단이 불가능해진다.
+    def _action_notice(self, specs: list[dict[str, Any]], result: RunResult, budget: Budget) -> str:
+        names = {s["function"]["name"] for s in specs}
+        if not names:
+            return "No research tools are available now. Do not call tools. Answer from the collected evidence."
+        parts = ["Current available actions (this overrides earlier tool availability):"]
+        parts.append(
+            f"web_search: {max(0, self.config.max_searches - result.searches)} searches remaining."
+            if "web_search" in names else "web_search is exhausted and unavailable; do not call it."
+        )
+        if "web_fetch" in names:
+            remaining = (str(max(0, self.config.max_fetches - result.fetches))
+                         if self.config.max_fetches else "unlimited")
+            parts.append(f"web_fetch is available ({remaining} main fetches remaining); you may open known source URLs.")
+            if budget.exhausted:
+                parts.append("Recursive expansion is exhausted. A main fetch can still read a page and return its evidence without child expansion.")
+        else:
+            parts.append("web_fetch is exhausted and unavailable; do not call it.")
+        parts.append("Use available tools only if evidence is still needed; otherwise give the answer.")
+        return "\n".join(parts)
+
+    async def _salvage(self, messages: list[dict[str, Any]], trace: Trace, usage: Usage,
+                       *, draft: str = "", draft_reasoning: str = "") -> str:
+        """도구 없이 최종 답변을 작성한다. 실패하면 빈 문자열.
+
+        DepthSearch의 정상 초안은 대화와 근거 연결을 유지해 검토한다. 초안 없는
+        오류 복구와 기존 baseline 경로는 질문·도구 결과로 답변을 재구성한다.
+        복구 오류가 원래 오류를 덮지 않도록 여기서는 예외를 반환하지 않는다.
         """
         kept = [m for m in messages if m.get("role") in ("system", "user", "tool")]
         # tool 메시지는 바로 앞의 tool_calls 없이는 형식이 깨진다. 내용만 옮긴다.
@@ -512,9 +580,27 @@ class SearchAgent:
             else:
                 rebuilt.append(message)
         rebuilt.append({"role": "user", "content": ANSWER_NOW})
+        if self.method == "depthsearch" and draft:
+            # Normal completion is a review of the existing synthesis. Only error
+            # recovery above discards assistant history and reconstructs an answer.
+            rebuilt = list(messages)
+            rebuilt.append({"role": "assistant", "content": (
+                "Working synthesis (inferences, not additional source evidence):\n"
+                f"{draft_reasoning}\n\nDraft answer:\n{draft}"
+            )})
+            rebuilt.append({"role": "user", "content": (
+                "Review the draft against the collected sources and return the final answer. "
+                "Keep supported conclusions and deductions across sources; the answer need not "
+                "appear verbatim in one source. Correct unsupported claims or mismatched scope. "
+                "If coverage is incomplete, retain supported answer items and briefly qualify "
+                "completeness instead of discarding the whole answer. Missing conditions remain "
+                "unknown. Use the requested format; do not call tools or describe further research."
+            )})
+            trace.event("run.review_draft", draft=draft, reasoning_chars=len(draft_reasoning))
         for attempt in range(2):
             try:
-                reply = await self.llm.chat(rebuilt, max_tokens=self.config.max_tokens, usage=usage)
+                choice = {"tool_choice": "none"} if self.method == "depthsearch" else {}
+                reply = await self.llm.chat(rebuilt, max_tokens=self.config.max_tokens, usage=usage, **choice)
             except Exception as exc:  # Keep the original error for diagnosis.
                 trace.event("run.salvage_failed", error=repr(exc))
                 return ""

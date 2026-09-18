@@ -127,7 +127,7 @@ class FakeLLM:
         self.marker = explorer_marker
         self.calls: list[str] = []
 
-    async def chat(self, messages, *, max_tokens, tools=None, usage=None) -> Reply:
+    async def chat(self, messages, *, max_tokens, tools=None, usage=None, tool_choice=None) -> Reply:
         system = messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
         turn = sum(1 for m in messages if m["role"] == "assistant") + 1
         names = {t["function"]["name"] for t in (tools or [])}

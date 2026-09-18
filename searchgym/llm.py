@@ -172,6 +172,7 @@ class LLM:
         max_tokens: int,
         tools: list[dict[str, Any]] | None = None,
         usage: Usage | None = None,
+        tool_choice: str | None = None,
     ) -> Reply:
         request: dict[str, Any] = {
             "model": self.model_name,
@@ -179,9 +180,11 @@ class LLM:
             "max_tokens": max_tokens,
             **self.profile.sampling,
         }
-        if tools:
+        if tools and tool_choice != "none":
             request["tools"] = tools
-            request["tool_choice"] = "auto"
+            request["tool_choice"] = tool_choice or "auto"
+        elif tool_choice == "none":
+            request["tool_choice"] = "none"
 
         # extra_body 는 한 번에 합쳐 넣는다(두 곳에서 따로 주면 서로 덮어쓴다).
         extra = dict(self.profile.sampling_extra)

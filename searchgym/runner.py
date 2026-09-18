@@ -38,6 +38,7 @@ __all__ = ["Cache", "Record", "Runner"]
 # agent/16 — 문서 예산을 균등분할에서 워터필링으로 바꿨다(작은 문서가 남긴
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
+DEPTHSEARCH_CACHE_VERSION = "agent/37-ds-evidence-completion"
 JUDGE_VERSION = "judge/1"
 
 
@@ -265,7 +266,7 @@ class Runner:
         빠지면 depth 1 결과를 depth 3 실행이 조용히 재사용한다.
         """
         return digest(
-            CACHE_VERSION,
+            DEPTHSEARCH_CACHE_VERSION if self.method == "depthsearch" else CACHE_VERSION,
             self.method,
             self.profile.repo,
             _agent_fingerprint(self.agent.config),

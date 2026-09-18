@@ -174,7 +174,8 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         result = await agent.run("Q", "Research", tools, MemoryTrace())
         self.assertEqual(tools.searched, ["valid query"])
         self.assertEqual((result.searches, result.invalid_tool_calls), (1, 1))
-        self.assertEqual(llm.requests[1][0][-2]["tool_calls"][0]["function"]["arguments"], "{}")
+        assistant = next(m for m in reversed(llm.requests[1][0]) if m.get("tool_calls"))
+        self.assertEqual(assistant["tool_calls"][0]["function"]["arguments"], "{}")
 
 
     async def test_root_budget_reserves_nodes_for_other_sources(self):
@@ -199,7 +200,8 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(tools.searched), 10)
         self.assertEqual(result.searches, 10)
         self.assertEqual(result.invalid_tool_calls, 0)
-        self.assertEqual(llm.requests[1][0][-2]["tool_calls"][0]["function"]["name"], "web_search")
+        assistant = next(m for m in reversed(llm.requests[1][0]) if m.get("tool_calls"))
+        self.assertEqual(assistant["tool_calls"][0]["function"]["name"], "web_search")
 
 
     async def test_final_stage_does_not_return_planned_action(self):

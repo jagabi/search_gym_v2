@@ -54,9 +54,11 @@ class FakeLLM:
     def __init__(self, replies):
         self.replies = list(replies)
         self.requests = []
+        self.tool_choices = []
 
-    async def chat(self, messages, *, max_tokens, tools=None, usage=None):
+    async def chat(self, messages, *, max_tokens, tools=None, usage=None, tool_choice=None):
         self.requests.append((copy.deepcopy(messages), tools))
+        self.tool_choices.append(tool_choice)
         if not self.replies:
             raise AssertionError("Unexpected model call")
         reply = self.replies.pop(0)
@@ -318,7 +320,8 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(response["recovered_tool_call"])
         self.assertEqual(response["raw_text"], raw)
         self.assertFalse(any(k == "run.finalizing" for k, _ in trace.events))
-        self.assertIn('"query"', llm.requests[1][0][-2]["tool_calls"][0]["function"]["arguments"])
+        assistant = next(m for m in reversed(llm.requests[1][0]) if m.get("tool_calls"))
+        self.assertIn('"query"', assistant["tool_calls"][0]["function"]["arguments"])
 
     async def test_empty_first_turn_keeps_tools_for_one_retry(self):
         from offline import FakeTools

@@ -318,12 +318,17 @@ class Explorer:
         config: ExplorerConfig,
         system_prompt: str,
         fetch: Any,
+        *,
+        enforce_tool_availability: bool = False,
+        preserve_source_evidence: bool = False,
     ) -> None:
         """`fetch` 는 `async (url) -> Document` 콜러블이다(도구 계층이 준다)."""
         self.llm = llm
         self.config = config
         self.system_prompt = system_prompt.strip()
         self._fetch = fetch
+        self.enforce_tool_availability = enforce_tool_availability
+        self.preserve_source_evidence = preserve_source_evidence
 
     async def explore(self, **kwargs) -> ExplorerResult:
         budget = kwargs["budget"]
@@ -432,8 +437,9 @@ class Explorer:
             size = await self.llm.count_tokens(json.dumps(history, ensure_ascii=False))
             if size + 512 > cfg.context_limit:
                 raise ValueError("explorer context limit reached; retained page notes are preserved")
+            choice = {"tool_choice": "none"} if self.enforce_tool_availability and not tools else {}
             reply = await self.llm.chat(
-                history, max_tokens=cfg.max_tokens, tools=tools, usage=usage
+                history, max_tokens=cfg.max_tokens, tools=tools, usage=usage, **choice
             )
             raw_text = reply.text
             recovered_call = recover_tool_calls(reply, tools)
@@ -524,8 +530,21 @@ class Explorer:
             wasted = 0
             for step in range(1, max(1, cfg.max_turns) + 1) if can_expand else ():
                 if children_left <= 0 or budget.exhausted or wasted >= _MAX_WASTED_CALLS:
+                    if self.enforce_tool_availability:
+                        trace.event("expand.tool_withdrawn", depth=depth, turn=step,
+                                    reason="local_expansion_finished", children_left=children_left,
+                                    remaining=budget.remaining)
                     break
-                reply = await chat(messages, "expand", [FETCH_TOOL])
+                navigation_messages = messages
+                if self.enforce_tool_availability:
+                    navigation_messages = messages + [{"role": "user", "content": (
+                        f"Current local expansion allowance: {min(children_left, budget.remaining)} direct children, "
+                        f"{budget.remaining} nodes remaining within the active branch/global limit. "
+                        "Only web_fetch is available here. If no useful link remains, return DONE. "
+                        "When this allowance ends, saved evidence returns to the parent automatically; "
+                        "this does not end the main research task."
+                    )}]
+                reply = await chat(navigation_messages, "expand", [FETCH_TOOL])
                 if not reply.tool_calls:
                     if not cfg.extract_before_expand:
                         own_information, own_status = _parse_final(reply.text)
@@ -538,6 +557,10 @@ class Explorer:
 
                 messages.append(_assistant_message(reply))
                 for call in reply.tool_calls:
+                    if self.enforce_tool_availability and (children_left <= 0 or budget.exhausted):
+                        messages.append({"role": "tool", "tool_call_id": call.id, "content":
+                            "Local expansion has finished; this call was not executed. Saved evidence will return to the parent."})
+                        continue
                     seen_repeats = budget.repeats
                     output, child = await self._open(
                         call=call, question=question, reasoning=reasoning,
@@ -591,6 +614,31 @@ class Explorer:
 
         own_note = {"urls": urls, "text": own_information, "status": own_status,
                     "extraction_state": own_state}
+        if self.preserve_source_evidence:
+            # Carry already-seen structured sources separately from model prose.
+            # Never fetch again or bypass document truncation/contamination checks.
+            if repeated_content:
+                own_note["source_notice"] = (
+                    "This page repeats previously read content; it adds no new source rows. "
+                    "Use a linked detail page or another missing condition instead of URL variants."
+                )
+            elif not any(d.is_error for d in documents) and _structured_source(rendered):
+                if await self.llm.count_tokens(rendered) <= cfg.max_tokens:
+                    own_note["source_evidence"] = rendered
+                    own_note["source_notice"] = (
+                        "Verbatim supplied source follows, separate from the reader's interpretation. "
+                        "Its scope and missing conditions still apply; it is not a verified answer set."
+                    )
+                else:
+                    own_note["source_notice"] = (
+                        "The structured source exceeds the verbatim supplement limit; only the "
+                        "reader note is returned. Summary omissions do not establish absence or "
+                        "complete list coverage."
+                    )
+            if doc_truncated or any("(page truncated)" in d.content for d in documents):
+                own_note["source_notice"] = own_note.get("source_notice", "") + (
+                    " The supplied source was truncated; unseen rows remain unknown."
+                )
         result.notes = _merge_notes([own_note, *child_notes])
         result.information = _render_notes(result.notes)
         result.status = "partial" if any(
@@ -620,6 +668,7 @@ class Explorer:
             "own_information": own_information,
             "own_status": own_status,
             "own_information_chars": len(own_information),
+            "source_evidence_chars": len(own_note.get("source_evidence", "")),
             "extraction_state": result.extraction_state,
             "own_extraction_state": own_state,
             "note_count": len(result.notes),
@@ -939,11 +988,25 @@ def _merge_notes(notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _render_notes(notes: list[dict[str, Any]]) -> str:
-    return "\n\n".join(
-        f"### Page note: {', '.join(n['urls'])}\n"
-        f"Reader state: {n['extraction_state']}; relevance: {n['status']}\n{n['text']}"
-        for n in notes if n["text"].strip()
-    )
+    blocks = []
+    for n in notes:
+        if not (n["text"].strip() or n.get("source_evidence") or n.get("source_notice")):
+            continue
+        block = (f"### Page note: {', '.join(n['urls'])}\n"
+                 f"Reader state: {n['extraction_state']}; relevance: {n['status']}\n{n['text']}")
+        if n.get("source_notice"):
+            block += "\n\nSource coverage notice: " + n["source_notice"]
+        if n.get("source_evidence"):
+            block += "\n\n#### Verbatim source (not model-generated)\n" + n["source_evidence"]
+        blocks.append(block)
+    return "\n\n".join(blocks)
+
+
+def _structured_source(text: str) -> bool:
+    """Compact native files or Markdown tables benefit from lossless handoff."""
+    return bool(re.search(r"^Title: (?:PDF|CSV) document\s*$|^\[PDF page \d+\]",
+                          text, re.MULTILINE)
+                or re.search(r"^\s*\|?\s*:?-{3,}:?\s*\|\s*:?-{3,}", text, re.MULTILINE))
 
 
 def _user_message(
