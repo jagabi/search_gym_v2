@@ -5,6 +5,7 @@
     python test.py --limit 5                         # 배선 확인
     python test.py --split test                      # 마지막에만
     python test.py --tag baseline --resume           # 멈춘 실행 이어서
+    python test.py --tag baseline --resume --retry-errors  # 실패만 교체, 전체 재집계
 
 문항마다 트레이스를 즉시 쓰므로 중간에 죽어도 받은 응답은 남고, 캐시가 켜져 있으면
 다시 돌릴 때 건너뛴다. `--resume` 은 새 디렉터리를 만들지 않고 같은 조건의 가장
@@ -27,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from dataclasses import asdict
 
@@ -55,6 +57,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--prompt", default=None, help="메인 시스템 프롬프트를 파일에서 읽는다")
     parser.add_argument("--explorer-prompt", default=None, help="explorer 프롬프트 파일")
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument("--retry-errors", action="store_true",
+                        help="--resume 실행의 빈 답변·실행 오류·채점 오류만 재시도 (정상 0점은 유지)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="--retry-errors 대상만 확인. 실행/채점/파일 수정 없음")
     parser.add_argument(
         "--resume",
         nargs="?",
@@ -72,6 +78,12 @@ async def main_async(argv: list[str] | None = None) -> int:
     quiet_libraries()
     load_env()
     args = parse_args(argv)
+    if args.retry_errors and args.resume is None:
+        print("--retry-errors는 --resume과 함께 사용하세요.", file=sys.stderr)
+        return 1
+    if args.dry_run and not args.retry_errors:
+        print("--dry-run은 --retry-errors와 함께 사용하세요.", file=sys.stderr)
+        return 1
 
     config = load_test(
         args.conf,
@@ -102,6 +114,22 @@ async def main_async(argv: list[str] | None = None) -> int:
     if out is None:
         return 1
 
+    retry_plan = None
+    if args.retry_errors:
+        from searchgym.retry import plan_retry
+        try:
+            retry_plan = plan_retry(out, items, config, profile)
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"실패 재시도 준비 오류: {exc}", file=sys.stderr)
+            return 1
+        agent_n = sum(kind == "agent" for kind in retry_plan.targets.values())
+        judge_n = sum(kind == "judge" for kind in retry_plan.targets.values())
+        print(f"\n전체 {len(items)} · 유지 {len(items) - len(retry_plan.targets)} · "
+              f"답변 재실행 {agent_n} · 채점만 재시도 {judge_n}")
+        print("  대상: " + (", ".join(f"q{i:05d}" for i in sorted(retry_plan.targets)) or "없음"))
+        if args.dry_run or not retry_plan.targets:
+            return 0
+
     table(
         "설정",
         {
@@ -116,6 +144,93 @@ async def main_async(argv: list[str] | None = None) -> int:
         },
     )
 
+    if retry_plan is None:
+        _write_run_config(out, config, profile, dataset, items)
+
+    judge = Judge(config.judge)
+    runner = Runner(
+        profile=profile,
+        agent_config=config.agent,
+        judge=judge,
+        run_dir=out,
+        method=config.method,
+        explorer_config=config.explorer if config.uses_explorer else None,
+        explorer_prompt=config.explorer_prompt,
+        use_cache=config.run.cache,
+        workers=config.run.workers,
+    )
+
+    if retry_plan is not None:
+        print("  실패 기록을 retry_history에 백업하고, 완료되는 문항부터 전체 결과를 갱신합니다.")
+    elif args.resume is not None:
+        todo = runner.pending(benchmark, items, config.system_prompt)
+        print(f"\n전체 {len(items)}문항 · 완료 {len(items) - len(todo)} · 남은 {len(todo)}")
+        if not todo:
+            print("  남은 문항이 없습니다. 집계만 다시 씁니다.")
+        (out / "records.jsonl").unlink(missing_ok=True)
+    else:
+        print(f"\n{len(items)}문항 실행 중...")
+
+    total = len(retry_plan.targets) if retry_plan is not None else len(items)
+    bar = tqdm(total=total, unit="q", dynamic_ncols=True,
+               bar_format="  {l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]{postfix}")
+    tally = {"score": 0.0, "n": 0, "zero": 0, "cached": 0, "bad": 0}
+
+    def progress(record, total: int) -> None:
+        tally["n"] += 1
+        tally["score"] += record.score
+        tally["zero"] += record.score == 0
+        tally["cached"] += bool(record.cached)
+        tally["bad"] += bool(record.result.error or not record.result.answer.strip())
+        label = "재시도 f1" if retry_plan is not None else "f1"
+        post = f"{label}={tally['score'] / tally['n']:.3f} 0점={tally['zero']}"
+        if tally["cached"]:
+            post += f" 캐시={tally['cached']}"
+        if tally["bad"]:
+            post += f" 실패={tally['bad']}"
+        bar.set_postfix_str(post, refresh=False)
+        bar.update(1)
+
+    try:
+        if retry_plan is not None:
+            from searchgym.retry import retry_failed
+            records = await retry_failed(runner, retry_plan, benchmark, config.system_prompt, progress)
+        else:
+            records = await runner.run_all(
+                benchmark, items, config.system_prompt, score_field="f1", on_record=progress
+            )
+    finally:
+        bar.close()
+        await runner.aclose()
+
+    if retry_plan is not None:
+        summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    else:
+        summary = {
+            "method": config.method,
+            "model": profile.repo,
+            "benchmark": config.benchmark.name,
+            "dataset": str(dataset),
+            "system_prompt_chars": len(config.system_prompt),
+            "explorer_prompt_chars": len(config.explorer_prompt) if config.uses_explorer else 0,
+            "judge": config.judge.model,
+            "budget": {
+                "searches": config.agent.max_searches,
+                "search_top_k": config.agent.search_top_k,
+                "expansion_nodes": config.explorer.max_expansion_nodes if config.uses_explorer else 0,
+                "max_depth": config.explorer.max_depth if config.uses_explorer else 0,
+                "context_limit": config.agent.context_limit,
+            },
+            "cache": runner.cache_stats(),
+            **summarize(records),
+        }
+        write_json(out / "summary.json", summary)
+    table("결과", {k: v for k, v in summary.items() if not isinstance(v, dict)})
+    print(f"\n저장됨: {out}")
+    return 0
+
+
+def _write_run_config(out, config, profile, dataset, items):
     write_json(
         out / "config.json",
         {
@@ -133,82 +248,6 @@ async def main_async(argv: list[str] | None = None) -> int:
     (out / "prompt.txt").write_text(config.system_prompt, encoding="utf-8")
     if config.uses_explorer:
         (out / "explorer_prompt.txt").write_text(config.explorer_prompt, encoding="utf-8")
-
-    judge = Judge(config.judge)
-    runner = Runner(
-        profile=profile,
-        agent_config=config.agent,
-        judge=judge,
-        run_dir=out,
-        method=config.method,
-        explorer_config=config.explorer if config.uses_explorer else None,
-        explorer_prompt=config.explorer_prompt,
-        use_cache=config.run.cache,
-        workers=config.run.workers,
-    )
-
-    if args.resume is not None:
-        todo = runner.pending(benchmark, items, config.system_prompt)
-        print(f"\n전체 {len(items)}문항 · 완료 {len(items) - len(todo)} · 남은 {len(todo)}")
-        if not todo:
-            print("  남은 문항이 없습니다. 집계만 다시 씁니다.")
-        # 아래에서 모든 문항이 다시 기록되므로 지난 줄과 겹치지 않게 비운다.
-        (out / "records.jsonl").unlink(missing_ok=True)
-    else:
-        print(f"\n{len(items)}문항 실행 중...")
-
-    # 진행 상황은 막대 하나로만 보여 준다. 문항마다 한 줄씩 찍으면 300문항에서
-    # 화면이 흐르고 남은 시간을 읽을 수 없다. 끝난 문항의 결과는 records.jsonl 에
-    # 즉시 쌓이므로, 막대에는 지금까지의 평균과 실패 수만 얹는다.
-    bar = tqdm(total=len(items), unit="q", dynamic_ncols=True,
-               bar_format="  {l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]{postfix}")
-    tally = {"score": 0.0, "n": 0, "zero": 0, "cached": 0, "bad": 0}
-
-    def progress(record, total: int) -> None:
-        tally["n"] += 1
-        tally["score"] += record.score
-        tally["zero"] += record.score == 0
-        tally["cached"] += bool(record.cached)
-        tally["bad"] += bool(record.result.error or not record.result.answer.strip())
-        post = f"f1={tally['score'] / tally['n']:.3f} 0점={tally['zero']}"
-        if tally["cached"]:
-            post += f" 캐시={tally['cached']}"
-        if tally["bad"]:
-            post += f" 실패={tally['bad']}"
-        bar.set_postfix_str(post, refresh=False)
-        bar.update(1)
-
-    try:
-        records = await runner.run_all(
-            benchmark, items, config.system_prompt, score_field="f1", on_record=progress
-        )
-    finally:
-        bar.close()
-        await runner.aclose()
-
-    summary = {
-        "method": config.method,
-        "model": profile.repo,
-        "benchmark": config.benchmark.name,
-        "dataset": str(dataset),
-        "system_prompt_chars": len(config.system_prompt),
-        "explorer_prompt_chars": len(config.explorer_prompt) if config.uses_explorer else 0,
-        "judge": config.judge.model,
-        "budget": {
-            "searches": config.agent.max_searches,
-            "search_top_k": config.agent.search_top_k,
-            "expansion_nodes": config.explorer.max_expansion_nodes if config.uses_explorer else 0,
-            "max_depth": config.explorer.max_depth if config.uses_explorer else 0,
-            "context_limit": config.agent.context_limit,
-        },
-        "cache": runner.cache_stats(),
-        **summarize(records),
-    }
-    write_json(out / "summary.json", summary)
-    table("결과", {k: v for k, v in summary.items() if not isinstance(v, dict)})
-    print(f"\n저장됨: {out}")
-    return 0
-
 
 def _resolve_dir(args, config, profile) -> Path | None:
     stage, tag = "test", config.run.tag

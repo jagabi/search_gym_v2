@@ -226,6 +226,7 @@ class Runner:
         explorer_prompt: str | None = None,
         score_field: str = "f1",
         stage: str = "",
+        force: bool = False,
     ) -> Record:
         explorer_prompt = (
             self.explorer_prompt if explorer_prompt is None else explorer_prompt
@@ -235,7 +236,7 @@ class Runner:
         lock = self._locks.setdefault(key, asyncio.Lock())
         async with lock:
             result, cached, qdir = await self._execute(
-                benchmark, item, system_prompt, explorer_prompt, tools, key, stage
+                benchmark, item, system_prompt, explorer_prompt, tools, key, stage, force=force
             )
 
         judgement = self._grade(benchmark, item, result.answer)
@@ -314,15 +315,19 @@ class Runner:
         tools: Any,
         key: str,
         stage: str,
+        *,
+        force: bool = False,
     ) -> tuple[RunResult, bool, str]:
         # 빈 응답은 캐시에서 꺼내 쓰지 않는다. 대개 일시적 실패라 다시 돌리면 살아난다.
-        if (payload := self._agent_cache.get(key)) and (payload.get("answer") or "").strip():
+        if not force and (payload := self._agent_cache.get(key)) and (payload.get("answer") or "").strip():
             return _result_from(payload), True, payload.get("dir", "")
 
         # 문항 하나 = 디렉터리 하나.
         #   <stage>/q00022/ trace.jsonl · response.json · explorer.json
         qdir = (self.run_dir / stage if stage else self.run_dir) / f"q{item.index:05d}"
         qdir.mkdir(parents=True, exist_ok=True)
+        if force:
+            (qdir / "trace.jsonl").unlink(missing_ok=True)
         trace = Trace(qdir / "trace.jsonl", run_id=f"{stage or 'run'}-q{item.index}")
 
         agent = self.agent
@@ -358,6 +363,8 @@ class Runner:
         # explorer 트리는 통째로 따로 남긴다. 확장 정책 분석의 원본이다.
         if result.explorations:
             _write(qdir / "explorer.json", result.explorations)
+        elif force:
+            (qdir / "explorer.json").unlink(missing_ok=True)
 
         # 탐색 궤적 그림. 세 방법 모두 그린다 — ragent/search-o1 이 평면이라는 것을
         # 눈으로 확인할 수 있어야 depthsearch 의 트리가 의미를 갖는다.

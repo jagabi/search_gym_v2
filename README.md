@@ -264,9 +264,19 @@ frontier가 뭉개진다.
 ```bash
 python scripts/build_splits.py deepsearchqa --force                        # 30/30/300
 python scripts/build_splits.py evobrowsecomp --train 50 --val 50 --force   # 50/50/300
+python scripts/build_splits.py browsecomp --force                          # 30/30/300
 ```
 
-`browsecomp` / `kbrowsecomp` 는 레지스트리에 등록만 되어 있고 데이터는 비어 있다.
+BrowseComp 원본은 canary XOR 로 암호화된 CSV 라서 먼저 내려받아 복호화해야 한다.
+`scripts/decrypt_browsecomp.py` 가 OpenAI simple-evals 와 같은 방식으로 풀어
+`data/browsecomp/raw.jsonl`(1,266행)을 만든다.
+
+```bash
+curl -sSL -o browse_comp_test_set.csv   https://openaipublic.blob.core.windows.net/simple-evals/browse_comp_test_set.csv
+python scripts/decrypt_browsecomp.py browse_comp_test_set.csv data/browsecomp/raw.jsonl
+```
+
+`kbrowsecomp` 는 레지스트리에 등록만 되어 있고 데이터는 비어 있다.
 `data/<이름>/raw.jsonl` 에 `{"question": ..., "answer": ...}` 형식으로 넣고 같은
 스크립트를 돌리면 된다.
 
