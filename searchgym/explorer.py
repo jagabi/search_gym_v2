@@ -478,7 +478,7 @@ class Explorer:
                     if state == "context_limit":
                         break
                     continue
-                body, parsed_status = _parse_final(reply.text)
+                body, parsed_status = _parse_final(reply.text, allow_explanation=self.enforce_tool_availability)
                 body, decision = _parse_expansion_decision(body)
                 if body and reply.truncated and not reply.tool_calls:
                     best, status = body, parsed_status
@@ -547,7 +547,7 @@ class Explorer:
                 reply = await chat(navigation_messages, "expand", [FETCH_TOOL])
                 if not reply.tool_calls:
                     if not cfg.extract_before_expand:
-                        own_information, own_status = _parse_final(reply.text)
+                        own_information, own_status = _parse_final(reply.text, allow_explanation=self.enforce_tool_availability)
                         own_state = "truncated" if reply.truncated else (
                             "complete" if reply.text.strip() else "empty_output"
                         )
@@ -1263,7 +1263,7 @@ _STATUS = re.compile(r"^[ \t]*\*\*\s*Status\s*:?\s*\*\*\s*:?\s*([a-z_]+)[ \t]*$"
 _NOTHING = re.compile(r"no\s+helpful\s+information\s+found", re.IGNORECASE)
 
 
-def _parse_final(text: str) -> tuple[str, str]:
+def _parse_final(text: str, *, allow_explanation: bool = False) -> tuple[str, str]:
     """`**Final Information**` 이후를 본문으로, `**Status:**` 를 상태로 읽는다.
 
     마커가 없으면 전체를 본문으로 본다 — 형식을 못 지켰다고 내용까지 버리면
@@ -1274,7 +1274,11 @@ def _parse_final(text: str) -> tuple[str, str]:
         body = body[match.end() :].strip()
 
     status = ""
-    if found := list(_STATUS.finditer(body)):
+    pattern = (_STATUS if not allow_explanation else re.compile(
+        r"^[ \t]*\*\*\s*Status\s*:?\s*\*\*\s*:?\s*"
+        r"(answered|partial|not_found)(?:[ \t]*[\u2013\u2014:-][ \t]*[^\n]*)?[ \t]*$",
+        re.IGNORECASE | re.MULTILINE))
+    if found := list(pattern.finditer(body)):
         # Only the reader's trailing status is metadata; quoted child lines remain content.
         last = found[-1]
         if not body[last.end():].strip():

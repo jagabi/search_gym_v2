@@ -1,18 +1,14 @@
 """메인 추론 에이전트 — vLLM OpenAI 호환 서버 위의 도구 루프.
 
-세 방법이 **같은 루프**를 돈다. 다른 것은 모델에게 어떤 도구를 주고, 검색 결과를
-어떻게 가공해서 돌려주느냐뿐이다.
+세 방법은 공통 실행 루프와 웹 도구를 사용한다. DS는 전용 선택·상태 갱신 정책을 쓴다.
 
     ragent       web_search + web_fetch.  페치 원문(jina 마크다운)이 그대로 들어간다
-    depthsearch  web_search + web_fetch.  페치한 페이지를 explorer 가 읽고 요약해서
-                 넣는다. explorer 는 그 페이지의 링크를 따라 재귀할 수 있다
+    depthsearch  검색 결과에서 선택적으로 재귀 진입. 메인 fetch도 가능하며,
+                 출처에 연결된 후보 상태와 잠정 답을 유지한다
     search-o1    web_search 만.  검색당 상위 k개를 자동 페치해 페이지별 explorer 요약
 
-두 방법의 웹 검색·페치 도구와 검색 예산은 같다. DepthSearch는 출처별 추출과
-재귀 reader 및 전용 프롬프트를 사용한다. 전체 방법의 비교다.
-
-    ragent → depthsearch(depth 1)   원문 vs 요약   (컨텍스트 축)
-    depthsearch(depth 1) → (depth N) 평면 vs 재귀   (깊이 축)
+웹 검색 호출 한도와 결과 수는 같다. 전용 프롬프트·선택·추출·재귀·종료 정책을
+포함한 전체 방법 비교이며, 동일 총 계산량이나 재귀 하나만의 비교는 아니다.
 
 search-o1 은 원 논문대로 페치를 모델 선택으로 두지 않는다. 선행연구 참조점으로 둔다.
 
@@ -34,6 +30,7 @@ from .llm import LLM, Usage, recover_tool_calls, normalize_tool_names, history_t
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
 from .urls import normalize_fetch_url
+from .research_state import ResearchState, CONTROL_PROMPT, parse_control, is_search_endpoint
 
 __all__ = ["METHODS", "AgentConfig", "RunResult", "SearchAgent", "Step"]
 
@@ -80,12 +77,11 @@ class AgentConfig:
 
     # 검색 예산. 세 방법이 같은 값을 써야 비교가 성립한다.
     max_searches: int = 10
-    # ragent 에서만 의미가 있다(모델이 페치를 직접 고르므로). 0 = 무제한.
+    # 메인 fetch + DS 선택적 진입 상한. 자식 확장은 별도 노드 예산. 0 = 무제한.
     max_fetches: int = 0
     # serper 가 돌려주는 결과 수.
     search_results: int = 10
-    # 검색당 자동 페치 수. 0 = 자동 페치 없음(= ragent). search-o1/depthsearch 가
-    # 각자 yaml 에서 명시한다.
+    # search-o1의 검색당 자동 페치 수. DS 선택적 진입은 depthsearch_control로 제어.
     search_top_k: int = 0
 
     # 페치한 페이지 하나의 토큰 상한. **세 방법이 같은 값을 써야** 같은 분량의 웹을
@@ -98,6 +94,8 @@ class AgentConfig:
     context_limit: int = 128_000
     finalize_answer: bool = False
     max_tool_recoveries: int = 1
+    # DS-only selective entry and evidence-linked checkpoints. Baselines ignore it.
+    depthsearch_control: bool = False
 
 
 @dataclass(slots=True)
@@ -152,6 +150,8 @@ class RunResult:
     context_exhausted: bool = False
     reader_stats: dict[str, int] = field(default_factory=dict)
     invalid_tool_calls: int = 0
+    research_state: ResearchState | None = field(default=None, repr=False)
+    auto_fetches: int = 0
 
     @property
     def tool_calls(self) -> list[ToolCall]:
@@ -204,6 +204,8 @@ class RunResult:
             "context_exhausted": self.context_exhausted,
             "reader_stats": self.reader_stats,
             "invalid_tool_calls": self.invalid_tool_calls,
+            "auto_fetches": self.auto_fetches,
+            "research_state": self.research_state.snapshot() if self.research_state else None,
             "steps": [s.as_dict(full=False) for s in self.steps],
             "usage": self.usage.as_dict(),
             "latency_ms": round(self.latency_ms, 1),
@@ -289,9 +291,8 @@ class SearchAgent:
     def tool_names(self) -> list[str]:
         """모델에게 노출할 도구.
 
-        ragent 와 depthsearch 는 **같다** — 둘 다 메인 모델이 검색 결과를 보고 열
-        페이지를 고른다. 다른 것은 그 페이지가 원문으로 들어오느냐(ragent) explorer
-        요약으로 들어오느냐(depthsearch)뿐이다. 그래서 ①→③ 이 손잡이 하나 차이다.
+        ragent와 depthsearch는 같은 두 도구를 노출한다. DS의 선택적 진입과
+        근거 상태 관리는 내부 정책이며 새로운 외부 도구를 추가하지 않는다.
 
         search-o1 만 web_search 하나다. 원 논문이 페치를 모델 선택으로 두지 않고
         검색당 상위 k개를 자동으로 가져오기 때문이다.
@@ -312,6 +313,8 @@ class SearchAgent:
     ) -> RunResult:
         cfg = self.config
         result = RunResult()
+        if self.method == "depthsearch" and cfg.depthsearch_control:
+            result.research_state = ResearchState()
         started = time.perf_counter()
 
         system = _system_prompt(system_prompt, self.profile.reasoning_effort)
@@ -337,6 +340,14 @@ class SearchAgent:
                         "recursively. Open official entry pages, indexes and candidate profiles "
                         "to fill missing conditions, even when the entry page has no answer itself."
                     )
+                    if result.research_state:
+                        function["description"] += (
+                            " You may pass an observed source ID (e.g. S3) in url; it resolves "
+                            "to the exact saved URL. Do not fetch search-engine query URLs."
+                        )
+                        url_spec = function.get("parameters", {}).get("properties", {}).get("url")
+                        if isinstance(url_spec, dict):
+                            url_spec["description"] = "An observed source ID (S1, S2, ...) or an absolute HTTP(S) URL."
         explorer_cfg = self.explorer_config or ExplorerConfig()
         budget = Budget(explorer_cfg.max_expansion_nodes if self.uses_explorer else 0)
 
@@ -383,7 +394,8 @@ class SearchAgent:
                 choice = {}
                 if self.method == "depthsearch":
                     request_messages = messages + [{"role": "user", "content":
-                        self._action_notice(active_specs, result, budget)}]
+                        self._action_notice(active_specs, result, budget)
+                        + ("\n\n" + result.research_state.render() if result.research_state else "")}]
                     if not active_specs:
                         choice["tool_choice"] = "none"
                 trace.event("llm.request", turn=turn, context_tokens=result.context_tokens,
@@ -419,6 +431,8 @@ class SearchAgent:
                 )
 
                 if not reply.tool_calls:
+                    action_text = _looks_like_action(step.text) or (
+                        self.method == "depthsearch" and _looks_like_unfinished_research(step.text))
                     # A missing/malformed tool response is not the end of research.
                     # Keep tools and evidence for one bounded continuation before
                     # falling back to answer-only finalization.
@@ -429,7 +443,7 @@ class SearchAgent:
                         for s in active_specs
                     )
                     if (can_use_tools and tool_resume_attempts < cfg.max_tool_recoveries and turn < cfg.max_turns
-                            and (not step.text.strip() or _looks_like_action(step.text))):
+                            and (not step.text.strip() or action_text)):
                         tool_resume_attempts += 1
                         trace.event("run.resume_tools", turn=turn, attempt=tool_resume_attempts,
                                     reason="missing_or_malformed_tool_call")
@@ -450,13 +464,15 @@ class SearchAgent:
                     # 4건). 그대로 두면 빈 답이 채점으로 넘어가 0점이 되고, 판정 쪽에는
                     # judge_error(empty_response)로만 보여 원인이 가려진다.
                     # 한 번만 명시적으로 답을 요구한 뒤, 그래도 비면 포기한다.
-                    if cfg.finalize_answer or not step.text.strip() or _looks_like_action(step.text) or reply.truncated:
+                    if cfg.finalize_answer or not step.text.strip() or action_text or reply.truncated:
                         trace.event("run.finalizing", turn=turn, reason=(
                             "truncated" if reply.truncated else "verification" if cfg.finalize_answer else "empty_or_action"
                         ))
-                        usable_draft = step.text.strip() if not reply.truncated and not _looks_like_action(step.text) else ""
+                        usable_draft = step.text.strip() if not reply.truncated and not action_text else ""
                         review = ({"draft": usable_draft, "draft_reasoning": step.reasoning}
                                   if self.method == "depthsearch" and usable_draft else {})
+                        if result.research_state:
+                            review["checkpoint"] = result.research_state.render()
                         final = await self._salvage(messages, trace, result.usage, **review)
                         result.answer = final or usable_draft
                         result.stop_reason = "finalized" if final else (
@@ -500,7 +516,8 @@ class SearchAgent:
             else:
                 result.stop_reason = "max_turns"
                 trace.event("run.truncated", reason="max_turns", turns=cfg.max_turns)
-                final = await self._salvage(messages, trace, result.usage)
+                recovery = self._checkpoint_recovery(result)
+                final = await self._salvage(messages, trace, result.usage, **recovery)
                 if final:
                     result.answer, result.stop_reason = final, "finalized"
         except Exception as exc:
@@ -518,7 +535,7 @@ class SearchAgent:
             #
             # 이게 없으면 그 문항은 답 0자로 끝나 0점이 되고, 모델의 실력이 아니라
             # 서버 버그가 점수에 섞인다.
-            salvaged = await self._salvage(messages, trace, result.usage)
+            salvaged = await self._salvage(messages, trace, result.usage, **self._checkpoint_recovery(result))
             if salvaged:
                 result.answer = salvaged
                 result.stop_reason = "salvaged"
@@ -534,12 +551,23 @@ class SearchAgent:
             return specs
         if result.context_exhausted:
             return []
+        if (result.research_state and result.searches >= self.config.max_searches
+                and result.research_state.repeated_requests > self.config.max_tool_recoveries):
+            return []
         return [s for s in specs if (
             s["function"]["name"] == "web_search" and result.searches < self.config.max_searches
         ) or (
             s["function"]["name"] == "web_fetch" and
-            (not self.config.max_fetches or result.fetches < self.config.max_fetches)
+            (not self.config.max_fetches or result.fetches + result.auto_fetches < self.config.max_fetches)
         )]
+
+    def _checkpoint_recovery(self, result: RunResult) -> dict[str, str]:
+        if result.research_state is None:
+            return {}
+        # Keep the current interpretation explicitly separate from source evidence.
+        last = next((s.reasoning for s in reversed(result.steps) if s.reasoning), "")
+        return {"checkpoint": result.research_state.render() + (
+            "\nLatest working interpretation (may be wrong):\n" + last if last else "")}
 
     def _action_notice(self, specs: list[dict[str, Any]], result: RunResult, budget: Budget) -> str:
         names = {s["function"]["name"] for s in specs}
@@ -551,7 +579,7 @@ class SearchAgent:
             if "web_search" in names else "web_search is exhausted and unavailable; do not call it."
         )
         if "web_fetch" in names:
-            remaining = (str(max(0, self.config.max_fetches - result.fetches))
+            remaining = (str(max(0, self.config.max_fetches - result.fetches - result.auto_fetches))
                          if self.config.max_fetches else "unlimited")
             parts.append(f"web_fetch is available ({remaining} main fetches remaining); you may open known source URLs.")
             if budget.exhausted:
@@ -562,7 +590,7 @@ class SearchAgent:
         return "\n".join(parts)
 
     async def _salvage(self, messages: list[dict[str, Any]], trace: Trace, usage: Usage,
-                       *, draft: str = "", draft_reasoning: str = "") -> str:
+                       *, draft: str = "", draft_reasoning: str = "", checkpoint: str = "") -> str:
         """도구 없이 최종 답변을 작성한다. 실패하면 빈 문자열.
 
         DepthSearch의 정상 초안은 대화와 근거 연결을 유지해 검토한다. 초안 없는
@@ -597,6 +625,26 @@ class SearchAgent:
                 "unknown. Use the requested format; do not call tools or describe further research."
             )})
             trace.event("run.review_draft", draft=draft, reasoning_chars=len(draft_reasoning))
+        if checkpoint and self.method == "depthsearch":
+            rebuilt.append({"role": "user", "content": checkpoint + "\n\n"
+                "Write the final answer now. Review the provisional answer against its cited "
+                "evidence and any contradictions. Keep supported items, revise contradicted "
+                "claims, and qualify remaining uncertainty. A missing peripheral clue alone "
+                "does not invalidate an identified answer. Do not output working plans."})
+            if await self.llm.count_tokens(json.dumps(rebuilt, ensure_ascii=False)) > self.config.context_limit:
+                # Checkpoints contain validated source excerpts. Keep those instead of
+                # replaying an oversized, repetitive history into another context error.
+                first_question = next((m for m in messages if m.get("role") == "user"), None)
+                compact = [m for m in messages[:1] if m.get("role") == "system"]
+                if first_question:
+                    compact.append(first_question)
+                budget = max(1, self.config.context_limit - await self.llm.count_tokens(
+                    json.dumps(compact, ensure_ascii=False)) - 256)
+                content, clipped = await self.llm.cap(rebuilt[-1]["content"], budget)
+                compact.append({"role": "user", "content": content + (
+                    "\n[Working-state excerpt truncated; omitted conditions remain unknown.]" if clipped else "")})
+                rebuilt = compact
+                trace.event("run.final_context_compacted", checkpoint_truncated=clipped)
         for attempt in range(2):
             try:
                 choice = {"tool_choice": "none"} if self.method == "depthsearch" else {}
@@ -609,7 +657,9 @@ class SearchAgent:
                         cleanup_changed=text != (reply.text or "").strip(),
                         finish_reason=reply.finish_reason,
                         tool_calls=[c.function.name for c in reply.tool_calls])
-            if text and not (reply.truncated or reply.tool_calls or _looks_like_action(text)):
+            action = _looks_like_action(text) or (
+                self.method == "depthsearch" and _looks_like_unfinished_research(text))
+            if text and not (reply.truncated or reply.tool_calls or action):
                 return text
             # Retry an unusable output once without reinserting its reasoning or
             # malformed tool syntax. No searches or new tools are introduced.
@@ -650,7 +700,8 @@ class SearchAgent:
         # Repairable argument errors must not turn into a fetch of an empty URL.
         try:
             if name == "web_fetch":
-                arguments["url"] = normalize_fetch_url(arguments.get("url"))
+                arguments["url"] = (result.research_state.resolve(arguments.get("url"))
+                                    if result.research_state else normalize_fetch_url(arguments.get("url")))
             elif name == "web_search":
                 query = arguments.get("query")
                 if not isinstance(query, str) or not query.strip():
@@ -669,7 +720,7 @@ class SearchAgent:
             record.refused, record.result = True, notice
             trace.event("budget.search_exhausted", turn=step.turn, used=used)
             return notice
-        if name == "web_fetch" and cfg.max_fetches and used >= cfg.max_fetches:
+        if name == "web_fetch" and cfg.max_fetches and used + result.auto_fetches >= cfg.max_fetches:
             notice = FETCH_EXHAUSTED.format(used=used, limit=cfg.max_fetches)
             record.refused, record.result = True, notice
             trace.event("budget.fetch_exhausted", turn=step.turn, used=used)
@@ -744,7 +795,7 @@ class SearchAgent:
         question: str,
         turn: int,
     ) -> tuple[str, int]:
-        """검색. ragent 는 결과 목록을, 나머지는 explorer 의 요약을 돌려준다."""
+        """검색 결과를 반환하고 방법별 선택적/일괄 페이지 처리를 수행한다."""
         result.search_attempts += 1
         parsed, outcome = await tools.search(query)
         record.is_error = outcome.is_error
@@ -762,6 +813,41 @@ class SearchAgent:
         if leaked:
             record.leaked = leaked
             trace.event("contamination.filtered", turn=turn, removed=leaked)
+
+        if result.research_state is not None and explorer is not None:
+            state = result.research_state
+            state.repeated_requests = 0
+            focus = []
+            for entry in parsed.get("organic") or []:
+                try:
+                    sid = state.register(str(entry.get("link") or ""),
+                                         title=str(entry.get("title") or ""),
+                                         snippet=str(entry.get("snippet") or ""))
+                except ValueError:
+                    continue
+                entry["source_id"] = sid
+                focus.append(sid)
+            can_fetch = not self.config.max_fetches or result.fetches + result.auto_fetches < self.config.max_fetches
+            selected = await self._control(question, result, trace, focus, select=can_fetch)
+            text = json.dumps(parsed, ensure_ascii=False)
+            if selected:
+                url = state.sources[selected]["url"]
+                auto = ToolCall(name="web_fetch", arguments={"url": url})
+                result.auto_fetches += 1
+                state.count("selected_entries")
+                trace.event("search.selected_entry", turn=turn, source=selected, url=url)
+                notes, _ = await self._fetch(url=url, tools=tools, explorer=explorer,
+                    budget=budget, result=result, record=auto, trace=trace, question=question, turn=turn,
+                    reading_goal=state.selection_goal)
+                # Attribute automatic reader trees to the initiating search record.
+                for entry in auto.explorations:
+                    entry["entry"] = "selective_search"
+                    entry["source_id"] = selected
+                record.explorations.extend(auto.explorations)
+                trace.event("search.selected_result", turn=turn, url=url, is_error=auto.is_error,
+                            result_chars=len(notes), duration_ms=auto.duration_ms)
+                text += "\n\nSelected recursive reading (other search results remain available):\n" + notes
+            return text, len(outcome.text)
 
         # 자동 페치가 없으면(ragent · depthsearch) 검색 결과 목록을 그대로 돌려준다.
         # 메인 모델이 제목·스니펫·랭킹을 보고 열 페이지를 고른다 — 페이지 안의 앵커
@@ -837,6 +923,12 @@ class SearchAgent:
         result: RunResult | None = None,
     ) -> Document:
         """페치 → 오염 필터 → 토큰 절단. 페이지를 여는 유일한 경로다."""
+        if self.method == "depthsearch" and self.config.depthsearch_control and is_search_endpoint(url):
+            trace.event("fetch.search_endpoint_blocked", url=url)
+            if result and result.research_state:
+                result.research_state.count("search_endpoint_blocked")
+            return Document(url, "Search-engine query URLs are not document fetches. Use web_search "
+                            "within its remaining budget, or read an existing source URL.", is_error=True)
         if result is not None:
             result.fetch_attempts += 1
         document = await tools.fetch(url)
@@ -879,6 +971,7 @@ class SearchAgent:
         trace: Trace,
         question: str,
         turn: int,
+        reading_goal: str = "",
     ) -> tuple[str, int]:
         """메인 모델이 고른 페이지 하나를 연다.
 
@@ -887,6 +980,19 @@ class SearchAgent:
                     링크를 따라 재귀할 수 있다(= depth 2 이상, 노드 예산에서 차감)
         """
         started = time.perf_counter()
+        state = result.research_state
+        if state is not None:
+            known = state.source(url)
+            if known and known["status"] in {"read", "failed"}:
+                state.repeated_requests += 1
+                state.count("repeat_fetch_prevented")
+                trace.event("fetch.no_progress", url=url, source=known["id"], status=known["status"])
+                text = (f"{known['id']} was already {known['status']}; no new fetch was executed. "
+                        "Its evidence remains in the working state and previous tool results. "
+                        "Choose an unread source, reformulate a remaining search, or give the answer.")
+                record.is_error = known["status"] == "failed"
+                return text, 0
+            state.repeated_requests = 0
         if self.explores_on_fetch and _norm(url) in budget.readings:
             from .explorer import _render_notes
             budget.reused += 1
@@ -900,6 +1006,8 @@ class SearchAgent:
         record.duration_ms = (time.perf_counter() - started) * 1000
         raw_chars = len(document.content)
         if document.is_error:
+            if state:
+                state.mark_failed(url, document.content)
             return document.content, raw_chars
 
         if not self.explores_on_fetch or explorer is None:
@@ -907,16 +1015,91 @@ class SearchAgent:
 
         exploration = await explorer.explore(
             question=question,
-            reasoning=_accumulated_reasoning(result),
-            query=_latest_query(result),
+            reasoning=(state.render() + "\nNavigation goal (not evidence): " + reading_goal
+                       + "\nNavigate with actual URLs; source IDs in this state are labels, not page addresses."
+                       if state else _accumulated_reasoning(result)),
+            query=reading_goal or _latest_query(result),
             documents=[document],
             budget=budget,
             trace=trace,
             usage=result.usage,
             depth=1,
         )
-        _absorb(result, exploration, query=_latest_query(result), url=url, record=record)
+        _absorb(result, exploration, query=reading_goal or _latest_query(result), url=url, record=record)
+        if state is not None:
+            focus = []
+            for note in exploration.notes:
+                for source_url in note.get("urls", []):
+                    evidence = note.get("text", "")
+                    if note.get("source_evidence"):
+                        evidence += "\nVerbatim supplied source (separate from reader interpretation):\n" + note["source_evidence"]
+                    focus.append(state.add_note(source_url, evidence, note.get("status", "partial")))
+            # Preserve link navigation choices without treating link labels as facts.
+            links_text = "\n".join(n.get("text", "") for n in exploration.notes)
+            for linked in re.findall(r"https?://[^\s<>\]\)\"`]+", links_text):
+                try:
+                    state.register(linked.rstrip(".,;"))
+                except ValueError:
+                    pass
+            await self._control(question, result, trace, focus, select=False)
         return exploration.render_for_gate(), raw_chars
+
+    async def _control(self, question: str, result: RunResult, trace: Trace,
+                       focus: list[str], *, select: bool) -> str | None:
+        """One bounded, same-model decision; malformed updates leave valid state intact."""
+        state = result.research_state
+        assert state is not None
+        focus = list(dict.fromkeys(focus))
+        selectable = state.selectable() if select else []
+        ids = list(dict.fromkeys(focus + selectable))
+        if not ids:
+            return None
+        per_source = max(128, self.config.fetch_max_tokens // max(1, len(ids)))
+        sources = []
+        for sid in ids:
+            s = state.sources[sid]
+            parts = []
+            if s["snippets"]:
+                parts.append("Search snippets (not a full-page reading):\n" + "\n".join(s["snippets"]))
+            if s["notes"]:
+                parts.append("Page reader notes (check their stated source scope):\n" + "\n".join(s["notes"]))
+            body, clipped = await self.llm.cap("\n\n".join(parts), per_source)
+            sources.append({"id": sid, "url": s["url"], "title": s["title"], "status": s["status"],
+                            "evidence": body, "excerpt_truncated": clipped})
+        payload = {"question": question, "mode": "select" if select else "update-only",
+                   "working_state": state.snapshot(), "selectable": selectable, "sources": sources}
+        messages = [{"role": "system", "content": _system_prompt(CONTROL_PROMPT, self.profile.reasoning_effort)},
+                    {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
+        if await self.llm.count_tokens(json.dumps(messages, ensure_ascii=False)) + self.config.max_tokens > self.config.context_limit:
+            state.count("controller_context_skips")
+            trace.event("control.skipped", reason="context_limit")
+            return None
+        state.count("controller_calls")
+        trace.event("control.request", mode=payload["mode"], messages=messages)
+        try:
+            reply = await self.llm.chat(messages, max_tokens=self.config.max_tokens,
+                                        usage=result.usage, tool_choice="none")
+        except Exception as exc:
+            state.count("controller_errors")
+            trace.event("control.error", error=repr(exc))
+            return None
+        data = parse_control(reply.text) if not reply.truncated and not reply.tool_calls else {}
+        trace.event("control.response", mode=payload["mode"], text=reply.text, reasoning=reply.reasoning,
+                    finish_reason=reply.finish_reason, valid=bool(data))
+        if not data:
+            state.count("controller_invalid")
+            return None
+        if isinstance(data.get("draft"), dict) and _looks_like_unfinished_research(str(data["draft"].get("text", ""))):
+            data.pop("draft")
+        state.apply(data, set(ids) | {r["source"] for c in state.candidates.values()
+                                     for key in ("support", "against") for r in c[key]})
+        trace.event("control.state", **state.snapshot())
+        choice = data.get("read")
+        state.selection_goal = str(data.get("reason") or "") if isinstance(data.get("reason", ""), str) else ""
+        if choice is not None and (not isinstance(choice, str) or choice not in selectable):
+            state.count("controller_invalid_selection")
+            trace.event("control.invalid_selection", selection=choice)
+        return choice if isinstance(choice, str) and choice in selectable else None
 
     async def _fit(self, text: str, result: RunResult) -> tuple[str, bool]:
         """도구 결과가 컨텍스트 상한을 넘기면 남은 토큰만큼만 남긴다."""
@@ -1038,6 +1221,15 @@ def _looks_like_action(text: str) -> bool:
     ) or re.search(
         r"(?:^|[.!?\n]\s*)(?:I(?:['’]ll| will)|we (?:will|should|need to))\s+"
         r"(?:produce|give|write|assume|guess)\b",
+        text.strip(), re.IGNORECASE,
+    ))
+
+
+def _looks_like_unfinished_research(text: str) -> bool:
+    """DS-only final-output guard; a short factual answer is still valid."""
+    return _looks_like_action(text) or bool(re.search(
+        r"(?:^|\n)\s*(?:Need (?:a )?(?:source|evidence|to (?:search|fetch|open|verify))\b|"
+        r"(?:Next (?:step|action)|To[- ]do)\s*:)|(?:^|[.!?]\s+)Open\.\s*$",
         text.strip(), re.IGNORECASE,
     ))
 

@@ -248,6 +248,9 @@ def _write_run_config(out, config, profile, dataset, items):
     (out / "prompt.txt").write_text(config.system_prompt, encoding="utf-8")
     if config.uses_explorer:
         (out / "explorer_prompt.txt").write_text(config.explorer_prompt, encoding="utf-8")
+    if config.method == "depthsearch" and config.agent.depthsearch_control:
+        from searchgym.research_state import CONTROL_PROMPT
+        (out / "controller_prompt.txt").write_text(CONTROL_PROMPT, encoding="utf-8")
 
 def _resolve_dir(args, config, profile) -> Path | None:
     stage, tag = "test", config.run.tag

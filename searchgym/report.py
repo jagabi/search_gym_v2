@@ -89,6 +89,11 @@ def behaviour(records: Iterable["Record"]) -> dict[str, Any]:
         ),
         "fetches_mean": round(st.mean([r.result.fetches for r in items]), 2),
         "fetches_total": sum(r.result.fetches for r in items),
+        "selected_entry_fetches_total": sum(r.result.auto_fetches for r in items),
+        "control_stats": {
+            key: sum(r.result.research_state.metrics.get(key, 0) if r.result.research_state else 0 for r in items)
+            for key in sorted({key for r in items if r.result.research_state for key in r.result.research_state.metrics})
+        },
         # 도구 계층의 건강 상태. **낮으면 다른 숫자를 읽을 필요가 없다** — 웹이
         # 들어오지 않은 실행이라 방법 비교가 성립하지 않는다.
         # **도구 계층이 살아 있는가.** 둘 중 하나라도 낮으면 다른 숫자는 읽을 필요가

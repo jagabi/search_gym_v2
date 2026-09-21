@@ -30,6 +30,7 @@ from .paths import resolve
 from .scoring import Judgement, from_dict
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
+from .research_state import ResearchState, CONTROL_PROMPT
 from .tree import write_svg
 
 __all__ = ["Cache", "Record", "Runner"]
@@ -38,7 +39,7 @@ __all__ = ["Cache", "Record", "Runner"]
 # agent/16 — 문서 예산을 균등분할에서 워터필링으로 바꿨다(작은 문서가 남긴
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
-DEPTHSEARCH_CACHE_VERSION = "agent/37-ds-evidence-completion"
+DEPTHSEARCH_CACHE_VERSION = "agent/38-ds-selective-entry"
 JUDGE_VERSION = "judge/1"
 
 
@@ -93,6 +94,8 @@ class Record:
             "error": self.result.error,
             "reader_stats": self.result.reader_stats,
             "invalid_tool_calls": self.result.invalid_tool_calls,
+            "auto_fetches": self.result.auto_fetches,
+            "control_stats": dict(self.result.research_state.metrics) if self.result.research_state else {},
             "cached": self.cached,
             "dir": self.dir,
         }
@@ -423,10 +426,13 @@ _DEPLOYMENT_ONLY = ("api_key", "base_url", "timeout_s")
 
 def _agent_fingerprint(config: AgentConfig) -> str:
     """캐시 키에 들어갈 에이전트 설정. 결과에 영향을 주는 값만 넣는다."""
-    return json.dumps(
-        {k: v for k, v in asdict(config).items() if k not in _DEPLOYMENT_ONLY},
-        sort_keys=True, ensure_ascii=False,
-    )
+    values = {k: v for k, v in asdict(config).items() if k not in _DEPLOYMENT_ONLY}
+    if not values.get("depthsearch_control"):
+        # Preserve the exact baseline fingerprint from before this DS-only feature.
+        values.pop("depthsearch_control", None)
+    else:
+        values["controller_prompt"] = CONTROL_PROMPT
+    return json.dumps(values, sort_keys=True, ensure_ascii=False)
 
 
 def _explorer_fingerprint(config: ExplorerConfig | None, method: str) -> str:
@@ -478,6 +484,8 @@ def _result_from(payload: dict[str, Any]) -> RunResult:
         context_exhausted=payload.get("context_exhausted", False),
         reader_stats=payload.get("reader_stats") or {},
         invalid_tool_calls=payload.get("invalid_tool_calls", 0),
+        auto_fetches=payload.get("auto_fetches", 0),
+        research_state=ResearchState.from_snapshot(payload.get("research_state")),
         error=payload.get("error"),
         budget=payload.get("budget") or {},
         expansion_nodes=payload.get("expansion_nodes", 0),

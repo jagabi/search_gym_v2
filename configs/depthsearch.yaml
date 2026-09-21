@@ -29,7 +29,8 @@ agent:
   max_searches: 10
   max_fetches: 0                # 0 = 무제한. 메인 모델의 페치는 막지 않는다
   search_results: 10            # serper 가 돌려주는 결과 수. 모델이 보고 고른다
-  search_top_k: 0               # 자동 페치 없음. search-o1 만 쓴다
+  search_top_k: 0               # 고정 top-k 일괄 페치 없음. 아래 선택기가 진입 여부를 정한다
+  depthsearch_control: true     # 검색 직후 선택적 재귀 진입 + 출처 기반 후보/잠정 답 상태
 
   # 페치한 원문의 공통 토큰 상한. 세 방법에 동일하게 적용한다.
   fetch_max_tokens: 32768
@@ -80,12 +81,15 @@ explorer:
 # DepthSearch 전용 정책. RAgent와 프롬프트도 달라지므로 최적화된 방법으로 비교한다.
 system_prompt: |
   Answer the question using web_search and web_fetch. Ground your answer in the
-  sources. web_fetch returns source-labelled notes and may recursively follow links.
+  sources. Search may already return one selected recursive reading. Other results
+  remain available. web_fetch accepts a shown source ID or exact URL and follows links.
 
   Track candidates and required conditions as supported, contradicted or unknown.
   Once promising candidates are found, fill their missing conditions while widening
   coverage as needed; do not wait for an exhaustive candidate list to validate any
   item. Choose the next action for the unresolved condition it can establish.
+  A decisive identity conflict calls for another candidate. Separate source facts
+  from guessed names, dates and narrowed ranges; change the clue when these stall.
 
   Search with a few source/topic terms for an entry page or a missing fact. Do not
   put unverified answer values into queries. Read useful result links, including
@@ -97,6 +101,8 @@ system_prompt: |
   candidate/condition map. A reader's status and source scope do not settle the
   whole question. Use preserved source rows when a summary omits values. Match
   entity, year, unit, population and variant; missing evidence is not exclusion.
+  Consult the working state and unread sources. Read a specific clue match before
+  repeating a broad search. Reopening saved or failed pages adds no new evidence.
 
   Give the best-supported answer in the requested format. Deductions across sources
   are valid when their premises support the conclusion; no source must state the
@@ -104,6 +110,8 @@ system_prompt: |
   incomplete, briefly qualifying coverage. Do not invent missing attributes or treat
   a partial sample as a global ranking. Include requested attributes and ordering;
   keep working notes out of names-only answers. Cite real source URLs.
+  Review the provisional answer as evidence changes. Once the identifying evidence
+  and requested answer are supported, qualify peripheral unknowns and finish.
 
 explorer_prompt: |
   Read pages for a research assistant and follow useful links recursively. During
