@@ -107,10 +107,11 @@ class SourceTests(unittest.TestCase):
 
 
 class FlowTests(unittest.IsolatedAsyncioTestCase):
-    async def test_configured_depthsearch_exposes_only_web_tools(self):
+    async def test_configured_depthsearch_main_search_and_internal_fetch_are_separate(self):
         cfg = load_test(method="depthsearch")
-        url = "https://a.example/record"
-        llm = FakeLLM([fetch_call(url), note("Value: 42\n**Expand:** no"),
+        url = "https://archives.example/treaty"
+        llm = FakeLLM([call("web_search", {"query": "value record"}), fetch_call(url),
+                       note("Value: 42\n**Expand:** no"), Reply(text='{"candidates":[]}'),
                        Reply(text="42"), Reply(text="42")])
         tools = FakeTools()
         tools.fetch = AsyncMock(return_value=Document(url, "Value: 42"))
@@ -118,8 +119,9 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
             agent = SearchAgent(profile_for("gpt-oss"), cfg.agent, "depthsearch", cfg.explorer, cfg.explorer_prompt)
         result = await agent.run("What is the value?", cfg.system_prompt, tools, MemoryTrace())
         self.assertEqual(result.answer, "42")
-        self.assertEqual({s["function"]["name"] for s in llm.requests[0][1]}, {"web_search", "web_fetch"})
-        self.assertIsNone(llm.requests[1][1])  # Source extraction has no tools.
+        self.assertEqual({s["function"]["name"] for s in llm.requests[0][1]}, {"web_search"})
+        self.assertEqual({s["function"]["name"] for s in llm.requests[1][1]}, {"web_fetch"})
+        self.assertIsNone(llm.requests[2][1])  # Source extraction has no tools.
         self.assertIsNone(llm.requests[-1][1])  # Final synthesis has no tools.
         self.assertFalse(llm.replies)
         tools.fetch.assert_awaited_once()

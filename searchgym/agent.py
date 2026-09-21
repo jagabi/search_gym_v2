@@ -3,7 +3,7 @@
 세 방법은 공통 실행 루프와 웹 도구를 사용한다. DS는 전용 선택·상태 갱신 정책을 쓴다.
 
     ragent       web_search + web_fetch.  페치 원문(jina 마크다운)이 그대로 들어간다
-    depthsearch  검색 결과에서 선택적으로 재귀 진입. 메인 fetch도 가능하며,
+    depthsearch  메인은 검색, 내부 fetch 단계는 선택적 재귀 진입을 맡는다.
                  출처에 연결된 후보 상태와 잠정 답을 유지한다
     search-o1    web_search 만.  검색당 상위 k개를 자동 페치해 페이지별 explorer 요약
 
@@ -30,7 +30,8 @@ from .llm import LLM, Usage, recover_tool_calls, normalize_tool_names, history_t
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
 from .urls import normalize_fetch_url
-from .research_state import ResearchState, CONTROL_PROMPT, parse_control, is_search_endpoint
+from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL,
+                             parse_control, is_search_endpoint)
 
 __all__ = ["METHODS", "AgentConfig", "RunResult", "SearchAgent", "Step"]
 
@@ -291,13 +292,13 @@ class SearchAgent:
     def tool_names(self) -> list[str]:
         """모델에게 노출할 도구.
 
-        ragent와 depthsearch는 같은 두 도구를 노출한다. DS의 선택적 진입과
-        근거 상태 관리는 내부 정책이며 새로운 외부 도구를 추가하지 않는다.
-
-        search-o1 만 web_search 하나다. 원 논문이 페치를 모델 선택으로 두지 않고
-        검색당 상위 k개를 자동으로 가져오기 때문이다.
+        선택적 진입을 켠 DS와 search-o1의 메인에는 검색만 제공한다.
+        DS의 fetch 선택과 재귀는 검색 내부에서 실행한다. 이전 DS 설정과
+        RAgent에는 기존처럼 두 도구를 제공한다.
         """
-        return ["web_search"] if self.method == "search-o1" else ["web_search", "web_fetch"]
+        if self.method == "search-o1" or (self.method == "depthsearch" and self.config.depthsearch_control):
+            return ["web_search"]
+        return ["web_search", "web_fetch"]
 
     @property
     def explores_on_fetch(self) -> bool:
@@ -331,9 +332,17 @@ class SearchAgent:
                 if function["name"] == "web_search":
                     function["description"] += (
                         "\nFind an entry page or a candidate's missing condition. Use a few "
-                        "source/topic terms; do not add unverified answer values as filters. "
-                        "If results already contain a useful entry link, fetch it."
+                        "source/topic terms; do not add unverified answer values as filters."
                     )
+                    if result.research_state:
+                        function["description"] += (
+                            " Each search lets a fetch-only reader choose an unread source and "
+                            "follow useful links recursively. Results and any reading return to "
+                            "you; integrate them before searching again or answering. "
+                            "No reading is not a conclusion about the question."
+                        )
+                    else:
+                        function["description"] += " If results already contain a useful entry link, fetch it."
                 elif function["name"] == "web_fetch":
                     function["description"] += (
                         "\nReturns source-labelled notes and can follow useful page links "
@@ -557,7 +566,7 @@ class SearchAgent:
         return [s for s in specs if (
             s["function"]["name"] == "web_search" and result.searches < self.config.max_searches
         ) or (
-            s["function"]["name"] == "web_fetch" and
+            s["function"]["name"] == "web_fetch" and not self.config.depthsearch_control and
             (not self.config.max_fetches or result.fetches + result.auto_fetches < self.config.max_fetches)
         )]
 
@@ -584,6 +593,9 @@ class SearchAgent:
             parts.append(f"web_fetch is available ({remaining} main fetches remaining); you may open known source URLs.")
             if budget.exhausted:
                 parts.append("Recursive expansion is exhausted. A main fetch can still read a page and return its evidence without child expansion.")
+        elif self.config.depthsearch_control:
+            parts.append("Page fetching is handled inside web_search by the fetch-only reader; "
+                         "web_fetch is not a main action. Review returned evidence before the next search.")
         else:
             parts.append("web_fetch is exhausted and unavailable; do not call it.")
         parts.append("Use available tools only if evidence is still needed; otherwise give the answer.")
@@ -696,6 +708,14 @@ class SearchAgent:
         used = result.searches if name == "web_search" else result.fetches
         record = ToolCall(name=name, arguments=arguments)
         step.tool_calls.append(record)
+
+        if self.method == "depthsearch" and cfg.depthsearch_control and name == "web_fetch":
+            record.refused = True
+            record.result = ("web_fetch is not a main action. Page reading is handled inside web_search. "
+                             "Use web_search if available and needed, or answer from the returned evidence.")
+            record.result_chars = len(record.result)
+            trace.event("tool.unavailable", turn=step.turn, tool=name)
+            return record.result
 
         # Repairable argument errors must not turn into a fetch of an empty URL.
         try:
@@ -1051,6 +1071,8 @@ class SearchAgent:
         assert state is not None
         focus = list(dict.fromkeys(focus))
         selectable = state.selectable() if select else []
+        if select and not selectable:
+            return None
         ids = list(dict.fromkeys(focus + selectable))
         if not ids:
             return None
@@ -1068,21 +1090,64 @@ class SearchAgent:
                             "evidence": body, "excerpt_truncated": clipped})
         payload = {"question": question, "mode": "select" if select else "update-only",
                    "working_state": state.snapshot(), "selectable": selectable, "sources": sources}
-        messages = [{"role": "system", "content": _system_prompt(CONTROL_PROMPT, self.profile.reasoning_effort)},
+        prompt = SELECT_PROMPT if select else CONTROL_PROMPT
+        offered_tools = [SELECT_FETCH_TOOL] if select else None
+        messages = [{"role": "system", "content": _system_prompt(prompt, self.profile.reasoning_effort)},
                     {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
         if await self.llm.count_tokens(json.dumps(messages, ensure_ascii=False)) + self.config.max_tokens > self.config.context_limit:
             state.count("controller_context_skips")
             trace.event("control.skipped", reason="context_limit")
             return None
         state.count("controller_calls")
-        trace.event("control.request", mode=payload["mode"], messages=messages)
+        trace.event("control.request", mode=payload["mode"], messages=messages, tools=offered_tools,
+                    tool_choice="auto" if select else "none")
         try:
             reply = await self.llm.chat(messages, max_tokens=self.config.max_tokens,
-                                        usage=result.usage, tool_choice="none")
+                                        tools=offered_tools, usage=result.usage,
+                                        tool_choice="auto" if select else "none")
         except Exception as exc:
             state.count("controller_errors")
             trace.event("control.error", error=repr(exc))
             return None
+        if select:
+            # Use the same tool-envelope handling as the recursive reader. Never
+            # infer an action from reasoning or parse a second decision protocol.
+            raw_text = reply.text
+            recovered = recover_tool_calls(reply, offered_tools)
+            normalized = normalize_tool_names(reply, offered_tools)
+            selected = None
+            if reply.truncated:
+                decision = "truncated"
+            elif reply.tool_calls:
+                decision = "invalid_tool_call"
+                if len(reply.tool_calls) == 1:
+                    call = reply.tool_calls[0]
+                    try:
+                        args = json.loads(call.function.arguments)
+                        if (call.function.name == "web_fetch" and isinstance(args, dict)
+                                and set(args) == {"url"} and isinstance(args["url"], str)):
+                            # Selection is restricted to observed unread entries;
+                            # child readers keep their existing URL expansion rules.
+                            selected = next((sid for sid in selectable
+                                             if state.sources[sid]["url"] == args["url"]), None)
+                    except (ValueError, TypeError):
+                        pass
+                    if selected:
+                        decision = "fetch"
+            else:
+                decision = "skip" if reply.text.strip() else "empty_response"
+            trace.event("control.response", mode="select", text=raw_text, reasoning=reply.reasoning,
+                        finish_reason=reply.finish_reason, valid=decision in {"fetch", "skip"},
+                        decision=decision, selected=selected, recovered_tool_call=recovered,
+                        normalized_tool_names=normalized,
+                        tool_calls=[{"name": c.function.name, "arguments": c.function.arguments}
+                                    for c in reply.tool_calls])
+            state.selection_goal = ""
+            if decision == "skip":
+                state.count("controller_skips")
+            elif decision != "fetch":
+                state.count("controller_invalid")
+            return selected
         data = parse_control(reply.text) if not reply.truncated and not reply.tool_calls else {}
         trace.event("control.response", mode=payload["mode"], text=reply.text, reasoning=reply.reasoning,
                     finish_reason=reply.finish_reason, valid=bool(data))
@@ -1094,12 +1159,7 @@ class SearchAgent:
         state.apply(data, set(ids) | {r["source"] for c in state.candidates.values()
                                      for key in ("support", "against") for r in c[key]})
         trace.event("control.state", **state.snapshot())
-        choice = data.get("read")
-        state.selection_goal = str(data.get("reason") or "") if isinstance(data.get("reason", ""), str) else ""
-        if choice is not None and (not isinstance(choice, str) or choice not in selectable):
-            state.count("controller_invalid_selection")
-            trace.event("control.invalid_selection", selection=choice)
-        return choice if isinstance(choice, str) and choice in selectable else None
+        return None
 
     async def _fit(self, text: str, result: RunResult) -> tuple[str, bool]:
         """도구 결과가 컨텍스트 상한을 넘기면 남은 토큰만큼만 남긴다."""

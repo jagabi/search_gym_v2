@@ -35,6 +35,7 @@ from searchgym.runner import Runner  # noqa: E402
 from searchgym.scoring import Judgement  # noqa: E402
 from searchgym.serving import profile_for  # noqa: E402
 from searchgym.trace import Trace  # noqa: E402
+from searchgym.research_state import SELECT_PROMPT, CONTROL_PROMPT  # noqa: E402
 
 OUT = "runs/_offline"
 
@@ -132,12 +133,24 @@ class FakeLLM:
         turn = sum(1 for m in messages if m["role"] == "assistant") + 1
         names = {t["function"]["name"] for t in (tools or [])}
         who = "explorer" if self.marker in system else "agent"
+        if SELECT_PROMPT.strip() in system:
+            who = "selector"
+        elif CONTROL_PROMPT.strip() in system:
+            who = "state"
         self.calls.append(f"{who}:t{turn}:tools={sorted(names) or '-'}")
 
         if usage is not None:
             usage.add(1000 * turn, 200, 80)
 
-        if who == "explorer":
+        if who == "selector":
+            payload = json.loads(messages[-1]["content"])
+            candidates = [s for s in payload["sources"] if s["id"] in payload["selectable"]]
+            target = next((s for s in candidates if "archives.example" in s["url"]), None)
+            reply = (_tool_reply("web_fetch", {"url": target["url"]}) if target
+                     else Reply(text="No useful unread source.", finish_reason="stop"))
+        elif who == "state":
+            reply = Reply(text='{"candidates":[]}', finish_reason="stop")
+        elif who == "explorer":
             reply = self._explorer(messages, turn, names)
         else:
             reply = self._agent(turn, names)

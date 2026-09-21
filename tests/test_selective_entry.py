@@ -22,6 +22,10 @@ FACT = "The artist records as River and was born in November 1998."
 
 
 def control(read=None, **updates):
+    if read is not None:
+        return fetch_call({"S1": "https://other.example/music", "S2": URL}.get(read, read))
+    if not updates:
+        return Reply(text="No useful unread page to open.", finish_reason="stop")
     return Reply(text=json.dumps({"read": read, **updates}), finish_reason="stop")
 
 
@@ -135,7 +139,8 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.steps[0].tool_calls[0].explorations)
         # Selector sees source observations, not the main model's accumulated guesses.
         self.assertNotIn("reasoning", json.loads(llm.requests[1][0][-1]["content"])["working_state"])
-        self.assertEqual(llm.tool_choices[1:4], ["none", "none", "none"])
+        self.assertEqual(llm.tool_choices[1:4], ["auto", "none", "none"])
+        self.assertEqual([t["function"]["name"] for t in llm.requests[1][1]], ["web_fetch"])
 
     async def test_invalid_selector_has_no_fetch_or_state_mutation(self):
         for reply in (Reply(text="not json"), control("S999"), control(None), Reply(text='{"read":"S2"}', finish_reason="length")):
@@ -145,6 +150,72 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(result.error)
             self.assertEqual(tools.fetched, [])
             self.assertEqual(result.searches, 1)
+
+    async def test_fetch_decision_distinguishes_skip_empty_and_invalid_without_retry(self):
+        malformed = fetch_call(URL)
+        malformed.tool_calls[0].function.arguments = '{"url":'
+        multiple = fetch_call(URL)
+        multiple.tool_calls += fetch_call("https://other.example/music").tool_calls
+        truncated = fetch_call(URL)
+        truncated.finish_reason = "length"
+        extra_argument = fetch_call(URL)
+        extra_argument.tool_calls[0].function.arguments = json.dumps({"url": URL, "goal": "read"})
+        for reply, metric in (
+            (Reply(text="No additional page is useful.", finish_reason="stop"), "controller_skips"),
+            (Reply(reasoning="Open S2", finish_reason="stop"), "controller_invalid"),
+            (malformed, "controller_invalid"),
+            (multiple, "controller_invalid"),
+            (truncated, "controller_invalid"),
+            (extra_argument, "controller_invalid"),
+            (call("web_search", {"query": "artist"}), "controller_invalid"),
+            (fetch_call(URL.lower()), "controller_invalid"),
+        ):
+            with self.subTest(metric=metric, reply=reply):
+                agent, llm = self.make([reply])
+                state = ResearchState()
+                sid = state.register(URL, snippet=FACT)
+                result = RunResult(research_state=state)
+                trace = MemoryTrace()
+                selected = await agent._control("Which artist?", result, trace, [sid], select=True)
+                self.assertIsNone(selected)
+                self.assertEqual(state.metrics[metric], 1)
+                self.assertFalse(state.candidates)
+                self.assertEqual(len(llm.requests), 1)
+                self.assertEqual(llm.tool_choices, ["auto"])
+
+    async def test_no_selectable_sources_needs_no_decision_call(self):
+        agent, llm = self.make([])
+        state = ResearchState()
+        sid = state.add_note(URL, FACT, "partial")
+        selected = await agent._control("Q", RunResult(research_state=state), MemoryTrace(), [sid], select=True)
+        self.assertIsNone(selected)
+        self.assertFalse(llm.requests)
+
+    async def test_plain_selection_reply_returns_to_main_for_another_search(self):
+        skip = Reply(text="No page needs reading yet.", finish_reason="stop")
+        agent, llm = self.make([
+            call("web_search", {"query": "first clue"}), skip,
+            call("web_search", {"query": "different clue"}), skip,
+            Reply(text="Main model's final answer", finish_reason="stop"),
+        ])
+        tools, trace = SourceTools(), MemoryTrace()
+        result = await agent.run("Q", "Research", tools, trace)
+        self.assertIsNone(result.error)
+        self.assertEqual(tools.searched, ["first clue", "different clue"])
+        self.assertEqual(result.answer, "Main model's final answer")
+        self.assertEqual(result.turns, 3)
+        self.assertEqual(result.research_state.metrics["controller_skips"], 2)
+        self.assertFalse(tools.fetched)
+        self.assertEqual(result.expansion_nodes, 0)
+        self.assertEqual(result.max_depth_reached, 1)
+        self.assertEqual(len(llm.requests), 5)
+        self.assertFalse(llm.replies)
+        # Search observations return as a tool result; the internal stop is not
+        # mistaken for the main assistant's final answer.
+        for index in (2, 4):
+            history, specs = llm.requests[index]
+            self.assertTrue(any(m["role"] == "tool" and FACT in m["content"] for m in history))
+            self.assertEqual({s["function"]["name"] for s in specs}, {"web_search"})
 
     async def test_controller_error_does_not_discard_search_results(self):
         agent, _ = self.make([call("web_search", {"query": "artist"}), RuntimeError("offline error"), Reply(text="River")])
@@ -175,15 +246,18 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("River", final_request)
         self.assertEqual(llm.tool_choices[-1], "none")
 
-    async def test_known_source_id_and_repeat_fetch_do_not_retype_or_refetch(self):
-        agent, _ = self.make([call("web_search", {"query": "artist"}), control(None),
-                             fetch_call("S2"), note(FACT), control(**checkpoint()),
-                             fetch_call("S2"), Reply(text="River")])
+    async def test_main_fetch_is_not_offered_and_cannot_execute_even_with_budget(self):
+        agent, llm = self.make([call("web_search", {"query": "artist"}), control(None),
+                               fetch_call(URL), Reply(text="River")])
         tools = SourceTools()
         result = await agent.run("Q", "Research", tools, MemoryTrace())
         self.assertIsNone(result.error)
-        self.assertEqual(tools.fetched, [URL])
-        self.assertEqual(result.research_state.metrics["repeat_fetch_prevented"], 1)
+        self.assertEqual(tools.fetched, [])
+        self.assertEqual(result.fetches, 0)
+        self.assertTrue(result.steps[1].tool_calls[0].refused)
+        self.assertIn("not a main action", result.steps[1].tool_calls[0].result)
+        for index in (0, 2, 3):
+            self.assertEqual([s["function"]["name"] for s in llm.requests[index][1]], ["web_search"])
 
     async def test_blocked_search_fetch_never_reaches_network_including_reader_path(self):
         agent, _ = self.make([])
@@ -229,7 +303,7 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.research_state.source(child)["status"], "read")
         self.assertFalse(llm.replies)
 
-    async def test_exhausted_search_and_repeated_cached_reads_withdraw_tools(self):
+    async def test_exhausted_search_refuses_stale_main_fetch_calls(self):
         agent, llm = self.make([call("web_search", {"query": "artist"}), control("S2"), note(FACT),
             control(**checkpoint()), fetch_call("S2"), fetch_call("S2"), Reply(text="River")], max_searches=1)
         tools = SourceTools()
@@ -238,6 +312,33 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tools.fetched, [URL])
         self.assertIsNone(llm.requests[-1][1])
         self.assertEqual(llm.tool_choices[-1], "none")
+
+    async def test_last_search_finishes_reading_then_calls_main_without_tools(self):
+        agent, llm = self.make([call("web_search", {"query": "artist"}), control("S2"),
+                               note(FACT), control(**checkpoint()), Reply(text="River")], max_searches=1)
+        tools = SourceTools()
+        result = await agent.run("Q", "Research", tools, MemoryTrace())
+        self.assertIsNone(result.error)
+        self.assertEqual((result.searches, result.auto_fetches, result.fetches), (1, 1, 0))
+        self.assertEqual(tools.fetched, [URL])
+        self.assertEqual(result.answer, "River")
+        self.assertEqual(result.turns, 2)
+        self.assertIsNone(llm.requests[-1][1])
+        self.assertEqual(llm.tool_choices[-1], "none")
+        self.assertTrue(any(m["role"] == "tool" and FACT in m["content"] for m in llm.requests[-1][0]))
+        self.assertFalse(llm.replies)
+
+    async def test_last_search_skip_still_calls_main_for_final_answer(self):
+        agent, llm = self.make([call("web_search", {"query": "artist"}), control(None),
+                               Reply(text="Main answer")], max_searches=1)
+        result = await agent.run("Q", "Research", SourceTools(), MemoryTrace())
+        self.assertIsNone(result.error)
+        self.assertEqual(result.answer, "Main answer")
+        self.assertEqual(result.turns, 2)
+        self.assertEqual(result.auto_fetches, 0)
+        self.assertEqual(llm.tool_choices[-1], "none")
+        self.assertIsNone(llm.requests[-1][1])
+        self.assertFalse(llm.replies)
 
     async def test_large_history_finalization_keeps_checkpoint_instead_of_overflowing(self):
         agent, llm = self.make([Reply(text="River")], context_limit=2000)

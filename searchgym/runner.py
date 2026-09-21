@@ -30,7 +30,7 @@ from .paths import resolve
 from .scoring import Judgement, from_dict
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
-from .research_state import ResearchState, CONTROL_PROMPT
+from .research_state import ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL
 from .tree import write_svg
 
 __all__ = ["Cache", "Record", "Runner"]
@@ -39,7 +39,7 @@ __all__ = ["Cache", "Record", "Runner"]
 # agent/16 — 문서 예산을 균등분할에서 워터필링으로 바꿨다(작은 문서가 남긴
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
-DEPTHSEARCH_CACHE_VERSION = "agent/38-ds-selective-entry"
+DEPTHSEARCH_CACHE_VERSION = "agent/40-ds-search-main"
 JUDGE_VERSION = "judge/1"
 
 
@@ -432,6 +432,8 @@ def _agent_fingerprint(config: AgentConfig) -> str:
         values.pop("depthsearch_control", None)
     else:
         values["controller_prompt"] = CONTROL_PROMPT
+        values["selector_prompt"] = SELECT_PROMPT
+        values["selector_tool"] = SELECT_FETCH_TOOL
     return json.dumps(values, sort_keys=True, ensure_ascii=False)
 
 

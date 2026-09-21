@@ -1,18 +1,18 @@
 # DepthSearch — RAgent + Reason-in-Documents + 재귀 확장.
 #
-# web_search + web_fetch는 ragent와 같은 검색 통제를 따른다. DepthSearch는
-# 출처별 근거 추출·원문 링크 재귀 탐색·전용 프롬프트를 사용한다.
+# 메인은 web_search만 사용하며 검색 뒤 fetch 전용 단계가 재귀 진입을 결정한다.
+# 검색 횟수와 결과 수는 ragent와 같다. 출처별 근거 추출·재귀 탐색을 사용한다.
 #
 #   ragent       web_fetch → jina 마크다운 원문이 그대로 메인 컨텍스트에
-#   depthsearch  web_fetch → explorer 노트 + 짧은 구조화 자료의 원문을 메인에
+#   depthsearch  web_search → 선택적 fetch → explorer 노트 + 보존 원문을 메인에
 #                            explorer 는 그 페이지의 링크를 따라 재귀할 수 있다
 #
 # 아래는 구조 차이이며, 실제 방법 비교에는 전용 프롬프트도 포함된다.
 #   ragent            → depthsearch(max_depth 1)   원문 vs 요약
 #   depthsearch(1)    → depthsearch(3)             평면 vs 재귀
 #
-# 확장 노드(depth 2 이상)는 예산에서 차감한다. 메인 모델이 고른 페치(depth 1)는
-# ragent 에도 똑같이 있으므로 차감하지 않는다 — 차감하면 두 조건의 행동이 달라진다.
+# 확장 노드(depth 2 이상)는 예산에서 차감한다. 선택한 진입 페이지는 depth 1이다.
+# 검색 결과에서 fetch를 고르는 호출은 문서 깊이에 포함하지 않는다.
 #
 # 제약은 프롬프트가 아니라 구조로 건다. explorer 는 max_depth 에 닿거나 예산이
 # 소진되면 fetch 도구를 **아예 받지 않는다**.
@@ -27,7 +27,7 @@ agent:
   #
   # 검색량별 점수는 문항 난이도와 섞여 있다. 정보 전달 개선을 비교하는 동안 고정한다.
   max_searches: 10
-  max_fetches: 0                # 0 = 무제한. 메인 모델의 페치는 막지 않는다
+  max_fetches: 0                # 0 = 진입 fetch 별도 한도 없음. 검색당 최대 한 번 선택
   search_results: 10            # serper 가 돌려주는 결과 수. 모델이 보고 고른다
   search_top_k: 0               # 고정 top-k 일괄 페치 없음. 아래 선택기가 진입 여부를 정한다
   depthsearch_control: true     # 검색 직후 선택적 재귀 진입 + 출처 기반 후보/잠정 답 상태
@@ -80,9 +80,11 @@ explorer:
 
 # DepthSearch 전용 정책. RAgent와 프롬프트도 달라지므로 최적화된 방법으로 비교한다.
 system_prompt: |
-  Answer the question using web_search and web_fetch. Ground your answer in the
-  sources. Search may already return one selected recursive reading. Other results
-  remain available. web_fetch accepts a shown source ID or exact URL and follows links.
+  Answer the question using web_search. Each search lets a fetch-only reader choose
+  one unread source and follow useful links recursively, then returns the search
+  results and any reading to you. Ground your answer in these sources. After each
+  return, integrate the evidence and decide whether another search is needed or you
+  can answer. No attached reading does not mean the results contain no useful evidence.
 
   Track candidates and required conditions as supported, contradicted or unknown.
   Once promising candidates are found, fill their missing conditions while widening
@@ -92,17 +94,16 @@ system_prompt: |
   from guessed names, dates and narrowed ranges; change the clue when these stall.
 
   Search with a few source/topic terms for an entry page or a missing fact. Do not
-  put unverified answer values into queries. Read useful result links, including
-  official indexes that lead to documents, before searching for the same evidence
-  again. If queries or URL variants yield the same material, switch to a detail
-  link, another source or another missing condition.
+  put unverified answer values into queries. Seek useful entry pages, including
+  official indexes that lead to documents. Avoid searching again for facts already
+  established by returned evidence. If queries yield the same material, change the
+  clue, source or missing condition.
 
   After a recursive return, integrate new facts into the original question's
   candidate/condition map. A reader's status and source scope do not settle the
   whole question. Use preserved source rows when a summary omits values. Match
   entity, year, unit, population and variant; missing evidence is not exclusion.
-  Consult the working state and unread sources. Read a specific clue match before
-  repeating a broad search. Reopening saved or failed pages adds no new evidence.
+  Consult the working state and returned sources before repeating a broad search.
 
   Give the best-supported answer in the requested format. Deductions across sources
   are valid when their premises support the conclusion; no source must state the

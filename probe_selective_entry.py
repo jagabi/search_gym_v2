@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+from collections import Counter
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -16,7 +17,7 @@ from pathlib import Path
 from searchgym.agent import RunResult, SearchAgent
 from searchgym.config import load_test
 from searchgym.report import enable_utf8
-from searchgym.research_state import ResearchState, CONTROL_PROMPT, source_key
+from searchgym.research_state import ResearchState, SELECT_PROMPT, SELECT_FETCH_TOOL, parse_control, source_key
 from searchgym.serving import profile_for
 from searchgym.trace import Trace
 
@@ -88,6 +89,82 @@ async def replay_case(agent: SearchAgent, case: dict, trace: Trace) -> dict:
             "note": "A different selected source may also be useful; this is not an accuracy label."}
 
 
+def inspect_probe(directory: Path) -> dict:
+    """Read existing traces only; never instantiate a model or change old results."""
+    paths = sorted(directory.glob("q*.jsonl"))
+    if not paths:
+        raise ValueError(f"No probe traces found in {directory}")
+    rows = []
+    for path in paths:
+        selectable = []
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
+            event = json.loads(line)
+            if event.get("event") == "control.request":
+                for message in event.get("messages", []):
+                    if message.get("role") == "user":
+                        payload = json.loads(message["content"])
+                        selectable = payload.get("selectable", [])
+            if event.get("event") != "control.response":
+                continue
+            body = event.get("text") or ""
+            reasoning = event.get("reasoning") or ""
+            parsed = parse_control(body)
+            detail = ""
+            if event.get("decision"):
+                category = event["decision"]
+            elif event.get("finish_reason") == "length":
+                category = "truncated"
+            elif event.get("tool_calls"):
+                category = "unexpected_tool_calls"
+            elif not body.strip():
+                category = "reasoning_only" if reasoning.strip() else "empty_response"
+            elif not parsed:
+                category = "invalid_json_or_empty_object"
+                try:
+                    value = json.loads(body)
+                    detail = f"JSON type: {type(value).__name__}"
+                except ValueError as exc:
+                    detail = str(exc)
+            elif event.get("valid") is False:
+                category = "rejected_despite_parseable_json"
+                detail = "Older traces do not record tool calls; inspect transport output."
+            elif "read" not in parsed:
+                category = "missing_read_field"
+            elif parsed["read"] is None:
+                category = "explicit_skip"
+            elif not isinstance(parsed["read"], str) or parsed["read"] not in selectable:
+                category = "invalid_source_id"
+            else:
+                category = "selected_source"
+            rows.append({"file": path.name, "category": category, "detail": detail,
+                         "finish_reason": event.get("finish_reason"),
+                         "text_chars": len(body), "reasoning_chars": len(reasoning),
+                         "read": event.get("selected", parsed.get("read")), "text": body, "reasoning": reasoning,
+                         "tool_calls": event.get("tool_calls", [])})
+    if not rows:
+        raise ValueError("No control.response events found; inspect control.error events in the traces.")
+    summary = dict(Counter(row["category"] for row in rows))
+    report = {"directory": str(directory.resolve()), "responses": len(rows),
+              "categories": summary, "rows": rows,
+              "note": "Offline inspection only. Original responses retained; no model calls or result changes."}
+    output = directory / "inspection.json"
+    output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(summary, indent=2))
+    for row in rows:
+        print(f"{row['file']}: {row['category']} finish={row['finish_reason']} "
+              f"text={row['text_chars']} reasoning={row['reasoning_chars']} read={row['read']}")
+    for category in summary:
+        example = next(row for row in rows if row["category"] == category)
+        print(f"\n--- {category}: {example['file']} ---")
+        print(example["detail"])
+        print("TEXT:\n" + example["text"][:4000])
+        if example["tool_calls"]:
+            print("TOOL CALLS:\n" + json.dumps(example["tool_calls"], ensure_ascii=False))
+        print("REASONING (first 2000 chars):\n" + example["reasoning"][:2000])
+    print(f"\nFull diagnostic: {output}")
+    return report
+
+
 async def run(args) -> None:
     cases = load_cases(Path(args.run))
     for case in cases:
@@ -104,7 +181,8 @@ async def run(args) -> None:
     (out / "config.json").write_text(json.dumps({"agent": asdict(config.agent), "model": config.model,
         "source_run": str(Path(args.run).resolve()), "repeats": args.repeats,
         "scope": "Isolated search-batch diagnosis; fresh state each time, no end-to-end scoring."}, indent=2), encoding="utf-8")
-    (out / "controller_prompt.txt").write_text(CONTROL_PROMPT, encoding="utf-8")
+    (out / "selector_prompt.txt").write_text(SELECT_PROMPT, encoding="utf-8")
+    (out / "selector_tool.json").write_text(json.dumps(SELECT_FETCH_TOOL, indent=2), encoding="utf-8")
     agent = SearchAgent(profile_for(config.model), config.agent, method="depthsearch")
     semaphore = asyncio.Semaphore(config.run.workers)
     async def one(case, repetition):
@@ -122,6 +200,7 @@ async def run(args) -> None:
     summary = {"attempts": len(rows), "reference_hits": sum(r["reference_hit"] for r in rows),
         "selected_any": sum(bool(r["selected"]) for r in rows),
         "controller_invalid": sum(r["checkpoint"]["metrics"].get("controller_invalid", 0) for r in rows),
+        "controller_skips": sum(r["checkpoint"]["metrics"].get("controller_skips", 0) for r in rows),
         "controller_errors": sum(r["checkpoint"]["metrics"].get("controller_errors", 0) for r in rows),
         "usage": {k: sum(r["usage"][k] for r in rows) for k in ("calls", "input_tokens", "output_tokens")},
         "interpretation": "Curated diagnostic, not benchmark accuracy. Missed reference can be another useful source. No live source availability or final-answer performance tested."}
@@ -137,7 +216,12 @@ def main() -> None:
     parser.add_argument("--run", default=str(DEFAULT_RUN))
     parser.add_argument("--repeats", type=int, default=2)
     parser.add_argument("--dry-run", action="store_true", help="Read saved inputs only; no model/network calls")
+    parser.add_argument("--inspect", type=Path, metavar="PROBE_DIR",
+                        help="Inspect existing probe responses offline; no model/network calls")
     args = parser.parse_args()
+    if args.inspect is not None:
+        inspect_probe(args.inspect)
+        return
     if args.repeats < 1:
         parser.error("--repeats must be positive")
     asyncio.run(run(args))
