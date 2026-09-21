@@ -4,7 +4,7 @@
 
 `configs/depthsearch.yaml`의 `agent.depthsearch_control: true`로 활성화한다.
 RAgent/search-o1 실행 경로와 설정은 그대로이며, 비활성 상태의 기존 agent 설정
-fingerprint도 유지한다. 새 DS 캐시 버전은 `agent/40-ds-search-main`다.
+fingerprint도 유지한다. 새 DS 캐시 버전은 `agent/41-ds-answer-phase`다.
 
 검색 한도 10회, 검색 결과 수 10, 재귀 깊이 3, 전체 확장 노드 12,
 루트별 확장 노드 6, 자식 수 2, 메인 40턴은 변경하지 않았다.
@@ -22,6 +22,16 @@ fingerprint도 유지한다. 새 DS 캐시 버전은 `agent/40-ds-search-main`�
 5. 메인은 모든 원래 검색 결과, 선택한 재귀 결과, 최신 후보 상태를 받고 다시 호출된다.
    메인 도구는 web_search뿐이다. 이전 미방문 링크도 다음 검색의 fetch 전용 단계에서
    선택할 수 있다. 마지막 검색에서도 읽기를 마친 뒤 메인을 도구 없이 호출해 답한다.
+
+검색 소진 시에는 탐색용 시스템 프롬프트와 도구 호출 이력을 제외하고, 답변 전용
+시스템 프롬프트·원 질문·전체 도구 결과·출처에 연결된 상태로 최종 작성한다.
+최종 본문이 없거나 도구 호출/계획이면 한 번만 재요청한다. 두 번 모두 실패하면
+빈 응답으로 기록한다. 일반적인 정상 초안 검토와 baseline 경로는 유지한다.
+`run.final_request`에 실제 작성 입력, `run.final_response`에 본문과 reasoning을 저장한다.
+
+저장된 빈 응답 8개의 최종 작성만 확인하려면 `python probe_final_answer.py`를 실행한다.
+최대 16회 모델 호출이며 검색/fetch/채점 호출과 원래 실행 결과 수정은 없다.
+이는 본문 반환 안정성 검사이며 정답률 개선 평가가 아니다.
 
 선택은 fetch 도구를 제공하는 내부 호출이고, 읽은 뒤 상태 갱신은 별도의 도구 없는
 JSON 호출로 유지한다. 메인의 search 인자는 query 하나, 내부 fetch 인자는 url

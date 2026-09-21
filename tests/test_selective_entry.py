@@ -305,13 +305,15 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_exhausted_search_refuses_stale_main_fetch_calls(self):
         agent, llm = self.make([call("web_search", {"query": "artist"}), control("S2"), note(FACT),
-            control(**checkpoint()), fetch_call("S2"), fetch_call("S2"), Reply(text="River")], max_searches=1)
+            control(**checkpoint()), fetch_call("S2"), Reply(text="River")], max_searches=1)
         tools = SourceTools()
         result = await agent.run("Q", "Research", tools, MemoryTrace())
         self.assertIsNone(result.error)
         self.assertEqual(tools.fetched, [URL])
         self.assertIsNone(llm.requests[-1][1])
         self.assertEqual(llm.tool_choices[-1], "none")
+        self.assertEqual(result.answer, "River")
+        self.assertFalse(llm.replies)
 
     async def test_last_search_finishes_reading_then_calls_main_without_tools(self):
         agent, llm = self.make([call("web_search", {"query": "artist"}), control("S2"),
@@ -325,7 +327,7 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.turns, 2)
         self.assertIsNone(llm.requests[-1][1])
         self.assertEqual(llm.tool_choices[-1], "none")
-        self.assertTrue(any(m["role"] == "tool" and FACT in m["content"] for m in llm.requests[-1][0]))
+        self.assertTrue(any(m["role"] == "user" and FACT in m["content"] for m in llm.requests[-1][0]))
         self.assertFalse(llm.replies)
 
     async def test_last_search_skip_still_calls_main_for_final_answer(self):
@@ -339,6 +341,29 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(llm.tool_choices[-1], "none")
         self.assertIsNone(llm.requests[-1][1])
         self.assertFalse(llm.replies)
+
+    async def test_exhaustion_switches_system_and_retries_empty_answer_exactly_once(self):
+        for second, expected in ((Reply(text="River"), "River"), (Reply(reasoning="Still no body"), "")):
+            with self.subTest(expected=expected):
+                agent, llm = self.make([call("web_search", {"query": "artist"}), control(None),
+                                       Reply(reasoning="No body"), second], max_searches=1)
+                trace = MemoryTrace()
+                result = await agent.run("Which artist?", "SEARCH_POLICY_SENTINEL", SourceTools(), trace)
+                self.assertEqual(result.answer, expected)
+                self.assertEqual(result.stop_reason, "finalized" if expected else "no_answer")
+                self.assertEqual(len(llm.requests), 4)  # Search, selector, final, one retry.
+                self.assertFalse(llm.replies)
+                for messages, tools in llm.requests[-2:]:
+                    self.assertIsNone(tools)
+                    self.assertIn("Research has ended", messages[0]["content"])
+                    self.assertNotIn("SEARCH_POLICY_SENTINEL", str(messages))
+                    self.assertIn("Which artist?", str(messages))
+                    self.assertIn(FACT, str(messages))
+                    self.assertFalse(any(m["role"] in {"assistant", "tool"} for m in messages))
+                self.assertEqual(llm.tool_choices[-2:], ["none", "none"])
+                final_events = [e for kind, e in trace.events if kind == "run.final_response"]
+                self.assertEqual(len(final_events), 2)
+                self.assertEqual(final_events[0]["reasoning"], "No body")
 
     async def test_large_history_finalization_keeps_checkpoint_instead_of_overflowing(self):
         agent, llm = self.make([Reply(text="River")], context_limit=2000)

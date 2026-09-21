@@ -249,7 +249,9 @@ def _write_run_config(out, config, profile, dataset, items):
     if config.uses_explorer:
         (out / "explorer_prompt.txt").write_text(config.explorer_prompt, encoding="utf-8")
     if config.method == "depthsearch" and config.agent.depthsearch_control:
+        from searchgym.agent import FINAL_SYSTEM
         from searchgym.research_state import CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL
+        (out / "final_prompt.txt").write_text(FINAL_SYSTEM, encoding="utf-8")
         (out / "controller_prompt.txt").write_text(CONTROL_PROMPT, encoding="utf-8")
         (out / "selector_prompt.txt").write_text(SELECT_PROMPT, encoding="utf-8")
         (out / "selector_tool.json").write_text(json.dumps(SELECT_FETCH_TOOL, indent=2), encoding="utf-8")
