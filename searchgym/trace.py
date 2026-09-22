@@ -49,8 +49,8 @@ class ToolCall:
     duration_ms: float = 0.0
     # 이 호출이 태운 explorer 들의 호출 트리. 시각화(tree.svg)의 입력이다.
     # **목록인 이유**: search-o1 은 검색 한 번에 상위 k개 페이지를 각각 따로
-    # 읽히므로 호출 하나가 explorer 를 k개 태운다. depthsearch 는 페이지 하나라
-    # 원소가 하나다.
+    # 읽히므로 호출 하나가 explorer 를 k개 태운다. DepthSearch도 선택한 진입
+    # 페이지마다 트리 하나를 검색 호출에 연결한다.
     explorations: list[dict[str, Any]] = field(default_factory=list)
 
     @property

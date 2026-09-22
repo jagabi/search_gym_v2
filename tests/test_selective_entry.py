@@ -173,7 +173,7 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(metric=metric, reply=reply):
                 agent, llm = self.make([reply])
                 state = ResearchState()
-                sid = state.register(URL, snippet=FACT)
+                sid = state.register(URL, snippet=FACT, search_entry=True)
                 result = RunResult(research_state=state)
                 trace = MemoryTrace()
                 selected = await agent._control("Which artist?", result, trace, [sid], select=True)

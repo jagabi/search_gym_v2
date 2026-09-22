@@ -73,6 +73,14 @@ CONTEXT_EXHAUSTED = (
 )
 
 
+@dataclass
+class _FetchSession:
+    """Local to one search return; never shared across benchmark questions."""
+    history: list[dict[str, Any]] = field(default_factory=list)
+    decision: str = ""
+    call_id: str = ""
+
+
 @dataclass(slots=True)
 class AgentConfig:
     base_url: str = "http://127.0.0.1:8000/v1"
@@ -877,20 +885,35 @@ class SearchAgent:
                 try:
                     sid = state.register(str(entry.get("link") or ""),
                                          title=str(entry.get("title") or ""),
-                                         snippet=str(entry.get("snippet") or ""))
+                                         snippet=str(entry.get("snippet") or ""), search_entry=True)
                 except ValueError:
                     continue
                 entry["source_id"] = sid
                 focus.append(sid)
-            can_fetch = not self.config.max_fetches or result.fetches + result.auto_fetches < self.config.max_fetches
-            selected = await self._control(question, result, trace, focus, select=can_fetch)
             text = json.dumps(parsed, ensure_ascii=False)
-            if selected:
+            session = _FetchSession()
+            recoveries = 0
+            stop = "turn_limit"
+            for entry_turn in range(1, self.explorer_config.max_turns + 1):
+                if self.config.max_fetches and result.fetches + result.auto_fetches >= self.config.max_fetches:
+                    stop = "fetch_limit"
+                    break
+                stop = "turn_limit"
+                selected = await self._control(question, result, trace, focus, select=True,
+                                               session=session, query=query)
+                if selected is None:
+                    stop = session.decision
+                    if stop in {"invalid_tool_call", "empty_response", "truncated"}:
+                        if recoveries < self.config.max_tool_recoveries and entry_turn < self.explorer_config.max_turns:
+                            recoveries += 1
+                            state.count("selector_recoveries")
+                            continue
+                    break
                 url = state.sources[selected]["url"]
                 auto = ToolCall(name="web_fetch", arguments={"url": url})
                 result.auto_fetches += 1
                 state.count("selected_entries")
-                trace.event("search.selected_entry", turn=turn, source=selected, url=url)
+                trace.event("search.selected_entry", turn=turn, entry_turn=entry_turn, source=selected, url=url)
                 notes, _ = await self._fetch(url=url, tools=tools, explorer=explorer,
                     budget=budget, result=result, record=auto, trace=trace, question=question, turn=turn,
                     reading_goal=state.selection_goal)
@@ -902,6 +925,9 @@ class SearchAgent:
                 trace.event("search.selected_result", turn=turn, url=url, is_error=auto.is_error,
                             result_chars=len(notes), duration_ms=auto.duration_ms)
                 text += "\n\nSelected recursive reading (other search results remain available):\n" + notes
+                session.history.append({"role": "tool", "tool_call_id": session.call_id,
+                                        "content": _strip_special(notes)})
+            trace.event("search.entry_session_end", turn=turn, reason=stop, recoveries=recoveries)
             return text, len(outcome.text)
 
         # 자동 페치가 없으면(ragent · depthsearch) 검색 결과 목록을 그대로 돌려준다.
@@ -1100,16 +1126,22 @@ class SearchAgent:
         return exploration.render_for_gate(), raw_chars
 
     async def _control(self, question: str, result: RunResult, trace: Trace,
-                       focus: list[str], *, select: bool) -> str | None:
+                       focus: list[str], *, select: bool, session: _FetchSession | None = None,
+                       query: str = "") -> str | None:
         """One bounded, same-model decision; malformed updates leave valid state intact."""
         state = result.research_state
         assert state is not None
+        if select and session is None:
+            session = _FetchSession()
         focus = list(dict.fromkeys(focus))
         selectable = state.selectable() if select else []
         if select and not selectable:
+            session.decision = "no_unread_entries"
             return None
-        ids = list(dict.fromkeys(focus + selectable))
-        if not ids:
+        # Keep a search snippet for every choice, including older entries. Compact
+        # duplicate observations, not the evidence needed to judge a page's scope.
+        ids = list(dict.fromkeys([sid for sid in focus if sid in selectable] + selectable)) if select else focus
+        if not ids and not select:
             return None
         per_source = max(128, self.config.fetch_max_tokens // max(1, len(ids)))
         sources = []
@@ -1117,8 +1149,9 @@ class SearchAgent:
             s = state.sources[sid]
             parts = []
             if s["snippets"]:
-                parts.append("Search snippets (not a full-page reading):\n" + "\n".join(s["snippets"]))
-            if s["notes"]:
+                snippets = s["snippets"][-1:] if select else s["snippets"]
+                parts.append("Search snippets (not a full-page reading):\n" + "\n".join(snippets))
+            if s["notes"] and not select:
                 parts.append("Page reader notes (check their stated source scope):\n" + "\n".join(s["notes"]))
             body, clipped = await self.llm.cap("\n\n".join(parts), per_source)
             sources.append({"id": sid, "url": s["url"], "title": s["title"], "status": s["status"],
@@ -1126,12 +1159,27 @@ class SearchAgent:
         payload = {"question": question, "mode": "select" if select else "update-only",
                    "working_state": state.snapshot(), "selectable": selectable, "sources": sources}
         prompt = SELECT_PROMPT if select else CONTROL_PROMPT
-        offered_tools = [SELECT_FETCH_TOOL] if select else None
+        offered_tools = None
+        if select:
+            payload["current_query"] = query
+            payload["working_state"].pop("sources")
+            payload["working_state"].pop("metrics")
+            payload["sources"] = [source for source in sources if source["id"] in focus]
+            payload["previous_sources"] = [source for source in sources if source["id"] not in focus]
+            offered_tools = [copy.deepcopy(SELECT_FETCH_TOOL)]
+            offered_tools[0]["function"]["parameters"]["properties"]["url"]["enum"] = [
+                state.sources[sid]["url"] for sid in selectable]
         messages = [{"role": "system", "content": _system_prompt(prompt, self.profile.reasoning_effort)},
                     {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
-        if await self.llm.count_tokens(json.dumps(messages, ensure_ascii=False)) + self.config.max_tokens > self.config.context_limit:
+        if select:
+            # Refresh the menu, retain the actual assistant/tool conversation.
+            messages.extend(session.history)
+        request_text = json.dumps({"messages": messages, "tools": offered_tools}, ensure_ascii=False)
+        if await self.llm.count_tokens(request_text) + self.config.max_tokens > self.config.context_limit:
             state.count("controller_context_skips")
             trace.event("control.skipped", reason="context_limit")
+            if select:
+                session.decision = "context_limit"
             return None
         state.count("controller_calls")
         trace.event("control.request", mode=payload["mode"], messages=messages, tools=offered_tools,
@@ -1143,6 +1191,8 @@ class SearchAgent:
         except Exception as exc:
             state.count("controller_errors")
             trace.event("control.error", error=repr(exc))
+            if select:
+                session.decision = "error"
             return None
         if select:
             # Use the same tool-envelope handling as the recursive reader. Never
@@ -1171,6 +1221,21 @@ class SearchAgent:
                         decision = "fetch"
             else:
                 decision = "skip" if reply.text.strip() else "empty_response"
+            session.decision = decision
+            assistant = _assistant_message(reply)
+            session.history.append(assistant)
+            if selected:
+                session.call_id = assistant["tool_calls"][0]["id"]
+            elif decision != "skip":
+                feedback = ("No page was fetched. Compare the supplied titles and snippets: if one offers "
+                            "a useful next step, copy its exact url into web_fetch. Otherwise reply normally "
+                            "to return to the search planner; do not invent a replacement URL. "
+                            "Search requests, read/failed pages, and page-only links are unavailable here.")
+                if assistant["tool_calls"]:
+                    for call in assistant["tool_calls"]:
+                        session.history.append({"role": "tool", "tool_call_id": call["id"], "content": feedback})
+                else:
+                    session.history.append({"role": "user", "content": feedback})
             trace.event("control.response", mode="select", text=raw_text, reasoning=reply.reasoning,
                         finish_reason=reply.finish_reason, valid=decision in {"fetch", "skip"},
                         decision=decision, selected=selected, recovered_tool_call=recovered,

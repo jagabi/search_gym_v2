@@ -27,7 +27,7 @@ agent:
   #
   # 검색량별 점수는 문항 난이도와 섞여 있다. 정보 전달 개선을 비교하는 동안 고정한다.
   max_searches: 10
-  max_fetches: 0                # 0 = 진입 fetch 별도 한도 없음. 검색당 최대 한 번 선택
+  max_fetches: 0                # 0 = 진입 fetch 별도 총량 한도 없음. 선택 세션은 아래 max_turns 적용
   search_results: 10            # serper 가 돌려주는 결과 수. 모델이 보고 고른다
   search_top_k: 0               # 고정 top-k 일괄 페치 없음. 아래 선택기가 진입 여부를 정한다
   depthsearch_control: true     # 검색 직후 선택적 재귀 진입 + 출처 기반 후보/잠정 답 상태
@@ -58,7 +58,7 @@ explorer:
   # 과거 summary는 빈 응답을 분모에서 제외했다. 새 F1은 전체 문항 기준이다.
   max_expansion_nodes: 12
   max_subtree_children: 2       # explorer 하나가 열 수 있는 자식 수
-  max_turns: 6                  # reader의 탐색 턴 상한
+  max_turns: 6                  # reader 및 검색 뒤 fetch 선택 세션 각각의 턴 상한
   max_root_nodes: 6            # 한 진입 페이지가 문항 전체 예산을 독식하지 않음
 
   # 열 만한 링크를 몇 개 보여 줄 것인가. 실측으로 페이지 하나에 링크가
@@ -81,7 +81,8 @@ explorer:
 # DepthSearch 전용 정책. RAgent와 프롬프트도 달라지므로 최적화된 방법으로 비교한다.
 system_prompt: |
   Answer the question using web_search. Each search lets a fetch-only reader choose
-  one unread source and follow useful links recursively, then returns the search
+  useful unread search-result pages, follow links recursively, and decide when to
+  stop reading. It then returns the search
   results and any reading to you. Ground your answer in these sources. After each
   return, integrate the evidence and decide whether another search is needed or you
   can answer. No attached reading does not mean the results contain no useful evidence.
@@ -93,7 +94,9 @@ system_prompt: |
   A decisive identity conflict calls for another candidate. Separate source facts
   from guessed names, dates and narrowed ranges; change the clue when these stall.
 
-  Search with a few source/topic terms for an entry page or a missing fact. Do not
+  Search one discriminating relation at a time with a few source/topic terms for
+  an entry page or a missing fact. Keep each date, location and other constraint
+  attached to the entity or event it describes in the question. Do not
   put unverified answer values into queries. Seek useful entry pages, including
   official indexes that lead to documents. Avoid searching again for facts already
   established by returned evidence. If queries yield the same material, change the
@@ -127,8 +130,10 @@ explorer_prompt: |
   if they answer a different part of the original question.
 
   Follow links likely to fill a candidate's missing condition or reach the required
-  document/year. An index can be useful without answer facts. If content repeats,
-  try a detail page or another supported route. Links outside the menu and inferred
+  document/year. An index is useful when it offers a concrete route to the needed
+  record; generic menus or keyword collections alone do not justify expansion.
+  Link-menu rank is only a hint: check the destination's subject and scope. If content
+  repeats, try a detail page or another supported route. Links outside the menu and inferred
   paths on an observed site are allowed. Child notes are returned automatically;
   do not copy their facts into your own note. Retain useful unvisited links even
   when expansion stops.

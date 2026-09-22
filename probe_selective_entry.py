@@ -53,7 +53,8 @@ def load_cases(run: Path) -> list[dict]:
                 entries = payload.get("organic", []) if isinstance(payload, dict) else []
                 if any(e.get("link") == reference for e in entries):
                     found = {"id": index, "question": response["question"], "turn": step["turn"],
-                             "entries": entries, "reference": reference, "group": group}
+                             "entries": entries, "reference": reference, "group": group,
+                             "query": call.get("arguments", {}).get("query", "")}
                     break
             if found:
                 break
@@ -71,7 +72,7 @@ def case_state(case: dict) -> tuple[ResearchState, list[str]]:
         try:
             ids.append(state.register(str(entry.get("link") or ""),
                                       title=str(entry.get("title") or ""),
-                                      snippet=str(entry.get("snippet") or "")))
+                                      snippet=str(entry.get("snippet") or ""), search_entry=True))
         except ValueError:
             continue
     return state, ids
@@ -80,7 +81,7 @@ def case_state(case: dict) -> tuple[ResearchState, list[str]]:
 async def replay_case(agent: SearchAgent, case: dict, trace: Trace) -> dict:
     state, ids = case_state(case)
     result = RunResult(research_state=state)
-    selected = await agent._control(case["question"], result, trace, ids, select=True)
+    selected = await agent._control(case["question"], result, trace, ids, select=True, query=case.get("query", ""))
     url = state.sources[selected]["url"] if selected else None
     return {"id": case["id"], "saved_turn": case["turn"], "group": case["group"],
             "selected": selected, "selected_url": url, "reference_url": case["reference"],

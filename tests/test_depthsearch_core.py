@@ -112,6 +112,7 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         url = "https://archives.example/treaty"
         llm = FakeLLM([call("web_search", {"query": "value record"}), fetch_call(url),
                        note("Value: 42\n**Expand:** no"), Reply(text='{"candidates":[]}'),
+                       Reply(text="No additional reading needed."),
                        Reply(text="42"), Reply(text="42")])
         tools = FakeTools()
         tools.fetch = AsyncMock(return_value=Document(url, "Value: 42"))

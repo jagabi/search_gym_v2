@@ -143,8 +143,9 @@ class FakeLLM:
             usage.add(1000 * turn, 200, 80)
 
         if who == "selector":
-            payload = json.loads(messages[-1]["content"])
-            candidates = [s for s in payload["sources"] if s["id"] in payload["selectable"]]
+            payload = json.loads(messages[1]["content"])
+            candidates = [s for s in payload["sources"] + payload.get("previous_sources", [])
+                          if s["id"] in payload["selectable"]]
             target = next((s for s in candidates if "archives.example" in s["url"]), None)
             reply = (_tool_reply("web_fetch", {"url": target["url"]}) if target
                      else Reply(text="No useful unread source.", finish_reason="stop"))
