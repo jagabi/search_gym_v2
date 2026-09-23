@@ -72,6 +72,18 @@ CONTEXT_EXHAUSTED = (
     "output can be added. Answer the question now from what you have gathered.]"
 )
 
+CLUE_SEEDS = (
+    "Independent route A: search a distinctive identifying relation about the person, "
+    "object or event in the question. Use a short query from the stated clues, without "
+    "guessing an answer name or adding unstated facts. Make one web_search call. "
+    "Do not try to solve every condition in the query.",
+    "Independent route B: start from the kind of record that would contain the requested "
+    "answer (for example an account of the event, a publication or a record of the requested "
+    "relationship). Search its distinctive clue directly, without guessing an answer name. "
+    "You have not seen route A's findings: reason from the original question only. "
+    "Make one short web_search call; do not solve every condition in the query.",
+)
+
 
 @dataclass
 class _FetchSession:
@@ -113,6 +125,8 @@ class AgentConfig:
     max_tool_recoveries: int = 1
     # DS-only selective entry and evidence-linked checkpoints. Baselines ignore it.
     depthsearch_control: bool = False
+    # DS-only: isolated clue seeds, then one main planner with recursive fetch.
+    independent_clues: bool = False
 
 
 @dataclass(slots=True)
@@ -305,14 +319,19 @@ class SearchAgent:
         return self.method != "ragent"
 
     @property
+    def independent_clues(self) -> bool:
+        return self.method == "depthsearch" and self.config.independent_clues
+
+    @property
     def tool_names(self) -> list[str]:
         """모델에게 노출할 도구.
 
-        선택적 진입을 켠 DS와 search-o1의 메인에는 검색만 제공한다.
-        DS의 fetch 선택과 재귀는 검색 내부에서 실행한다. 이전 DS 설정과
-        RAgent에는 기존처럼 두 도구를 제공한다.
+        독립 단서 DS와 RAgent에는 두 도구를 제공한다. DS의 최초 두 검색은
+        _available_specs에서 검색만 허용한다. 이전 선택기 모드 DS와
+        search-o1은 검색 내부에서 읽기를 실행하므로 메인에는 검색만 제공한다.
         """
-        if self.method == "search-o1" or (self.method == "depthsearch" and self.config.depthsearch_control):
+        if self.method == "search-o1" or (self.method == "depthsearch" and self.config.depthsearch_control
+                                          and not self.independent_clues):
             return ["web_search"]
         return ["web_search", "web_fetch"]
 
@@ -330,7 +349,7 @@ class SearchAgent:
     ) -> RunResult:
         cfg = self.config
         result = RunResult()
-        if self.method == "depthsearch" and cfg.depthsearch_control:
+        if self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues):
             result.research_state = ResearchState()
         started = time.perf_counter()
 
@@ -350,7 +369,12 @@ class SearchAgent:
                         "\nFind an entry page or a candidate's missing condition. Use a few "
                         "source/topic terms; do not add unverified answer values as filters."
                     )
-                    if result.research_state:
+                    if self.independent_clues:
+                        function["description"] += (
+                            " Returns search observations only. Compare independent clue routes, "
+                            "then fetch a concrete entry page to test a discriminating relation."
+                        )
+                    elif result.research_state:
                         function["description"] += (
                             " Each search lets a fetch-only reader choose an unread source and "
                             "follow useful links recursively. Results and any reading return to "
@@ -415,11 +439,11 @@ class SearchAgent:
                 result.steps.append(step)
 
                 active_specs = self._available_specs(specs, result)
-                if (self.method == "depthsearch" and cfg.depthsearch_control
+                if (self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues)
                         and result.searches >= cfg.max_searches and not active_specs):
-                    # The last search has already returned all of its recursive
-                    # reading. Switch tasks rather than asking the search agent
-                    # for another tool-free exploration turn before synthesis.
+                    # All results of the last search have returned. Independent
+                    # seeds return snippets; legacy sessions also return reading.
+                    # Switch directly to answer synthesis after search exhaustion.
                     trace.event("run.finalizing", turn=turn, reason="search_exhausted")
                     final = await self._salvage(messages, trace, result.usage, answer_only=True,
                         checkpoint=result.research_state.render() if result.research_state else "")
@@ -434,6 +458,13 @@ class SearchAgent:
                         + ("\n\n" + result.research_state.render() if result.research_state else "")}]
                     if not active_specs:
                         choice["tool_choice"] = "none"
+                if self.independent_clues and result.searches < min(2, cfg.max_searches):
+                    # These replace the first two ordinary search turns, not extra
+                    # planning calls. Route B cannot see A's queries or findings.
+                    seed_index = result.searches
+                    request_messages = [m for m in messages[:2] if m["role"] in {"system", "user"}]
+                    request_messages += [{"role": "user", "content": CLUE_SEEDS[seed_index]}]
+                    trace.event("research.seed_request", route="AB"[seed_index], messages=request_messages)
                 trace.event("llm.request", turn=turn, context_tokens=result.context_tokens,
                             available_tools=[s["function"]["name"] for s in active_specs])
                 reply = await self.llm.chat(
@@ -521,7 +552,17 @@ class SearchAgent:
                     break
 
                 messages.append(_assistant_message(reply))
+                seed_turn = self.independent_clues and result.searches < min(2, cfg.max_searches)
+                seed_consumed = False
                 for call in reply.tool_calls:
+                    if seed_turn and seed_consumed:
+                        output = "Not executed: each independent seed turn permits one search. Review both routes on the next turn."
+                        record = ToolCall(name=call.function.name, arguments=_parse_arguments(call.function.arguments),
+                                          refused=True, result=output, result_chars=len(output))
+                        step.tool_calls.append(record)
+                        messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
+                        trace.event("tool.unavailable", turn=turn, tool=call.function.name, reason="one_search_per_seed")
+                        continue
                     if self.method == "depthsearch" and call.function.name not in {
                         s["function"]["name"] for s in self._available_specs(specs, result)
                     }:
@@ -546,6 +587,8 @@ class SearchAgent:
                         trace=trace,
                         question=question,
                     )
+                    if seed_turn and call.function.name == "web_search" and not step.tool_calls[-1].refused:
+                        seed_consumed = True
                     messages.append(
                         {"role": "tool", "tool_call_id": call.id, "content": output}
                     )
@@ -554,7 +597,7 @@ class SearchAgent:
                 trace.event("run.truncated", reason="max_turns", turns=cfg.max_turns)
                 recovery = self._checkpoint_recovery(result)
                 final = await self._salvage(messages, trace, result.usage,
-                    answer_only=(self.method == "depthsearch" and cfg.depthsearch_control
+                    answer_only=(self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues)
                                  and result.searches >= cfg.max_searches), **recovery)
                 if final:
                     result.answer, result.stop_reason = final, "finalized"
@@ -589,13 +632,18 @@ class SearchAgent:
             return specs
         if result.context_exhausted:
             return []
+        if self.independent_clues:
+            if result.searches >= self.config.max_searches:
+                return []  # Keep the existing answer-only phase after search exhaustion.
+            if result.searches < min(2, self.config.max_searches):
+                return [s for s in specs if s["function"]["name"] == "web_search"]
         if (result.research_state and result.searches >= self.config.max_searches
                 and result.research_state.repeated_requests > self.config.max_tool_recoveries):
             return []
         return [s for s in specs if (
             s["function"]["name"] == "web_search" and result.searches < self.config.max_searches
         ) or (
-            s["function"]["name"] == "web_fetch" and not self.config.depthsearch_control and
+            s["function"]["name"] == "web_fetch" and (not self.config.depthsearch_control or self.independent_clues) and
             (not self.config.max_fetches or result.fetches + result.auto_fetches < self.config.max_fetches)
         )]
 
@@ -622,6 +670,8 @@ class SearchAgent:
             parts.append(f"web_fetch is available ({remaining} main fetches remaining); you may open known source URLs.")
             if budget.exhausted:
                 parts.append("Recursive expansion is exhausted. A main fetch can still read a page and return its evidence without child expansion.")
+        elif self.independent_clues:
+            parts.append("Seed the two independent clue routes with search first; recursive web_fetch becomes available afterwards.")
         elif self.config.depthsearch_control:
             parts.append("Page fetching is handled inside web_search by the fetch-only reader; "
                          "web_fetch is not a main action. Review returned evidence before the next search.")
@@ -752,7 +802,7 @@ class SearchAgent:
         record = ToolCall(name=name, arguments=arguments)
         step.tool_calls.append(record)
 
-        if self.method == "depthsearch" and cfg.depthsearch_control and name == "web_fetch":
+        if self.method == "depthsearch" and cfg.depthsearch_control and not self.independent_clues and name == "web_fetch":
             record.refused = True
             record.result = ("web_fetch is not a main action. Page reading is handled inside web_search. "
                              "Use web_search if available and needed, or answer from the returned evidence.")
@@ -765,6 +815,10 @@ class SearchAgent:
             if name == "web_fetch":
                 arguments["url"] = (result.research_state.resolve(arguments.get("url"))
                                     if result.research_state else normalize_fetch_url(arguments.get("url")))
+                if self.independent_clues:
+                    source = result.research_state.source(arguments["url"])
+                    if source is None or not source.get("search_entry"):
+                        raise ValueError("Choose a URL or source ID observed in search results. Page-internal links belong to recursive child exploration.")
             elif name == "web_search":
                 query = arguments.get("query")
                 if not isinstance(query, str) or not query.strip():
@@ -803,6 +857,16 @@ class SearchAgent:
                 turn=step.turn,
             )
         elif name == "web_fetch":
+            reading_goal = ""
+            if self.independent_clues:
+                explicit = re.search(r"(?im)^\s*Check:\s*(.+)$", step.text)
+                source = result.research_state.source(arguments["url"])
+                origins = source.get("origins", []) if source else []
+                reading_goal = explicit.group(1).strip() if explicit else (
+                    "Check the relation in this search query; its assumptions may be wrong: " + origins[-1]["query"]
+                    if origins else "Check this page's evidence for a distinguishing condition in the original question."
+                )
+                trace.event("research.reading_task", url=arguments["url"], goal=reading_goal, origins=origins)
             text, raw_chars = await self._fetch(
                 url=str(arguments.get("url") or ""),
                 tools=tools,
@@ -813,6 +877,7 @@ class SearchAgent:
                 trace=trace,
                 question=question,
                 turn=step.turn,
+                reading_goal=reading_goal,
             )
         else:
             text, raw_chars = f"unknown tool '{name}'.", 0
@@ -881,15 +946,22 @@ class SearchAgent:
             state = result.research_state
             state.repeated_requests = 0
             focus = []
+            route = ("A" if result.searches == 1 else "B" if result.searches == 2 else "followup") if self.independent_clues else ""
             for entry in parsed.get("organic") or []:
                 try:
                     sid = state.register(str(entry.get("link") or ""),
                                          title=str(entry.get("title") or ""),
-                                         snippet=str(entry.get("snippet") or ""), search_entry=True)
+                                         snippet=str(entry.get("snippet") or ""), search_entry=True,
+                                         route=route, query=query if route else "")
                 except ValueError:
                     continue
                 entry["source_id"] = sid
                 focus.append(sid)
+            if self.independent_clues:
+                parsed["clue_route"] = route
+                trace.event("research.search_observations", route=route, query=query, sources=focus)
+                text = json.dumps(parsed, ensure_ascii=False)
+                return text, len(outcome.text)
             text = json.dumps(parsed, ensure_ascii=False)
             session = _FetchSession()
             recoveries = 0
@@ -1094,20 +1166,33 @@ class SearchAgent:
         if not self.explores_on_fetch or explorer is None:
             return document.content, raw_chars
 
+        if self.independent_clues:
+            navigation_context = "Local verification task (hypothesis, not source evidence): " + reading_goal
+        elif state:
+            navigation_context = (state.render() + "\nNavigation goal (not evidence): " + reading_goal
+                + "\nNavigate with actual URLs; source IDs in this state are labels, not page addresses.")
+        else:
+            navigation_context = _accumulated_reasoning(result)
         exploration = await explorer.explore(
             question=question,
-            reasoning=(state.render() + "\nNavigation goal (not evidence): " + reading_goal
-                       + "\nNavigate with actual URLs; source IDs in this state are labels, not page addresses."
-                       if state else _accumulated_reasoning(result)),
+            reasoning=navigation_context,
             query=reading_goal or _latest_query(result),
             documents=[document],
             budget=budget,
             trace=trace,
             usage=result.usage,
             depth=1,
+            **({"reading_goal": reading_goal} if self.independent_clues else {}),
         )
         _absorb(result, exploration, query=reading_goal or _latest_query(result), url=url, record=record)
         if state is not None:
+            origins = state.source(url).get("origins", []) if self.independent_clues and state.source(url) else []
+            if self.independent_clues:
+                exploration.log["clue_origins"] = origins
+                exploration.log["reading_goal"] = reading_goal
+                # _absorb copies the root log; keep the same metadata in saved trees.
+                for log in record.explorations:
+                    log["clue_origins"], log["reading_goal"] = origins, reading_goal
             focus = []
             for note in exploration.notes:
                 for source_url in note.get("urls", []):
@@ -1115,6 +1200,8 @@ class SearchAgent:
                     if note.get("source_evidence"):
                         evidence += "\nVerbatim supplied source (separate from reader interpretation):\n" + note["source_evidence"]
                     focus.append(state.add_note(source_url, evidence, note.get("status", "partial")))
+                    for origin in origins:
+                        state.register(source_url, route=origin["route"], query=origin["query"])
             # Preserve link navigation choices without treating link labels as facts.
             links_text = "\n".join(n.get("text", "") for n in exploration.notes)
             for linked in re.findall(r"https?://[^\s<>\]\)\"`]+", links_text):
@@ -1122,7 +1209,8 @@ class SearchAgent:
                     state.register(linked.rstrip(".,;"))
                 except ValueError:
                     pass
-            await self._control(question, result, trace, focus, select=False)
+            if not self.independent_clues:
+                await self._control(question, result, trace, focus, select=False)
         return exploration.render_for_gate(), raw_chars
 
     async def _control(self, question: str, result: RunResult, trace: Trace,

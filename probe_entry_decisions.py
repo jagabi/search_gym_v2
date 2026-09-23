@@ -1,4 +1,6 @@
-"""Replay saved fetch/skip/invalid entry decisions with the current DS policy.
+"""Replay saved fetch/skip/invalid entry decisions with the legacy DS selector.
+
+This does not exercise the independent_clues policy now enabled in DS config.
 
 Only selection model calls run. No search, fetch, reader, or judge calls. Stops
 at the first valid selection/normal reply; this does NOT test end-to-end accuracy

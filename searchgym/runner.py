@@ -21,7 +21,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from .agent import AgentConfig, RunResult, SearchAgent, Step, FINAL_SYSTEM
+from .agent import AgentConfig, RunResult, SearchAgent, Step, FINAL_SYSTEM, CLUE_SEEDS
 from .benchmarks import Benchmark, Item
 from .explorer import ExplorerConfig
 from .judge import Judge
@@ -39,7 +39,7 @@ __all__ = ["Cache", "Record", "Runner"]
 # agent/16 — 문서 예산을 균등분할에서 워터필링으로 바꿨다(작은 문서가 남긴
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
-DEPTHSEARCH_CACHE_VERSION = "agent/43-ds-source-selection"
+DEPTHSEARCH_CACHE_VERSION = "agent/44-ds-independent-clues"
 JUDGE_VERSION = "judge/1"
 
 
@@ -427,6 +427,10 @@ _DEPLOYMENT_ONLY = ("api_key", "base_url", "timeout_s")
 def _agent_fingerprint(config: AgentConfig) -> str:
     """캐시 키에 들어갈 에이전트 설정. 결과에 영향을 주는 값만 넣는다."""
     values = {k: v for k, v in asdict(config).items() if k not in _DEPLOYMENT_ONLY}
+    if not values.get("independent_clues"):
+        values.pop("independent_clues", None)
+    else:
+        values["clue_seeds"] = CLUE_SEEDS
     if not values.get("depthsearch_control"):
         # Preserve the exact baseline fingerprint from before this DS-only feature.
         values.pop("depthsearch_control", None)

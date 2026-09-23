@@ -115,7 +115,8 @@ class ResearchState:
     def count(self, name: str) -> None:
         self.metrics[name] = self.metrics.get(name, 0) + 1
 
-    def register(self, url: str, *, title: str = "", snippet: str = "", search_entry: bool = False) -> str:
+    def register(self, url: str, *, title: str = "", snippet: str = "", search_entry: bool = False,
+                 route: str = "", query: str = "") -> str:
         key = source_key(url)
         sid = self.by_url.get(key)
         if sid is None:
@@ -124,6 +125,11 @@ class ResearchState:
             self.sources[sid] = {"id": sid, "url": normalize_fetch_url(url), "title": title,
                                  "snippets": [], "notes": [], "status": "unread", "search_entry": False}
         s = self.sources[sid]
+        if route:
+            origin = {"route": route, "query": query}
+            origins = s.setdefault("origins", [])
+            if origin not in origins:
+                origins.append(origin)
         if search_entry:
             s["search_entry"] = True
         if title and not s["title"]:
@@ -225,7 +231,8 @@ class ResearchState:
         return {"candidates": list(self.candidates.values()), "draft": self.draft,
                 "next_query": self.next_query,
                 "sources": [{**{k: s[k] for k in ("id", "url", "title", "status")},
-                             "search_entry": bool(s.get("search_entry"))} for s in self.sources.values()],
+                             "search_entry": bool(s.get("search_entry")),
+                             **({"origins": s["origins"]} if s.get("origins") else {})} for s in self.sources.values()],
                 "metrics": dict(self.metrics)}
 
     def render(self) -> str:

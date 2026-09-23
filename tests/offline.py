@@ -142,7 +142,18 @@ class FakeLLM:
         if usage is not None:
             usage.add(1000 * turn, 200, 80)
 
-        if who == "selector":
+        if who == "agent" and "first two searches seed" in system:
+            seed = next((m["content"] for m in messages if m.get("role") == "user"
+                         and m.get("content", "").startswith("Independent route ")), "")
+            fetched = any(c.get("function", {}).get("name") == "web_fetch"
+                          for m in messages for c in m.get("tool_calls", []))
+            if seed:
+                reply = _tool_reply("web_search", {"query": "treaty signing record" if "route A:" in seed else "register entry date"})
+            elif "web_fetch" in names and not fetched:
+                reply = _tool_reply("web_fetch", {"url": _RESULTS[1]["link"]})
+            else:
+                reply = Reply(text="The treaty was signed on 6 February 1840.", finish_reason="stop")
+        elif who == "selector":
             payload = json.loads(messages[1]["content"])
             candidates = [s for s in payload["sources"] + payload.get("previous_sources", [])
                           if s["id"] in payload["selectable"]]

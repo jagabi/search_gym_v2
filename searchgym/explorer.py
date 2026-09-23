@@ -353,6 +353,7 @@ class Explorer:
         depth: int = 1,
         parent_reasoning: str = "",
         turn: int = 0,
+        reading_goal: str = "",
     ) -> ExplorerResult:
         cfg = self.config
         started = time.perf_counter()
@@ -401,7 +402,7 @@ class Explorer:
         ]
         extraction_messages = (
             [{"role": "system", "content": self._system()},
-             {"role": "user", "content": _extraction_message(question, rendered)}]
+             {"role": "user", "content": _extraction_message(question, rendered, reading_goal)}]
             if cfg.isolate_extraction_context else messages[:2]
         )
         trace.event(
@@ -409,6 +410,7 @@ class Explorer:
             depth=depth,
             turn=turn,
             query=query,
+            reading_goal=reading_goal,
             documents=[d.url for d in documents],
             document_chars=len(rendered),
             document_truncated=doc_truncated,
@@ -571,6 +573,7 @@ class Explorer:
                         ),
                         query=query, budget=budget, trace=trace, usage=usage,
                         depth=depth, turn=step, allowed=children_left, openable=openable,
+                        reading_goal=reading_goal,
                     )
                     if child is not None:
                         child_notes.extend(child.notes)
@@ -783,6 +786,7 @@ class Explorer:
         turn: int,
         allowed: int,
         openable: dict[str, str],
+        reading_goal: str = "",
     ) -> tuple[str, ExplorerResult | None]:
         """자식 하나를 연다. 돌려주는 문자열이 부모의 도구 결과가 된다."""
         arguments = _parse_arguments(getattr(call.function, "arguments", None))
@@ -896,6 +900,7 @@ class Explorer:
             depth=depth + 1,
             parent_reasoning=reasoning_now,
             turn=turn,
+            reading_goal=reading_goal,
         )
         trace.event(
             "expand.return",
@@ -953,7 +958,7 @@ def _content_fingerprint(text: str) -> str:
     return hashlib.sha256(" ".join(body.split()).encode("utf-8")).hexdigest()
 
 
-def _extraction_message(question: str, documents: str) -> str:
+def _extraction_message(question: str, documents: str, reading_goal: str = "") -> str:
     return (
         f"**Original Question:**\n{question.strip()}\n\n"
         "**Local reading task:**\nExtract the fields this page can establish for the "
@@ -962,7 +967,12 @@ def _extraction_message(question: str, documents: str) -> str:
         "Use only the supplied page content. Report absent fields as unknown. "
         "For a table, preserve its headers and the relevant rows. For a list, preserve "
         "all relevant members and its scope. A link may be useful even when this page "
-        "contains no answer facts.\n\n**Pages you were given:**\n" + documents
+        "contains no answer facts.\n\n"
+        + ("**Relation to verify (a task, not evidence; its assumptions may be wrong):**\n"
+           + reading_goal + "\nExtract support, explicit contradiction, or missing evidence for this relation. "
+           "Retain other useful original-question findings; do not solve the whole question from memory.\n\n"
+           if reading_goal else "")
+        + "**Pages you were given:**\n" + documents
     )
 
 
