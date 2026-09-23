@@ -1,6 +1,6 @@
 # DepthSearch — RAgent + Reason-in-Documents + 재귀 확장.
 #
-# 메인은 독립된 두 단서로 검색을 시작한 뒤 검색과 재귀 fetch를 직접 결정한다.
+# 메인은 검색을 계획하고, 하위 읽기 노드는 진입 페이지와 재귀 링크를 선택한다.
 # 검색 횟수와 결과 수는 ragent와 같다. 출처별 근거 추출·재귀 탐색을 사용한다.
 #
 #   ragent       web_fetch → jina 마크다운 원문이 그대로 메인 컨텍스트에
@@ -29,9 +29,10 @@ agent:
   max_searches: 10
   max_fetches: 0                # 0 = 진입 fetch 별도 총량 한도 없음. 메인 턴 한도는 적용
   search_results: 10            # serper 가 돌려주는 결과 수. 모델이 보고 고른다
-  search_top_k: 0               # 고정 top-k 일괄 페치 없음. 메인이 진입 여부를 정한다
-  depthsearch_control: true     # 출처 기록. independent_clues=false일 때만 이전 선택·상태 갱신 모델 사용
-  independent_clues: true      # 독립 검색 A/B → 메인에서 교차 확인. 선택·상태 갱신 추가 호출 없음
+  search_top_k: 0               # 고정 top-k 일괄 페치 없음. 하위 읽기 노드가 필요한 페이지를 선택
+  depthsearch_control: true     # 출처 기록 및 native fetch 진입 세션
+  independent_clues: false     # v6 초기 A/B 고정 검색은 사용하지 않는다
+  relational_reading: true     # 관계를 따라 재귀, 별도 상태 갱신 모델 호출 없음
 
   # 페치한 원문의 공통 토큰 상한. 세 방법에 동일하게 적용한다.
   fetch_max_tokens: 32768
@@ -81,40 +82,37 @@ explorer:
 
 # DepthSearch 전용 정책. RAgent와 프롬프트도 달라지므로 최적화된 방법으로 비교한다.
 system_prompt: |
-  Research with web_search and recursive web_fetch. The first two searches seed
-  independent clue routes A and B. Afterwards compare their observations: look for
-  a shared person, object or event, citing source IDs. Shared keywords, the same URL,
-  or a repeated name alone do not establish the same identity or independent support.
-  Neither route must find an answer alone; use their complementary facts to connect
-  the identifying clues to the requested answer. If they do not connect, investigate
-  the missing relation without forcing a match or adopting an unsupported candidate.
+  Plan research with web_search. Each search returns its results and a reading stage
+  that selects useful pages and follows their links recursively. You handle the next
+  search or final answer after that reading returns; web_fetch is not your action.
 
-  Fetch a useful record, profile or index when it can establish that relation.
-  Before a fetch, you may write one brief line: Check: <relation to verify>.
-  It guides the reader but is not evidence; no extra tool argument is required.
-  Test the condition that best distinguishes a promising candidate from alternatives
-  before collecting more general information about it. Explicit contradictions call
-  for another candidate; missing information alone is not a contradiction. For lists,
-  complete individual candidate checks without waiting for an exhaustive candidate set.
+  Search one identifying relation at a time with a short query. Names, dates and
+  attributes must belong to the entity specified in the question or a cited source.
+  Do not invent a narrower year or transfer a date from one relationship to another.
+  Search for a record, interview, profile or index that can connect the clues, rather
+  than requiring every condition to appear in its snippet.
 
-  Keep queries short and tied to one original clue. Do not invent names, dates or
-  narrower ranges as search facts. Preserve which entity each condition describes,
-  including birthplace versus nationality. When reading yields no new evidence or
-  route, change the clue or source instead of collecting more similar pages.
-  A title repeating the question is not evidence that the page contains its answer.
+  After reading, connect the source facts to the candidate and the requested answer.
+  Investigate a promising candidate's missing distinguishing relation before repeating
+  broad discovery. Explicit contradictions require revision; unknown facts do not
+  establish failure. For lists, finish individual candidate checks without waiting
+  for an exhaustive candidate set. If a route adds nothing, change the clue or source.
 
-  Integrate returned source facts, not the reader's confidence. Verify the shared
-  identity and remaining conditions before answering. Retain supported answer items
-  if coverage is incomplete and qualify that limit. Use the requested format,
-  attributes and ordering, cite real URLs, and never invent missing facts.
+  Reader connections are interpretations: check their source evidence and scope.
+  Preserve supported deductions and answer items when coverage is incomplete, with a
+  brief qualification. Use the requested format and attributes, cite real sources,
+  and never invent missing facts. Return an answer when the evidence supports it.
 
 explorer_prompt: |
   Read pages for a research assistant and follow useful links recursively. During
   extraction, only the supplied page is evidence. The question defines what to look
   for; parent reasoning guides navigation but is not this page's evidence.
-  If a local relation is supplied, verify it from this page first. Follow links that
-  can establish or contradict it; stop when that local task is settled or no concrete
-  route remains. The main planner connects routes and handles other conditions.
+  Extraction uses the original question and current page, not the search query or
+  parent's hypothesis. Keep facts relevant to any part of the original question.
+  During navigation, a supplied local relation is a task, not evidence. Follow links
+  that establish or contradict it. Return when it is settled or has no useful route
+  here; other unresolved relations belong to the parent. Do not solve the whole
+  question again inside every branch.
 
   Preserve exact relevant names and rows with their headers, values, units, dates
   and scope. Never replace relevant rows with ellipses, examples or instructions to
@@ -136,9 +134,10 @@ explorer_prompt: |
   **Final Information**
   **Page:** Actual title and URL.
   **Evidence:** Exact relevant facts/rows and short supporting quotes.
+  **Connections:** Brief entity-to-entity relations supported here; label deductions.
   **Coverage:** Actual entities, years, population; full list, subset or excerpt.
   **Missing:** Requested fields this page does not establish.
-  **Next links:** Useful URLs and the missing field each could establish.
+  **Next links:** One URL per line with the specific missing relation it could establish.
   **Expand:** yes or no, and why.
   **Status:** partial
   Use answered only if this page supplies all requested facts, partial for useful

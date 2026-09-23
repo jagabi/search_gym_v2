@@ -30,7 +30,7 @@ from .paths import resolve
 from .scoring import Judgement, from_dict
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
-from .research_state import ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL
+from .research_state import ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL, ENTRY_PROMPT
 from .tree import write_svg
 
 __all__ = ["Cache", "Record", "Runner"]
@@ -39,7 +39,7 @@ __all__ = ["Cache", "Record", "Runner"]
 # agent/16 — 문서 예산을 균등분할에서 워터필링으로 바꿨다(작은 문서가 남긴
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
-DEPTHSEARCH_CACHE_VERSION = "agent/44-ds-independent-clues"
+DEPTHSEARCH_CACHE_VERSION = "agent/45-ds-relational-reading"
 JUDGE_VERSION = "judge/1"
 
 
@@ -427,6 +427,10 @@ _DEPLOYMENT_ONLY = ("api_key", "base_url", "timeout_s")
 def _agent_fingerprint(config: AgentConfig) -> str:
     """캐시 키에 들어갈 에이전트 설정. 결과에 영향을 주는 값만 넣는다."""
     values = {k: v for k, v in asdict(config).items() if k not in _DEPLOYMENT_ONLY}
+    if not values.get("relational_reading"):
+        values.pop("relational_reading", None)
+    else:
+        values["entry_prompt"] = ENTRY_PROMPT
     if not values.get("independent_clues"):
         values.pop("independent_clues", None)
     else:
@@ -434,9 +438,12 @@ def _agent_fingerprint(config: AgentConfig) -> str:
     if not values.get("depthsearch_control"):
         # Preserve the exact baseline fingerprint from before this DS-only feature.
         values.pop("depthsearch_control", None)
-    else:
+    elif not config.relational_reading:
         values["controller_prompt"] = CONTROL_PROMPT
         values["selector_prompt"] = SELECT_PROMPT
+        values["selector_tool"] = SELECT_FETCH_TOOL
+        values["final_prompt"] = FINAL_SYSTEM
+    if config.relational_reading:
         values["selector_tool"] = SELECT_FETCH_TOOL
         values["final_prompt"] = FINAL_SYSTEM
     return json.dumps(values, sort_keys=True, ensure_ascii=False)

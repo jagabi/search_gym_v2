@@ -1,10 +1,10 @@
 """메인 추론 에이전트 — vLLM OpenAI 호환 서버 위의 도구 루프.
 
-세 방법은 공통 실행 루프와 웹 도구를 사용한다. DS는 전용 선택·상태 갱신 정책을 쓴다.
+세 방법은 공통 실행 루프와 웹 도구를 사용한다. DS는 전용 진입·재귀 읽기 정책을 쓴다.
 
     ragent       web_search + web_fetch.  페치 원문(jina 마크다운)이 그대로 들어간다
     depthsearch  메인은 검색, 내부 fetch 단계는 선택적 재귀 진입을 맡는다.
-                 출처에 연결된 후보 상태와 잠정 답을 유지한다
+                 출처별 근거와 관계를 반환한다(별도 상태 갱신 모델 없음)
     search-o1    web_search 만.  검색당 상위 k개를 자동 페치해 페이지별 explorer 요약
 
 웹 검색 호출 한도와 결과 수는 같다. 전용 프롬프트·선택·추출·재귀·종료 정책을
@@ -30,7 +30,7 @@ from .llm import LLM, Usage, recover_tool_calls, normalize_tool_names, history_t
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
 from .urls import normalize_fetch_url
-from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL,
+from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL, ENTRY_PROMPT,
                              parse_control, is_search_endpoint)
 
 __all__ = ["METHODS", "AgentConfig", "RunResult", "SearchAgent", "Step"]
@@ -127,6 +127,8 @@ class AgentConfig:
     depthsearch_control: bool = False
     # DS-only: isolated clue seeds, then one main planner with recursive fetch.
     independent_clues: bool = False
+    # DS: native entry reading, relation-guided recursion, no state-update LLM.
+    relational_reading: bool = False
 
 
 @dataclass(slots=True)
@@ -320,17 +322,21 @@ class SearchAgent:
 
     @property
     def independent_clues(self) -> bool:
-        return self.method == "depthsearch" and self.config.independent_clues
+        return self.method == "depthsearch" and self.config.independent_clues and not self.relational_reading
+
+    @property
+    def relational_reading(self) -> bool:
+        return self.method == "depthsearch" and self.config.relational_reading
 
     @property
     def tool_names(self) -> list[str]:
         """모델에게 노출할 도구.
 
-        독립 단서 DS와 RAgent에는 두 도구를 제공한다. DS의 최초 두 검색은
+        현재 관계 탐색 DS는 검색만 사용한다. 이전 독립 단서 DS와 RAgent에는 두 도구를 제공한다. 최초 두 검색은
         _available_specs에서 검색만 허용한다. 이전 선택기 모드 DS와
         search-o1은 검색 내부에서 읽기를 실행하므로 메인에는 검색만 제공한다.
         """
-        if self.method == "search-o1" or (self.method == "depthsearch" and self.config.depthsearch_control
+        if self.relational_reading or self.method == "search-o1" or (self.method == "depthsearch" and self.config.depthsearch_control
                                           and not self.independent_clues):
             return ["web_search"]
         return ["web_search", "web_fetch"]
@@ -349,7 +355,7 @@ class SearchAgent:
     ) -> RunResult:
         cfg = self.config
         result = RunResult()
-        if self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues):
+        if self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading):
             result.research_state = ResearchState()
         started = time.perf_counter()
 
@@ -408,7 +414,8 @@ class SearchAgent:
         explorer = (
             Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch,
                      enforce_tool_availability=self.method == "depthsearch",
-                     preserve_source_evidence=self.method == "depthsearch")
+                     preserve_source_evidence=self.method == "depthsearch",
+                     relational_reading=self.relational_reading)
             if self.uses_explorer
             else None
         )
@@ -439,7 +446,7 @@ class SearchAgent:
                 result.steps.append(step)
 
                 active_specs = self._available_specs(specs, result)
-                if (self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues)
+                if (self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading)
                         and result.searches >= cfg.max_searches and not active_specs):
                     # All results of the last search have returned. Independent
                     # seeds return snippets; legacy sessions also return reading.
@@ -597,7 +604,7 @@ class SearchAgent:
                 trace.event("run.truncated", reason="max_turns", turns=cfg.max_turns)
                 recovery = self._checkpoint_recovery(result)
                 final = await self._salvage(messages, trace, result.usage,
-                    answer_only=(self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues)
+                    answer_only=(self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading)
                                  and result.searches >= cfg.max_searches), **recovery)
                 if final:
                     result.answer, result.stop_reason = final, "finalized"
@@ -672,7 +679,7 @@ class SearchAgent:
                 parts.append("Recursive expansion is exhausted. A main fetch can still read a page and return its evidence without child expansion.")
         elif self.independent_clues:
             parts.append("Seed the two independent clue routes with search first; recursive web_fetch becomes available afterwards.")
-        elif self.config.depthsearch_control:
+        elif self.config.depthsearch_control or self.relational_reading:
             parts.append("Page fetching is handled inside web_search by the fetch-only reader; "
                          "web_fetch is not a main action. Review returned evidence before the next search.")
         else:
@@ -802,7 +809,7 @@ class SearchAgent:
         record = ToolCall(name=name, arguments=arguments)
         step.tool_calls.append(record)
 
-        if self.method == "depthsearch" and cfg.depthsearch_control and not self.independent_clues and name == "web_fetch":
+        if self.method == "depthsearch" and (cfg.depthsearch_control or self.relational_reading) and not self.independent_clues and name == "web_fetch":
             record.refused = True
             record.result = ("web_fetch is not a main action. Page reading is handled inside web_search. "
                              "Use web_search if available and needed, or answer from the returned evidence.")
@@ -980,6 +987,11 @@ class SearchAgent:
                             recoveries += 1
                             state.count("selector_recoveries")
                             continue
+                    if self.relational_reading and stop == "skip" and session.history:
+                        interpretation = session.history[-1].get("content", "")
+                        if interpretation:
+                            text += ("\n\nEntry reader's working connections and gaps (interpretation, not source evidence):\n"
+                                     + _strip_special(interpretation))
                     break
                 url = state.sources[selected]["url"]
                 auto = ToolCall(name="web_fetch", arguments={"url": url})
@@ -1166,7 +1178,9 @@ class SearchAgent:
         if not self.explores_on_fetch or explorer is None:
             return document.content, raw_chars
 
-        if self.independent_clues:
+        if self.relational_reading:
+            navigation_context = "Use the original question to connect this source to its missing relations."
+        elif self.independent_clues:
             navigation_context = "Local verification task (hypothesis, not source evidence): " + reading_goal
         elif state:
             navigation_context = (state.render() + "\nNavigation goal (not evidence): " + reading_goal
@@ -1176,7 +1190,7 @@ class SearchAgent:
         exploration = await explorer.explore(
             question=question,
             reasoning=navigation_context,
-            query=reading_goal or _latest_query(result),
+            query="" if self.relational_reading else reading_goal or _latest_query(result),
             documents=[document],
             budget=budget,
             trace=trace,
@@ -1186,6 +1200,9 @@ class SearchAgent:
         )
         _absorb(result, exploration, query=reading_goal or _latest_query(result), url=url, record=record)
         if state is not None:
+            if self.relational_reading and exploration.reused:
+                state.add_note(url, "Identical content; use the original source notes: "
+                               + ", ".join(exploration.sources), exploration.status)
             origins = state.source(url).get("origins", []) if self.independent_clues and state.source(url) else []
             if self.independent_clues:
                 exploration.log["clue_origins"] = origins
@@ -1209,7 +1226,7 @@ class SearchAgent:
                     state.register(linked.rstrip(".,;"))
                 except ValueError:
                     pass
-            if not self.independent_clues:
+            if not self.independent_clues and not self.relational_reading:
                 await self._control(question, result, trace, focus, select=False)
         return exploration.render_for_gate(), raw_chars
 
@@ -1223,6 +1240,10 @@ class SearchAgent:
             session = _FetchSession()
         focus = list(dict.fromkeys(focus))
         selectable = state.selectable() if select else []
+        if self.relational_reading and select:
+            # One search batch is one local reading task. Other batches stay in
+            # the registry/main trajectory, not in every entry reader's menu.
+            selectable = [sid for sid in selectable if sid in focus]
         if select and not selectable:
             session.decision = "no_unread_entries"
             return None
@@ -1246,7 +1267,7 @@ class SearchAgent:
                             "evidence": body, "excerpt_truncated": clipped})
         payload = {"question": question, "mode": "select" if select else "update-only",
                    "working_state": state.snapshot(), "selectable": selectable, "sources": sources}
-        prompt = SELECT_PROMPT if select else CONTROL_PROMPT
+        prompt = ENTRY_PROMPT if self.relational_reading and select else SELECT_PROMPT if select else CONTROL_PROMPT
         offered_tools = None
         if select:
             payload["current_query"] = query
@@ -1257,6 +1278,12 @@ class SearchAgent:
             offered_tools = [copy.deepcopy(SELECT_FETCH_TOOL)]
             offered_tools[0]["function"]["parameters"]["properties"]["url"]["enum"] = [
                 state.sources[sid]["url"] for sid in selectable]
+            if self.relational_reading:
+                payload.pop("working_state")
+                payload.pop("previous_sources")
+                offered_tools[0]["function"]["parameters"]["properties"]["url"]["enum"] += selectable
+                offered_tools[0]["function"]["parameters"]["properties"]["url"]["description"] = (
+                    "An exact supplied URL or source ID (e.g. S3).")
         messages = [{"role": "system", "content": _system_prompt(prompt, self.profile.reasoning_effort)},
                     {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
         if select:
@@ -1302,7 +1329,8 @@ class SearchAgent:
                             # Selection is restricted to observed unread entries;
                             # child readers keep their existing URL expansion rules.
                             selected = next((sid for sid in selectable
-                                             if state.sources[sid]["url"] == args["url"]), None)
+                                             if state.sources[sid]["url"] == args["url"]
+                                             or (self.relational_reading and sid == args["url"])), None)
                     except (ValueError, TypeError):
                         pass
                     if selected:

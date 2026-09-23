@@ -107,13 +107,13 @@ class SourceTests(unittest.TestCase):
 
 
 class FlowTests(unittest.IsolatedAsyncioTestCase):
-    async def test_configured_depthsearch_has_two_seeds_then_direct_recursive_fetch(self):
+    async def test_configured_depthsearch_search_entry_reader_then_main(self):
         cfg = load_test(method="depthsearch")
         url = "https://archives.example/treaty"
         llm = FakeLLM([call("web_search", {"query": "value record"}),
-                       call("web_search", {"query": "register value"}), fetch_call(url),
+                       fetch_call(url),
                        note("Value: 42\n**Expand:** no"),
-                       Reply(text="42"), Reply(text="42")])
+                       Reply(text="Done; value established."), Reply(text="42"), Reply(text="42")])
         tools = FakeTools()
         tools.fetch = AsyncMock(return_value=Document(url, "Value: 42"))
         with patch("searchgym.agent.LLM", return_value=llm):
@@ -121,9 +121,9 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         result = await agent.run("What is the value?", cfg.system_prompt, tools, MemoryTrace())
         self.assertEqual(result.answer, "42")
         self.assertEqual({s["function"]["name"] for s in llm.requests[0][1]}, {"web_search"})
-        self.assertEqual({s["function"]["name"] for s in llm.requests[1][1]}, {"web_search"})
-        self.assertEqual({s["function"]["name"] for s in llm.requests[2][1]}, {"web_search", "web_fetch"})
-        self.assertIsNone(llm.requests[3][1])  # Source extraction has no tools.
+        self.assertEqual({s["function"]["name"] for s in llm.requests[1][1]}, {"web_fetch"})
+        self.assertIsNone(llm.requests[2][1])  # Source extraction has no tools.
+        self.assertEqual({s["function"]["name"] for s in llm.requests[4][1]}, {"web_search"})
         self.assertIsNone(llm.requests[-1][1])  # Final synthesis has no tools.
         self.assertFalse(llm.replies)
         tools.fetch.assert_awaited_once()

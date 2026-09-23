@@ -35,7 +35,7 @@ from searchgym.runner import Runner  # noqa: E402
 from searchgym.scoring import Judgement  # noqa: E402
 from searchgym.serving import profile_for  # noqa: E402
 from searchgym.trace import Trace  # noqa: E402
-from searchgym.research_state import SELECT_PROMPT, CONTROL_PROMPT  # noqa: E402
+from searchgym.research_state import SELECT_PROMPT, CONTROL_PROMPT, ENTRY_PROMPT  # noqa: E402
 
 OUT = "runs/_offline"
 
@@ -133,7 +133,7 @@ class FakeLLM:
         turn = sum(1 for m in messages if m["role"] == "assistant") + 1
         names = {t["function"]["name"] for t in (tools or [])}
         who = "explorer" if self.marker in system else "agent"
-        if SELECT_PROMPT.strip() in system:
+        if SELECT_PROMPT.strip() in system or ENTRY_PROMPT.strip() in system:
             who = "selector"
         elif CONTROL_PROMPT.strip() in system:
             who = "state"

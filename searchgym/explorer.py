@@ -16,9 +16,9 @@ explorer 의 컨텍스트에는 자기 페이지와 자식 요약만 남으므�
 
     search-o1    검색당 상위 k개를 자동 페치해 페이지마다 explorer가 읽는다
 
-자식에게 넘기는 "왜 여기 왔는가"는 **도구 인자가 아니라 부모의 reasoning** 이다.
-자유 텍스트 인자를 붙이면 모델이 형식을 흘렸을 때 툴콜이 통째로 깨지는데, 그 정보는
-어차피 링크를 열기 직전의 사고에 다 들어 있다.
+현재 DS는 부모 노트의 Next links에서 선택 URL의 목적을 찾아 자식의 탐색에 전달한다.
+추출에는 원 질문·현재 원문만 전달한다. 이전 모드는 부모 reasoning을 사용한다.
+tool call 인자는 url 하나이며 별도 자유 텍스트 인자를 추가하지 않는다.
 
 제약은 **프롬프트가 아니라 구조**로 건다.
     깊이 상한 도달   →  fetch 도구를 아예 주지 않는다
@@ -55,7 +55,7 @@ STATUSES = ("answered", "partial", "not_found")
 
 # 인자는 url 하나뿐이다. 자유 텍스트 인자(goal 등)를 붙이면 모델이 형식을 흘려
 # 툴콜 파싱이 깨지는 일이 잦고, 그 정보는 어차피 이 턴의 reasoning 에 다 들어 있다.
-# 자식에게는 부모의 **reasoning** 을 그대로 내려보낸다(_open 참고).
+# 현재 DS는 부모 노트에서 URL별 목적을 찾아 탐색 문맥으로 전달한다(_open 참고).
 FETCH_TOOL: dict[str, Any] = {
     "type": "function",
     "function": {
@@ -151,6 +151,7 @@ class Budget:
         "readings", "reused",
         "content_seen",
         "branch_ceiling",
+        "extractions",
     )
 
     def __init__(self, total: int) -> None:
@@ -179,6 +180,8 @@ class Budget:
         self.reused = 0
         self.content_seen: set[str] = set()
         self.branch_ceiling: int | None = None
+        # Complete own-page extraction only; never reuse another branch's conclusion.
+        self.extractions: dict[str, dict[str, Any]] = {}
 
     def seen(self, url: str) -> bool:
         return _norm(url) in self._seen
@@ -300,6 +303,10 @@ class ExplorerResult:
         )
         lines = [body, "", f"**Status:** {self.status}",
                  f"**Extraction:** {self.extraction_state}"]
+        if self.log.get("relational_reading"):
+            overview = _relation_overview(self.notes)
+            if overview:
+                lines.insert(0, overview + "\n")
         if self.sources:
             lines.append("**Sources:** " + ", ".join(self.sources))
         if reason := self.log.get("expansion_stop_reason"):
@@ -321,6 +328,7 @@ class Explorer:
         *,
         enforce_tool_availability: bool = False,
         preserve_source_evidence: bool = False,
+        relational_reading: bool = False,
     ) -> None:
         """`fetch` 는 `async (url) -> Document` 콜러블이다(도구 계층이 준다)."""
         self.llm = llm
@@ -329,6 +337,7 @@ class Explorer:
         self._fetch = fetch
         self.enforce_tool_availability = enforce_tool_availability
         self.preserve_source_evidence = preserve_source_evidence
+        self.relational_reading = relational_reading
 
     async def explore(self, **kwargs) -> ExplorerResult:
         budget = kwargs["budget"]
@@ -361,6 +370,30 @@ class Explorer:
 
         for doc in documents:
             budget.visit(doc.url)
+
+        cache_key = _extraction_key(documents[0].content) if len(documents) == 1 else ""
+        if self.relational_reading and cache_key and cache_key in budget.extractions:
+            saved = dict(budget.extractions[cache_key])
+            # Keep the original source URL: a mirror is not independent evidence.
+            saved["source_notice"] = (saved.get("source_notice", "") +
+                "\nIdentical supplied content; reused the original page extraction, not independent corroboration.")
+            saved["navigation_goal"] = reading_goal
+            result.notes = [saved]
+            result.information = _render_notes(result.notes)
+            result.sources = list(saved["urls"])
+            result.status, result.extraction_state = saved["status"], saved["extraction_state"]
+            result.calls, result.reused = 0, True
+            result.log = {"depth": depth, "urls": [d.url for d in documents], "opened": [],
+                          "reused": True, "relational_reading": True, "reading_goal": reading_goal,
+                          "status": result.status, "extraction_state": result.extraction_state,
+                          "expansion_stop_reason": "repeated_content", "information": result.information,
+                          "information_chars": len(result.information)}
+            for doc in documents:
+                budget.readings[_norm(doc.url)] = result.notes
+            budget.reused += 1
+            trace.event("explorer.reused_content", depth=depth, urls=[d.url for d in documents],
+                        original_sources=result.sources, reading_goal=reading_goal)
+            return result
 
         child_limit = cfg.max_subtree_children
 
@@ -396,14 +429,20 @@ class Explorer:
             children_left=children_left,
             menu=menu,
         )
+        if self.relational_reading:
+            user += ("\n\nLocal navigation task (parent hypothesis, not source evidence):\n"
+                     + (reading_goal or "Use this page to establish relevant relations in the original question.")
+                     + "\nReturn when this relation is established, contradicted, or has no useful route here. "
+                     "Other unresolved parts of the whole question belong to the parent. "
+                     "Keep unexpected facts useful to the original question.")
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self._system()},
             {"role": "user", "content": user},
         ]
         extraction_messages = (
             [{"role": "system", "content": self._system()},
-             {"role": "user", "content": _extraction_message(question, rendered, reading_goal)}]
-            if cfg.isolate_extraction_context else messages[:2]
+             {"role": "user", "content": _extraction_message(question, rendered, "" if self.relational_reading else reading_goal)}]
+            if cfg.isolate_extraction_context or self.relational_reading else messages[:2]
         )
         trace.event(
             "explorer.start",
@@ -465,7 +504,12 @@ class Explorer:
             # 실패한 사고/툴콜 이력 없이 같은 원문에서 최대 한 번 복구한다.
             best, status, state = "", "not_found", "empty_output"
             for attempt in range(2):
-                history = extraction_messages + [{"role": "user", "content": _EXTRACT_NOW}]
+                instruction = _EXTRACT_NOW
+                if self.relational_reading:
+                    instruction += (" Include **Connections:** with brief source-supported entity relations "
+                                    "and **Next links:** with one URL and its missing relation per line. "
+                                    "Connections are your interpretation; label deductions and preserve quotes.")
+                history = extraction_messages + [{"role": "user", "content": instruction}]
                 if attempt:
                     recovery_attempts += 1
                     history.append({"role": "user", "content": _EXTRACT_RETRY})
@@ -574,6 +618,7 @@ class Explorer:
                         query=query, budget=budget, trace=trace, usage=usage,
                         depth=depth, turn=step, allowed=children_left, openable=openable,
                         reading_goal=reading_goal,
+                        link_goals=_link_goals(own_information) if self.relational_reading else None,
                     )
                     if child is not None:
                         child_notes.extend(child.notes)
@@ -617,6 +662,8 @@ class Explorer:
 
         own_note = {"urls": urls, "text": own_information, "status": own_status,
                     "extraction_state": own_state}
+        if self.relational_reading:
+            own_note["navigation_goal"] = reading_goal
         if self.preserve_source_evidence:
             # Carry already-seen structured sources separately from model prose.
             # Never fetch again or bypass document truncation/contamination checks.
@@ -643,6 +690,10 @@ class Explorer:
                     " The supplied source was truncated; unseen rows remain unknown."
                 )
         result.notes = _merge_notes([own_note, *child_notes])
+        if (self.relational_reading and cache_key and own_state == "complete"
+                and own_information.strip() and not doc_truncated
+                and not any(d.is_error for d in documents)):
+            budget.extractions[cache_key] = dict(own_note)
         result.information = _render_notes(result.notes)
         result.status = "partial" if any(
             n["text"] and n["status"] != "not_found" for n in result.notes
@@ -683,6 +734,8 @@ class Explorer:
             "latency_ms": round((time.perf_counter() - started) * 1000, 1),
             "opened": opened,
         }
+        if self.relational_reading:
+            result.log.update(relational_reading=True, reading_goal=reading_goal)
         trace.event(
             "explorer.end",
             depth=depth,
@@ -787,6 +840,7 @@ class Explorer:
         allowed: int,
         openable: dict[str, str],
         reading_goal: str = "",
+        link_goals: dict[str, str] | None = None,
     ) -> tuple[str, ExplorerResult | None]:
         """자식 하나를 연다. 돌려주는 문자열이 부모의 도구 결과가 된다."""
         arguments = _parse_arguments(getattr(call.function, "arguments", None))
@@ -886,22 +940,28 @@ class Explorer:
             trace.event("expand.failed", depth=depth + 1, url=url, error=document.content[:300])
             return f"Could not open {url}: {document.content[:300]}", None
 
-        # 실제로 열린 노드만 깊이 분포에 센다(실패한 페치는 예산을 돌려받았다).
-        budget.opened_at(depth + 1)
+        local_goal = (link_goals or {}).get(_norm(url), "") if self.relational_reading else reading_goal
+        if self.relational_reading:
+            trace.event("expand.relation_task", url=url, parent_depth=depth, goal=local_goal,
+                        fallback="original_question" if not local_goal else "matched_next_link")
 
         child = await self.explore(
             question=question,
-            reasoning=reasoning,
-            query=query,
+            reasoning="" if self.relational_reading else reasoning,
+            query="" if self.relational_reading else query,
             documents=[document],
             budget=budget,
             trace=trace,
             usage=usage,
             depth=depth + 1,
-            parent_reasoning=reasoning_now,
+            parent_reasoning="" if self.relational_reading else reasoning_now,
             turn=turn,
-            reading_goal=reading_goal,
+            reading_goal=local_goal,
         )
+        if child.reused:
+            budget.give_back()
+        else:
+            budget.opened_at(depth + 1)
         trace.event(
             "expand.return",
             depth=depth + 1,
@@ -956,6 +1016,51 @@ def _content_fingerprint(text: str) -> str:
     body = text.split("Markdown Content:", 1)[-1]
     body = re.sub(r"^URL Source:.*$", "", body, flags=re.MULTILINE)
     return hashlib.sha256(" ".join(body.split()).encode("utf-8")).hexdigest()
+
+
+def _extraction_key(text: str) -> str:
+    # Preserve row boundaries/spacing, unlike the legacy branch-pruning fingerprint.
+    # Reader wrapper metadata is not page content. Notes retain the original URL.
+    body = text.split("Markdown Content:", 1)[-1]
+    body = re.sub(r"^URL Source:.*(?:\n|$)", "", body, flags=re.MULTILINE)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest() if body.strip() else ""
+
+
+def _note_section(text: str, heading: str) -> str:
+    start = re.search(r"(?im)^\s*(?:\*\*|#{1,4}\s*)" + re.escape(heading)
+                      + r"\s*(?::\s*)?(?:\*\*)?\s*:?[^\S\n]*", text)
+    if not start:
+        return ""
+    rest = text[start.end():]
+    end = re.search(r"(?im)^\s*(?:\*\*|#{1,4}\s*)(?:Page|Evidence|Connections|Coverage|Missing|Next links|Expand|Status)\b", rest)
+    return (rest[:end.start()] if end else rest).strip()
+
+
+def _link_goals(note: str) -> dict[str, str]:
+    """Bind existing one-line Next links explanations to URLs, never tool arguments."""
+    goals = {}
+    for line in _note_section(note, "Next links").splitlines():
+        for key, url in _page_links(line).items():
+            explanation = line.replace(url, "").strip(" |-*[]():\t")
+            if explanation:
+                goals[key] = explanation
+    return goals
+
+
+def _relation_overview(notes: list[dict[str, Any]]) -> str:
+    rows = []
+    for note in notes:
+        connections = _note_section(note["text"], "Connections")
+        missing = _note_section(note["text"], "Missing")
+        if connections or missing:
+            row = "Source: " + ", ".join(note["urls"])
+            if connections:
+                row += "\nConnections: " + connections
+            if missing:
+                row += "\nUnknown: " + missing
+            rows.append(row)
+    return ("Reader's source-linked interpretations (verify against the page evidence below):\n"
+            + "\n\n".join(rows)) if rows else ""
 
 
 def _extraction_message(question: str, documents: str, reading_goal: str = "") -> str:
