@@ -1001,6 +1001,14 @@ class SearchAgent:
                 notes, _ = await self._fetch(url=url, tools=tools, explorer=explorer,
                     budget=budget, result=result, record=auto, trace=trace, question=question, turn=turn,
                     reading_goal=state.selection_goal)
+                if self.relational_reading and auto.is_error:
+                    source = state.sources[selected]
+                    # An inaccessible copy does not erase an identified document.
+                    notes = ("Document lead retained (search metadata, not verified page evidence):\n"
+                             + json.dumps({"id": selected, "url": url, "title": source["title"],
+                                           "snippets": source["snippets"], "access": "failed"}, ensure_ascii=False)
+                             + "\nAccess failure does not reject this document. If it matches, use its "
+                               "title/author to locate another copy; do not restart broad discovery.\n" + notes)
                 # Attribute automatic reader trees to the initiating search record.
                 for entry in auto.explorations:
                     entry["entry"] = "selective_search"
@@ -1179,7 +1187,7 @@ class SearchAgent:
             return document.content, raw_chars
 
         if self.relational_reading:
-            navigation_context = "Use the original question to connect this source to its missing relations."
+            navigation_context = "The supplied local task is a working hypothesis, not page evidence."
         elif self.independent_clues:
             navigation_context = "Local verification task (hypothesis, not source evidence): " + reading_goal
         elif state:
@@ -1196,9 +1204,11 @@ class SearchAgent:
             trace=trace,
             usage=result.usage,
             depth=1,
-            **({"reading_goal": reading_goal} if self.independent_clues else {}),
+            **({"reading_goal": reading_goal} if self.independent_clues or self.relational_reading else {}),
         )
-        _absorb(result, exploration, query=reading_goal or _latest_query(result), url=url, record=record)
+        _absorb(result, exploration,
+                query=_latest_query(result) if self.relational_reading else reading_goal or _latest_query(result),
+                url=url, record=record)
         if state is not None:
             if self.relational_reading and exploration.reused:
                 state.add_note(url, "Identical content; use the original source notes: "
@@ -1250,6 +1260,10 @@ class SearchAgent:
         # Keep a search snippet for every choice, including older entries. Compact
         # duplicate observations, not the evidence needed to judge a page's scope.
         ids = list(dict.fromkeys([sid for sid in focus if sid in selectable] + selectable)) if select else focus
+        if self.relational_reading and select:
+            # Observations survive access failure/read completion; only actions expire.
+            # Keep this batch, not every source ever registered.
+            ids = [sid for sid in focus if sid in state.sources]
         if not ids and not select:
             return None
         per_source = max(128, self.config.fetch_max_tokens // max(1, len(ids)))
@@ -1265,6 +1279,8 @@ class SearchAgent:
             body, clipped = await self.llm.cap("\n\n".join(parts), per_source)
             sources.append({"id": sid, "url": s["url"], "title": s["title"], "status": s["status"],
                             "evidence": body, "excerpt_truncated": clipped})
+            if self.relational_reading and select and s.get("error"):
+                sources[-1]["access_error"] = s["error"]
         payload = {"question": question, "mode": "select" if select else "update-only",
                    "working_state": state.snapshot(), "selectable": selectable, "sources": sources}
         prompt = ENTRY_PROMPT if self.relational_reading and select else SELECT_PROMPT if select else CONTROL_PROMPT
@@ -1281,6 +1297,9 @@ class SearchAgent:
             if self.relational_reading:
                 payload.pop("working_state")
                 payload.pop("previous_sources")
+                context, clipped = await self.llm.cap(_latest_working_context(result), self.config.max_tokens)
+                payload["planner_context_hypothesis"] = context
+                payload["planner_context_truncated"] = clipped
                 offered_tools[0]["function"]["parameters"]["properties"]["url"]["enum"] += selectable
                 offered_tools[0]["function"]["parameters"]["properties"]["url"]["description"] = (
                     "An exact supplied URL or source ID (e.g. S3).")
@@ -1359,6 +1378,14 @@ class SearchAgent:
                         tool_calls=[{"name": c.function.name, "arguments": c.function.arguments}
                                     for c in reply.tool_calls])
             state.selection_goal = ""
+            if self.relational_reading and selected:
+                # No extra tool argument or model call: reuse the decision just made.
+                decision_text = "\n".join(part for part in (reply.reasoning, raw_text) if part and part.strip())
+                goal = ("Entry reader's reason for this URL (hypothesis):\n" + decision_text
+                        + "\nPlanner context (hypothesis):\n" + payload["planner_context_hypothesis"])
+                if not decision_text and not payload["planner_context_hypothesis"]:
+                    goal = question
+                state.selection_goal, _ = await self.llm.cap(goal, self.config.max_tokens)
             if decision == "skip":
                 state.count("controller_skips")
             elif decision != "fetch":
@@ -1436,6 +1463,15 @@ def _latest_query(result: RunResult) -> str:
     for call in reversed(result.tool_calls):
         if call.name == "web_search" and call.query:
             return call.query
+    return ""
+
+
+def _latest_working_context(result: RunResult) -> str:
+    """Latest planner judgement only, for navigation; never source extraction."""
+    for step in reversed(result.steps):
+        text = "\n".join(p.strip() for p in (step.reasoning, step.text) if p and p.strip())
+        if text:
+            return _strip_special(text)
     return ""
 
 

@@ -16,7 +16,8 @@ explorer 의 컨텍스트에는 자기 페이지와 자식 요약만 남으므�
 
     search-o1    검색당 상위 k개를 자동 페치해 페이지마다 explorer가 읽는다
 
-현재 DS는 부모 노트의 Next links에서 선택 URL의 목적을 찾아 자식의 탐색에 전달한다.
+현재 DS는 부모 노트의 첫 실행 가능한 Next link를 중복 선택 호출 없이 실행한다.
+자식 반환 후에는 부모가 다시 판단한다. 링크별 목적 또는 직전 선택 이유를 탐색에 전달한다.
 추출에는 원 질문·현재 원문만 전달한다. 이전 모드는 부모 reasoning을 사용한다.
 tool call 인자는 url 하나이며 별도 자유 텍스트 인자를 추가하지 않는다.
 
@@ -34,6 +35,7 @@ import json
 import hashlib
 import re
 import time
+from types import SimpleNamespace
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse, urlsplit, urlunsplit
@@ -471,6 +473,7 @@ class Explorer:
         recovery_attempts = 0
         expansion_decision = ""
         expansion_stop_reason = ""
+        access_only = self.relational_reading and _access_only_documents(documents)
 
         async def chat(history: list[dict[str, Any]], phase: str, tools: Any = None):
             result.turns += 1
@@ -479,6 +482,10 @@ class Explorer:
             if size + 512 > cfg.context_limit:
                 raise ValueError("explorer context limit reached; retained page notes are preserved")
             choice = {"tool_choice": "none"} if self.enforce_tool_availability and not tools else {}
+            if self.relational_reading:
+                trace.event("explorer.request", depth=depth, urls=urls, phase=phase,
+                            turn=result.turns, context_tokens=size,
+                            available_tools=[t["function"]["name"] for t in tools or []])
             reply = await self.llm.chat(
                 history, max_tokens=cfg.max_tokens, tools=tools, usage=usage, **choice
             )
@@ -501,6 +508,11 @@ class Explorer:
 
         async def extract() -> tuple[str, str, str]:
             nonlocal recovery_attempts, expansion_decision
+            if access_only:
+                expansion_decision = "no"
+                trace.event("explorer.access_only", depth=depth, urls=urls)
+                return ("Access screen only; no document evidence was available. "
+                        "Retain the search title/author as a lead to another copy.", "not_found", "complete")
             # 실패한 사고/툴콜 이력 없이 같은 원문에서 최대 한 번 복구한다.
             best, status, state = "", "not_found", "empty_output"
             for attempt in range(2):
@@ -508,7 +520,10 @@ class Explorer:
                 if self.relational_reading:
                     instruction += (" Include **Connections:** with brief source-supported entity relations "
                                     "and **Next links:** with one URL and its missing relation per line. "
-                                    "Connections are your interpretation; label deductions and preserve quotes.")
+                                    "Connections are your interpretation; label deductions and preserve quotes. "
+                                    "If Expand is yes, the first eligible Next link will be opened directly; "
+                                    "put the most useful specific route first. For an irrelevant/access page, "
+                                    "return one short explanation, Expand no and Status not_found; omit empty sections.")
                 history = extraction_messages + [{"role": "user", "content": instruction}]
                 if attempt:
                     recovery_attempts += 1
@@ -559,11 +574,24 @@ class Explorer:
                         trace.event("expand.pruned", depth=depth, urls=urls,
                                     reason=expansion_stop_reason, budget=budget.as_dict())
                 if can_expand:
+                    if self.relational_reading:
+                        # Extraction has already read the full source. Navigation needs
+                        # saved facts and observed link context, not another full reading.
+                        messages = [messages[0], {"role": "user", "content": (
+                            "Original question:\n" + question
+                            + "\n\nLocal navigation task (hypothesis, not evidence):\n"
+                            + (reading_goal or reasoning or question)
+                            + "\n\nCurrent source URLs:\n" + "\n".join(urls)
+                            + "\n\nObserved source links and their surrounding text:\n"
+                            + _navigation_links(rendered)
+                        )}]
                     messages.append({"role": "user", "content": (
                         "Your page note has been saved separately:\n"
                         + (own_information or f"Reader state: {own_state}; no evidence saved yet.")
                         + "\n\nNow follow a page link if it can fill a specific missing fact. "
-                        "Read the links in the original page above. Your note and all child notes "
+                        + ("Use the supplied source links. " if self.relational_reading
+                           else "Read the links in the original page above. ")
+                        + "Your note and all child notes "
                         "will be returned automatically; do not rewrite or discard them. "
                         "Before opening a link, identify the missing field and explain why its "
                         "label, surrounding text, or observed URL pattern can supply that field. "
@@ -574,6 +602,9 @@ class Explorer:
                     )})
 
             wasted = 0
+            first_route = (_first_note_route(own_information, openable, budget)
+                           if self.relational_reading and expansion_decision == "yes"
+                           and own_state == "complete" and can_expand else None)
             for step in range(1, max(1, cfg.max_turns) + 1) if can_expand else ():
                 if children_left <= 0 or budget.exhausted or wasted >= _MAX_WASTED_CALLS:
                     if self.enforce_tool_availability:
@@ -590,19 +621,28 @@ class Explorer:
                         "When this allowance ends, saved evidence returns to the parent automatically; "
                         "this does not end the main research task."
                     )}]
-                reply = await chat(navigation_messages, "expand", [FETCH_TOOL])
-                if not reply.tool_calls:
-                    if not cfg.extract_before_expand:
-                        own_information, own_status = _parse_final(reply.text, allow_explanation=self.enforce_tool_availability)
-                        own_state = "truncated" if reply.truncated else (
-                            "complete" if reply.text.strip() else "empty_output"
-                        )
-                        if own_information.strip().upper() in {"DONE", "DONE.", "FINISHED"}:
-                            own_information, own_state = "", "invalid_output"
-                    break
-
-                messages.append(_assistant_message(reply))
-                for call in reply.tool_calls:
+                from_note = step == 1 and first_route is not None
+                if from_note:
+                    route_url, navigation_reason = first_route
+                    calls = [SimpleNamespace(id=f"note_route_{depth}", function=SimpleNamespace(
+                        name="web_fetch", arguments=json.dumps({"url": route_url})))]
+                    trace.event("expand.from_note", depth=depth, url=route_url, goal=navigation_reason)
+                else:
+                    reply = await chat(navigation_messages, "expand", [FETCH_TOOL])
+                    if not reply.tool_calls:
+                        if not cfg.extract_before_expand:
+                            own_information, own_status = _parse_final(reply.text, allow_explanation=self.enforce_tool_availability)
+                            own_state = "truncated" if reply.truncated else (
+                                "complete" if reply.text.strip() else "empty_output"
+                            )
+                            if own_information.strip().upper() in {"DONE", "DONE.", "FINISHED"}:
+                                own_information, own_state = "", "invalid_output"
+                        break
+                    navigation_reason = ("\n".join(p for p in (reply.reasoning, reply.text) if p)
+                                         if self.relational_reading else reply.reasoning or reply.text)
+                    calls = reply.tool_calls
+                    messages.append(_assistant_message(reply))
+                for call in calls:
                     if self.enforce_tool_availability and (children_left <= 0 or budget.exhausted):
                         messages.append({"role": "tool", "tool_call_id": call.id, "content":
                             "Local expansion has finished; this call was not executed. Saved evidence will return to the parent."})
@@ -613,12 +653,13 @@ class Explorer:
                         reasoning_now=(
                             "Saved facts from the parent page (not the page you are about to read):\n"
                             + (own_information or "(none)") + "\n\nPurpose of following this link:\n"
-                            + (reply.reasoning or reply.text)
+                            + navigation_reason
                         ),
                         query=query, budget=budget, trace=trace, usage=usage,
                         depth=depth, turn=step, allowed=children_left, openable=openable,
                         reading_goal=reading_goal,
                         link_goals=_link_goals(own_information) if self.relational_reading else None,
+                        navigation_reason=navigation_reason if self.relational_reading else "",
                     )
                     if child is not None:
                         child_notes.extend(child.notes)
@@ -649,7 +690,16 @@ class Explorer:
                             child_notes.append({"urls": [str(failed_url)], "text": output,
                                                 "status": "not_found", "extraction_state": "fetch_error"})
                         wasted += _MAX_WASTED_CALLS if budget.repeats > seen_repeats else 1
-                    messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
+                    if from_note:
+                        # This action came from the recorded page note, not a fabricated
+                        # native tool-call response. Keep that provenance in the dialogue.
+                        messages.append({"role": "user", "content": (
+                            "Result of opening the first route selected in your saved page note:\n"
+                            + route_url + "\nPurpose (hypothesis): " + navigation_reason
+                            + "\n" + output
+                        )})
+                    else:
+                        messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
                 if wasted >= _MAX_WASTED_CALLS:
                     trace.event("expand.tool_withdrawn", depth=depth, turn=step, wasted=wasted)
 
@@ -841,6 +891,7 @@ class Explorer:
         openable: dict[str, str],
         reading_goal: str = "",
         link_goals: dict[str, str] | None = None,
+        navigation_reason: str = "",
     ) -> tuple[str, ExplorerResult | None]:
         """자식 하나를 연다. 돌려주는 문자열이 부모의 도구 결과가 된다."""
         arguments = _parse_arguments(getattr(call.function, "arguments", None))
@@ -942,8 +993,11 @@ class Explorer:
 
         local_goal = (link_goals or {}).get(_norm(url), "") if self.relational_reading else reading_goal
         if self.relational_reading:
+            fallback = ("matched_next_link" if local_goal else "parent_decision" if navigation_reason
+                        else "inherited_task" if reading_goal else "original_question")
+            local_goal, _ = await self.llm.cap(local_goal or navigation_reason or reading_goal or question, self.config.max_tokens)
             trace.event("expand.relation_task", url=url, parent_depth=depth, goal=local_goal,
-                        fallback="original_question" if not local_goal else "matched_next_link")
+                        fallback=fallback)
 
         child = await self.explore(
             question=question,
@@ -1026,6 +1080,52 @@ def _extraction_key(text: str) -> str:
     return hashlib.sha256(body.encode("utf-8")).hexdigest() if body.strip() else ""
 
 
+def _access_only_documents(documents: list[Document]) -> bool:
+    """Recognize a complete, known access screen, never keywords in an article."""
+    allowed = {
+        "loading", "18+ only", "18+ access", "private 18+ access", "premium access portal",
+        "continue to access", "please confirm you are over 18 years old.",
+        "continue 18+ verified", "continue to unlock exclusive content.", "age-restricted content",
+        "[leave](https://google.com/)",
+    }
+    for doc in documents:
+        if not re.search(r"^Title:\s*18\+ Access\s*$", doc.content, re.MULTILINE | re.IGNORECASE):
+            return False
+        if "Markdown Content:" not in doc.content:
+            return False
+        body = doc.content.split("Markdown Content:", 1)[1]
+        lines = [" ".join(line.strip(" #*_").lower().split()) for line in body.splitlines() if line.strip()]
+        if not lines or any(line not in allowed for line in lines):
+            return False
+    return bool(documents)
+
+
+def _navigation_links(rendered: str) -> str:
+    """Keep every observed URL with local source context; no menu-rank pruning."""
+    lines = rendered.splitlines()
+    keep = set()
+    for i, line in enumerate(lines):
+        if _page_links(line):
+            keep.update(range(max(0, i - 1), min(len(lines), i + 2)))
+    return "\n".join(lines[i] for i in sorted(keep)) or "(No source links supplied.)"
+
+
+def _first_note_route(note: str, openable: dict[str, str], budget: Budget) -> tuple[str, str] | None:
+    """Execute only the reader's first eligible, described route; never rank in code."""
+    goals = _link_goals(note)
+    for line in _note_section(note, "Next links").splitlines():
+        links = _page_links(line)
+        if len(links) > 1:
+            return None  # Ambiguous format: let the ordinary navigation turn decide.
+        for key, url in links.items():
+            if not goals.get(key) or budget.seen(url):
+                continue
+            if key not in openable and _host(url) not in budget.hosts:
+                return None
+            return openable.get(key, url), goals[key]
+    return None
+
+
 def _note_section(text: str, heading: str) -> str:
     start = re.search(r"(?im)^\s*(?:\*\*|#{1,4}\s*)" + re.escape(heading)
                       + r"\s*(?::\s*)?(?:\*\*)?\s*:?[^\S\n]*", text)
@@ -1051,13 +1151,10 @@ def _relation_overview(notes: list[dict[str, Any]]) -> str:
     rows = []
     for note in notes:
         connections = _note_section(note["text"], "Connections")
-        missing = _note_section(note["text"], "Missing")
-        if connections or missing:
+        if connections:
             row = "Source: " + ", ".join(note["urls"])
             if connections:
                 row += "\nConnections: " + connections
-            if missing:
-                row += "\nUnknown: " + missing
             rows.append(row)
     return ("Reader's source-linked interpretations (verify against the page evidence below):\n"
             + "\n\n".join(rows)) if rows else ""

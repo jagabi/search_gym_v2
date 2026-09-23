@@ -4,7 +4,8 @@ import unittest
 from unittest.mock import patch, AsyncMock
 
 from searchgym.agent import AgentConfig, SearchAgent, RunResult, _FetchSession
-from searchgym.explorer import Explorer, ExplorerConfig, Document, Budget, _link_goals, _norm
+from searchgym.explorer import (Explorer, ExplorerConfig, Document, Budget, _link_goals, _norm,
+                                _access_only_documents, _first_note_route)
 from searchgym.llm import Reply, Usage
 from searchgym.research_state import ResearchState
 from searchgym.serving import profile_for
@@ -59,9 +60,8 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
         agent,llm=self.make([
             call('web_search',{'query':'QUERY_YEAR_2015'}),fetch_call(URLS[0]),
             note(f'PARENT_FACT_ONLY\n**Next links:**\n{child} | verify FIRST_BOOK_RELATION\n**Expand:** yes'),
-            fetch_call(child),
             note(f'CHILD_FACT_ONLY\n**Next links:**\n{leaf} | verify ORIGINAL_TITLE_RELATION\n**Expand:** yes'),
-            fetch_call(leaf),note('Original title: Baby\n**Connections:** Book -> original title Baby\n**Expand:** no'),
+            note('Original title: Baby\n**Connections:** Book -> original title Baby\n**Expand:** no'),
             Reply(text='DONE'),Reply(text='DONE'),Reply(text='Book relation complete'),Reply(text='Baby')])
         trace,tools=MemoryTrace(),Linked()
         result=await agent.run('Find the author and original title.','Research',tools,trace)
@@ -79,7 +79,147 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('FIRST_BOOK_RELATION',str(navigation[2]['messages']))
         self.assertIn('Book -> original title Baby',str(llm.requests[-1][0]))
         self.assertTrue(all(e['mode']=='select' for k,e in trace.events if k=='control.request'))
+        self.assertEqual(sum(k=='expand.from_note' for k,e in trace.events),2)
+        self.assertEqual(sum(e.get('phase')=='recover' for k,e in trace.events if k=='explorer.response'),0)
+        self.assertEqual(result.usage.calls,9)  # 3 extracts, 2 parent decisions, 2 entry, main + final.
         self.assertFalse(llm.replies)
+
+    async def test_failed_document_metadata_survives_menu_refresh_and_returns_to_planner(self):
+        class Failed(EntryTools):
+            async def fetch(self,url):
+                self.fetched.append(url)
+                return Document(url,'403 Forbidden',is_error=True)
+        agent,llm=self.make([call('web_search',{'query':'identified thesis'}),fetch_call('S1'),
+            Reply(text='Identified document inaccessible; seek another copy.'),Reply(text='Answer')],max_searches=1)
+        trace=MemoryTrace(); result=await agent.run('Q','Research',Failed(),trace)
+        self.assertIsNone(result.error)
+        requests=[e for k,e in trace.events if k=='control.request']
+        payload=json.loads(requests[1]['messages'][1]['content'])
+        failed=next(s for s in payload['sources'] if s['id']=='S1')
+        self.assertEqual(failed['status'],'failed')
+        self.assertTrue(failed['title'])
+        self.assertTrue(failed['evidence'])
+        self.assertIn('403',failed['access_error'])
+        self.assertNotIn('S1',payload['selectable'])
+        self.assertNotIn(URLS[0],requests[1]['tools'][0]['function']['parameters']['properties']['url']['enum'])
+        self.assertIn('Document lead retained',str(llm.requests[-1][0]))
+        self.assertFalse(llm.replies)
+
+    async def test_planner_and_entry_context_reach_navigation_but_not_extraction(self):
+        search=call('web_search',{'query':'QUERY_UNVERIFIED_YEAR'})
+        search.reasoning='PLANNER_CANDIDATE needs a release date; previous year was a guess.'
+        fetch=fetch_call('S1');fetch.reasoning='ENTRY_PURPOSE verify candidate release date'
+        agent,llm=self.make([search,fetch,note('Exact supplied fact\n**Expand:** yes'),
+            Reply(text='DONE'),Reply(text='Local check done'),Reply(text='Answer')],max_searches=1)
+        trace=MemoryTrace();result=await agent.run('Find a release date.','Research',EntryTools(),trace)
+        self.assertIsNone(result.error)
+        payload=json.loads(next(e for k,e in trace.events if k=='control.request')['messages'][1]['content'])
+        self.assertIn('PLANNER_CANDIDATE',payload['planner_context_hypothesis'])
+        extraction=next(e for k,e in trace.events if k=='explorer.extract_input')
+        self.assertNotIn('PLANNER_CANDIDATE',str(extraction['messages']))
+        self.assertNotIn('ENTRY_PURPOSE',str(extraction['messages']))
+        navigation=next(e for k,e in trace.events if k=='explorer.input')
+        self.assertIn('PLANNER_CANDIDATE',str(navigation['messages']))
+        self.assertIn('ENTRY_PURPOSE',str(navigation['messages']))
+        self.assertFalse(llm.replies)
+
+    async def test_fused_first_link_then_parent_selects_second_child_with_purpose_fallback(self):
+        root='https://site.example/root';one='https://site.example/one';two='https://site.example/two'
+        second=fetch_call(two);second.reasoning='CHECK_SECOND_CONDITION'
+        llm=FakeLLM([note(f'ROOT_FACT\n**Next links:**\n{one} | CHECK_FIRST_CONDITION\n**Expand:** yes'),
+            note('FIRST_FACT\n**Expand:** no'),second,note('SECOND_FACT\n**Expand:** no')])
+        pages={one:'First field',two:'Second field'}
+        fetch=AsyncMock(side_effect=lambda url:Document(url,pages[url]))
+        explorer=Explorer(llm,config(),'Read',fetch,relational_reading=True)
+        trace=MemoryTrace();usage=Usage();budget=Budget(12)
+        raw='Introduction\n\nDO_NOT_REREAD_RAW_BODY\n\nFirst field link\n[one]('+one+')\n\n[second]('+two+')'
+        result=await explorer.explore(question='Q',reasoning='',reading_goal='LOCAL_PARENT_TASK',query='',
+            documents=[Document(root,raw)],budget=budget,trace=trace,usage=usage)
+        self.assertIsNone(result.error)
+        self.assertEqual(fetch.await_count,2)
+        self.assertEqual(result.nodes,2)
+        self.assertEqual(usage.calls,4)  # Three extracts and one parent continuation.
+        nav=[req for req,tools in llm.requests if tools]
+        self.assertEqual(len(nav),1)
+        self.assertIn('FIRST_FACT',str(nav[0]))
+        self.assertNotIn('DO_NOT_REREAD_RAW_BODY',str(nav[0]))
+        self.assertIn(two,str(nav[0]))
+        self.assertIn('ROOT_FACT',result.information)
+        self.assertIn('SECOND_FACT',result.information)
+        tasks=[e for k,e in trace.events if k=='expand.relation_task']
+        self.assertEqual(tasks[1]['fallback'],'parent_decision')
+        self.assertEqual(tasks[1]['goal'],'CHECK_SECOND_CONDITION')
+        extracts=[e for k,e in trace.events if k=='explorer.extract_input']
+        self.assertNotIn('CHECK_SECOND_CONDITION',str(extracts[-1]['messages']))
+        self.assertFalse(llm.replies)
+
+    async def test_leaf_or_exhausted_budget_does_not_execute_note_route(self):
+        for depth,limit in [(3,12),(1,0)]:
+            llm=FakeLLM([note('FACT\n**Next links:**\nhttps://site.example/child | check date\n**Expand:** yes')])
+            fetch=AsyncMock();trace=MemoryTrace()
+            explorer=Explorer(llm,config(),'Read',fetch,relational_reading=True)
+            result=await explorer.explore(question='Q',reasoning='',query='',depth=depth,
+                documents=[Document('https://site.example/root','[child](https://site.example/child)')],
+                budget=Budget(limit),trace=trace,usage=Usage())
+            self.assertIsNone(result.error)
+            fetch.assert_not_awaited()
+            self.assertFalse(any(k=='expand.from_note' for k,e in trace.events))
+
+    async def test_failed_note_route_refunds_budget_and_returns_control_with_saved_evidence(self):
+        url='https://site.example/missing'
+        llm=FakeLLM([note(f'FACT_BEFORE_FAILURE\n**Next links:**\n{url} | verify record\n**Expand:** yes'),
+                     Reply(text='DONE')])
+        fetch=AsyncMock(return_value=Document(url,'403 Forbidden',is_error=True))
+        explorer=Explorer(llm,config(),'Read',fetch,relational_reading=True)
+        budget=Budget(12);trace=MemoryTrace()
+        result=await explorer.explore(question='Q',reasoning='',query='',
+            documents=[Document('https://site.example/root',f'[record]({url})')],
+            budget=budget,trace=trace,usage=Usage())
+        self.assertIsNone(result.error)
+        self.assertEqual(budget.used,0)
+        self.assertIn('FACT_BEFORE_FAILURE',result.information)
+        self.assertIn('403 Forbidden',result.information)
+        self.assertIn('403 Forbidden',str(llm.requests[-1][0]))
+        self.assertEqual(len(llm.requests),2)
+        self.assertFalse(llm.replies)
+
+    async def test_unmatched_note_link_uses_ordinary_navigation(self):
+        llm=FakeLLM([note('FACT\n**Next links:**\nhttps://unobserved.example/record | date\n**Expand:** yes'),
+                     Reply(text='DONE')])
+        fetch=AsyncMock();trace=MemoryTrace()
+        explorer=Explorer(llm,config(),'Read',fetch,relational_reading=True)
+        result=await explorer.explore(question='Q',reasoning='',query='',
+            documents=[Document(URLS[0],'Fact on current page')],budget=Budget(12),trace=trace,usage=Usage())
+        self.assertIsNone(result.error)
+        fetch.assert_not_awaited()
+        self.assertTrue(llm.requests[-1][1])
+        self.assertFalse(any(k=='expand.from_note' for k,e in trace.events))
+        self.assertFalse(llm.replies)
+
+    async def test_recognized_access_screen_skips_model_and_recursion(self):
+        page='Title: 18+ Access\nMarkdown Content:\n18+ ONLY\nContinue to Access\nPlease confirm you are over 18 years old.\nCONTINUE 18+ VERIFIED\n[Leave](https://google.com/)\nLoading'
+        llm=FakeLLM([]);fetch=AsyncMock();trace=MemoryTrace();usage=Usage()
+        explorer=Explorer(llm,config(),'Read',fetch,relational_reading=True)
+        result=await explorer.explore(question='Q',reasoning='',query='',
+            documents=[Document(URLS[0],page)],budget=Budget(12),trace=trace,usage=usage)
+        self.assertIsNone(result.error)
+        self.assertEqual(result.status,'not_found')
+        self.assertEqual(usage.calls,0)
+        fetch.assert_not_awaited()
+        self.assertTrue(any(k=='explorer.access_only' for k,e in trace.events))
+
+    def test_access_screen_detection_never_discards_article_or_unknown_body(self):
+        for page in ['Title: Article\nMarkdown Content:\n18+ Access is a website title.',
+                     'Title: 18+ Access\nMarkdown Content:\nLoading\nAuthor: Real Person',
+                     'Title: 18+ Access\nMarkdown Content:\n[Real record](https://site.example/record)']:
+            self.assertFalse(_access_only_documents([Document(URLS[0],page)]))
+
+    def test_ambiguous_or_unobserved_first_route_requires_navigation(self):
+        budget=Budget(12);budget.visit('https://site.example/root')
+        for note_text in ['**Next links:**\nhttps://other.example/a | check date',
+                          '**Next links:**\nhttps://site.example/a and https://site.example/b | dates',
+                          '**Next links:**\nhttps://site.example/a']:
+            self.assertIsNone(_first_note_route(note_text,{},budget))
 
     async def test_identical_root_content_skips_extraction_and_marks_alias_read(self):
         class Mirrors(EntryTools):

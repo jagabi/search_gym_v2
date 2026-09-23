@@ -39,7 +39,7 @@ __all__ = ["Cache", "Record", "Runner"]
 # agent/16 — 문서 예산을 균등분할에서 워터필링으로 바꿨다(작은 문서가 남긴
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
-DEPTHSEARCH_CACHE_VERSION = "agent/45-ds-relational-reading"
+DEPTHSEARCH_CACHE_VERSION = "agent/46-ds-directed-reading"
 JUDGE_VERSION = "judge/1"
 
 
