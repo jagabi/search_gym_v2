@@ -13,7 +13,7 @@ import httpx
 from searchgym.agent import RunResult, SearchAgent
 from searchgym.explorer import Document
 from searchgym.jevtree import Jev, JevTree, JevUsage
-from searchgym.llm import Usage
+from searchgym.llm import Reply, Usage
 from searchgym.trace import Trace, ToolCall
 
 
@@ -38,7 +38,10 @@ class JevLoggingTests(unittest.IsolatedAsyncioTestCase):
         async def cap(text, _limit):
             return text, False
 
-        config = dict(jev=self.jev, llm=SimpleNamespace(cap=cap), fetch=fetch,
+        async def chat(messages, **kwargs):
+            return Reply(text=json.dumps({"conditions": [messages[1]["content"]]}))
+
+        config = dict(jev=self.jev, llm=SimpleNamespace(cap=cap, chat=chat), fetch=fetch,
                       reader_prompt="read", reader_max_tokens=100, entries=1,
                       branch=1, depth=2, reads=0, floor=.15,
                       jev_page_tokens=20000, visited=set())
@@ -83,7 +86,7 @@ class JevLoggingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({e["request_id"] for e in requests},
                          {e["request_id"] for e in responses})
         root_requests = [e for e in requests if e["body"]["state"].get("page_url") == root]
-        self.assertEqual([len(e["body"]["questions"]) for e in root_requests], [101, 1])
+        self.assertEqual([len(e["body"]["questions"]) for e in root_requests], [102, 1])
         self.assertTrue(all(e["body"]["state"]["page_text"] == page for e in root_requests))
         self.assertEqual([e["context"]["chunk_index"] for e in root_requests], [0, 1])
         self.assertTrue(all(e["context"]["search_id"] == log["search_id"] for e in requests))
@@ -96,7 +99,7 @@ class JevLoggingTests(unittest.IsolatedAsyncioTestCase):
             "anchor": "Anchor 100", "score": .9})
         self.assertEqual(log["opened"][0]["opened"][0]["urls"], ["https://example.org/child/100"])
         self.assertEqual((stats["jev_requests"], stats["jev_attempts"],
-                          stats["jev_input_tokens"], stats["jev_failures"]), (4, 4, 104, 0))
+                          stats["jev_input_tokens"], stats["jev_failures"]), (4, 4, 106, 0))
         self.assertNotIn("test-secret-not-for-logs", self.trace.path.read_text(encoding="utf-8"))
 
     async def test_concurrent_agent_searches_keep_usage_local(self):

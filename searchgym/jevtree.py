@@ -2,15 +2,15 @@
 
     main web_search(query)                    the main model only writes queries
       → Jev: result_i per search result       entry score; top-e results (>= floor)
-      → each entry page: has_answer_evidence + link_i (one request per page)
+      → each entry page: candidate identification + condition verification + link_i
       → top-b links by link score are fetched (depth 2, then depth 3)
-      → the r pages with the highest evidence score (>= floor), pooled over all
-        trees of this search, are read independently by the base-model reader
-      → results + reader notes are returned to the main model
+      → up to r pages alternating identification/verification ranks (>= floor)
+        are read independently and their source quotations validated
+      → results + structured notes and persistent candidates return to the main
 
 Terms: entry width e (results opened per search, by entry score), branching
 width b (links expanded per page, by link score), depth d, read budget r
-(pages read per search, by evidence score), floor τ. Jev only ranks; it never
+(pages read per search, from both ranks), floor τ. Jev only ranks; it never
 writes evidence. Each note passes through one reader call, never re-summarized.
 """
 
@@ -31,6 +31,8 @@ from urllib.parse import urlsplit
 
 from .explorer import Document, _JUNK, _balanced_markdown_links, _content_fingerprint, _norm, _page_links
 from .llm import LLM, Usage
+from .jevtree_state import (CandidateMemory, CONDITION_PROMPT, READER_CONTRACT,
+                            parse_conditions, parse_reading)
 from .research_state import is_search_endpoint
 from .trace import Trace
 
@@ -47,22 +49,37 @@ STATE_NOTE = (
     "`question` is the original research question. "
     "`page_text` is the fetched page (possibly truncated)."
 )
-EVIDENCE_QUESTION = {
+IDENTIFICATION_QUESTION = {
     "type": "noul",
     "instructions": (
-        STATE_NOTE + " Does `page_text` contain the answer to `question`, part of the answer, "
-        "or a clue toward it?"
+        STATE_NOTE + " Does this page identify a concrete candidate through a distinctive "
+        "condition or relation in `question_conditions`, narrowing the original question?"
     ),
     "criteria": {
-        "true": "The page states the answer, part of it, or a fact matching a condition of the "
-                "question (a candidate, entity, date or relation) that helps identify or verify it.",
-        "false": "The page is unrelated, an error, access-wall or empty page, or only navigation; "
-                 "it states nothing matching the question's conditions.",
+        "true": "Names a plausible candidate and explicitly connects it to a distinguishing "
+                "clue, or gives a concrete relation that substantially narrows the candidate set. "
+                "A partial but distinctive identifying clue is useful; all conditions need not match.",
+        "false": "Only shares a broad topic, common birthplace, generic date range or isolated "
+                 "keyword without narrowing the target; or is unrelated, blocked or empty.",
+    },
+}
+VERIFICATION_QUESTION = {
+    "type": "noul",
+    "instructions": STATE_NOTE + " Does this page explicitly confirm or refute a condition "
+                    "in `question_conditions` for a concrete, plausible candidate for `question`?",
+    "criteria": {
+        "true": "A source statement links a plausible candidate to a requested date, entity, "
+                "attribute or relation, letting that condition be checked. Explicit contradictory "
+                "facts are useful too; merely not mentioning a condition is not a contradiction.",
+        "false": "Only topical similarity or unrelated facts; no explicit candidate-condition "
+                 "relation that can be checked. An error, blocked page or navigation only.",
     },
 }
 LINK_CRITERIA = {
-    "true": "Given where this link appears in the page, it likely leads to facts needed to "
-            "answer the question or to verify a candidate answer.",
+    "true": "The anchor and nearby source text connect this link to a specific condition "
+            "in question_conditions: identifying a candidate, connecting entities, or checking "
+            "a candidate's missing fact or contradiction. A useful intermediate page counts "
+            "even when it cannot answer the whole question by itself.",
     "false": "The link is navigation or site chrome, or leads to a topic unrelated to the "
              "facts the question asks for.",
 }
@@ -83,10 +100,13 @@ class TreeNode:
     anchor: str = ""
     link_score: float | None = None
     evidence: float | None = None
+    identification: float | None = None
+    verification: float | None = None
     document: Document | None = None
     error: str = ""
     notes: str = ""
     read: bool = False
+    reading: dict[str, Any] | None = None
     children: list["TreeNode"] = field(default_factory=list)
     # (link score, url, anchor) for links visible in this page's Jev view
     link_scores: list[tuple[float, str, str]] = field(default_factory=list)
@@ -99,10 +119,13 @@ class TreeNode:
             "anchor": self.anchor,
             "link_score": self.link_score,
             "evidence_score": self.evidence,
+            "identification_score": self.identification,
+            "verification_score": self.verification,
             "read": self.read,
             "status": ("not_found" if self.error else "partial" if self.read else "unread"),
             "error": self.error or None,
             "information": self.notes,
+            "structured_reading": self.reading,
             "information_chars": len(self.notes),
             "turns": int(self.read),
             "opened": [c.log() for c in self.children],
@@ -267,10 +290,63 @@ class JevTree:
         self.jev_page_tokens = jev_page_tokens
         self.visited = visited  # per question, across main fetches
         self.contents: dict[str, str] = {}  # body fingerprint -> first URL (redirect copies)
+        self.conditions: list[dict[str, str]] = []
+        self.memory = CandidateMemory()
+
+    async def prepare(self, question: str, trace: Trace, usage: Usage) -> None:
+        """Extract verbatim question conditions once, without main hypotheses."""
+        if self.conditions:
+            return
+        messages = [{"role": "system", "content": CONDITION_PROMPT},
+                    {"role": "user", "content": question}]
+        for attempt in range(2):
+            trace.event("jevtree.conditions_request", attempt=attempt, messages=messages)
+            try:
+                reply = await self.llm.chat(messages, max_tokens=4096, usage=usage, tool_choice="none")
+                trace.event("jevtree.conditions_response", attempt=attempt, text=reply.text,
+                            reasoning=reply.reasoning, finish_reason=reply.finish_reason,
+                            prompt_tokens=reply.prompt_tokens, completion_tokens=reply.completion_tokens)
+                if reply.truncated or reply.tool_calls:
+                    raise ValueError("Incomplete condition extraction")
+                self.conditions = parse_conditions(reply.text, question)
+                break
+            except Exception as exc:
+                trace.event("jevtree.conditions_error", attempt=attempt, error=repr(exc))
+                messages.append({"role": "user", "content":
+                    "Return complete JSON with a conditions array of exact excerpts copied from the question."})
+        if not self.conditions:
+            self.conditions = [{"id": "C1", "text": question}]
+            trace.event("jevtree.conditions_fallback", reason="Use original question without inferred constraints")
+        trace.event("jevtree.conditions", conditions=self.conditions)
+
+    def checkpoint(self) -> str:
+        return self.memory.render(self.conditions)
+
+    def _select_readers(self, nodes: list[TreeNode]) -> list[TreeNode]:
+        """Alternate identification/verification slots, deduplicating both ranks."""
+        queues = [sorted((n for n in nodes if (getattr(n, score) or 0) >= self.floor),
+                         key=lambda n: getattr(n, score) or 0, reverse=True)
+                  for score in ("identification", "verification")]
+        selected: list[TreeNode] = []
+        seen: set[str] = set()
+        while len(selected) < self.reads:
+            added = False
+            for queue in queues:
+                while queue and queue[0].url in seen:
+                    queue.pop(0)
+                if queue and len(selected) < self.reads:
+                    node = queue.pop(0)
+                    selected.append(node)
+                    seen.add(node.url)
+                    added = True
+            if not added:
+                break
+        return selected
 
     async def run_search(self, query: str, results: list[dict[str, Any]], *, question: str,
                          main_reasoning: str, trace: Trace, usage: Usage) -> tuple[dict[str, Any], str, dict[str, int]]:
-        """Score search results, open the top-e entries, grow their trees, read the top-r pages."""
+        """Grow trees and read both ranks; main_reasoning is a legacy unused argument."""
+        await self.prepare(question, trace, usage)
         stats = {"fetched": 0, "fetch_failed": 0, "jev_requests": 0, "links_scored": 0, "entries": 0}
         jev_usage = JevUsage()
         search_id = uuid4().hex
@@ -284,7 +360,7 @@ class JevTree:
                 continue
             candidates.append((url, str(row.get("title") or ""), str(row.get("snippet") or "")))
         if candidates:
-            state = {"question": question, "search_query": query,
+            state = {"question": question, "question_conditions": self.conditions, "search_query": query,
                      "search_results": [{"id": f"result_{i}", "title": t, "url": u, "snippet": sn}
                                         for i, (u, t, sn) in enumerate(candidates)]}
             questions = {f"result_{i}": {
@@ -316,14 +392,19 @@ class JevTree:
             nodes.extend(nxt)
             level = nxt
 
-        to_read = sorted((n for n in nodes if n.evidence is not None and n.evidence >= self.floor),
-                         key=lambda n: n.evidence, reverse=True)[: self.reads]
+        to_read = self._select_readers(nodes)
         for node in to_read:
             node.read = True
         trace.event("jevtree.selection", search_id=search_id, query=query, nodes=len(nodes),
                     read=[(n.url, n.evidence) for n in to_read],
                     unread=[(n.url, n.evidence) for n in nodes if not n.read])
-        await asyncio.gather(*(self._read(n, question, main_reasoning, trace, usage) for n in to_read))
+        await asyncio.gather(*(self._read(n, question, trace, usage) for n in to_read))
+        # Stable candidate/evidence IDs independent of reader completion order.
+        for node in to_read:
+            if node.reading is not None:
+                self.memory.ingest(node.reading, node.url)
+        trace.event("jevtree.candidate_state", search_id=search_id,
+                    candidates=self.memory.candidates, evidence=self.memory.evidence)
         stats["nodes"] = len(nodes)
         stats["reads"] = len(to_read)
         stats["max_depth"] = max((n.depth for n in nodes), default=0)
@@ -336,17 +417,27 @@ class JevTree:
     async def _score(self, node: TreeNode, question: str, trace: Trace,
                      stats: dict[str, int], jev_usage: JevUsage, search_id: str) -> None:
         page, _ = await self.llm.cap(node.document.content, self.jev_page_tokens)
-        state = {"question": question, "page_url": node.url, "page_text": page}
+        state = {"question": question, "question_conditions": self.conditions,
+                 "page_url": node.url, "page_text": page}
         links = (candidate_links(page, node.url, self.visited)
                  if node.depth < self.depth else [])
-        questions: list[dict[str, Any]] = [{"has_answer_evidence": EVIDENCE_QUESTION}]
+        questions: list[dict[str, Any]] = [{"candidate_identification": IDENTIFICATION_QUESTION,
+                                         "condition_verification": VERIFICATION_QUESTION}]
         for start in range(0, len(links), LINKS_PER_REQUEST):
             chunk = {}
-            for i, (url, _anchor) in enumerate(links[start:start + LINKS_PER_REQUEST], start):
+            for i, (url, anchor) in enumerate(links[start:start + LINKS_PER_REQUEST], start):
+                position = page.find(url)
+                if position < 0 and anchor:
+                    position = page.find(anchor)
+                # The full page is already in state; keep this locator short and
+                # do not duplicate long URLs inside every surrounding excerpt.
+                nearby = (page[max(0, position - 60):position] + " [link] "
+                          + page[position + len(url):position + len(url) + 60]) if position >= 0 else ""
                 chunk[f"link_{i}"] = {
                     "type": "noul",
-                    "instructions": (f"In `page_text`, would following the link to {url} help "
-                                     "answer `question`?"),
+                    "instructions": ("Would this link identify a candidate or check a question_condition? Source data: "
+                                     + json.dumps({"url": url, "anchor": anchor, "nearby_text": nearby},
+                                                  ensure_ascii=False)),
                     "criteria": LINK_CRITERIA,
                 }
             if start == 0:
@@ -363,10 +454,14 @@ class JevTree:
         for part in results:
             scores.update(part)
         stats["links_scored"] += len(links)
-        node.evidence = scores.get("has_answer_evidence")
+        node.identification = scores.get("candidate_identification")
+        node.verification = scores.get("condition_verification")
+        # Legacy reports use evidence; selection uses the two separate ranks.
+        node.evidence = max(node.identification or 0, node.verification or 0)
         node.link_scores = [(scores.get(f"link_{i}", 0.0), url, anchor)
                             for i, (url, anchor) in enumerate(links)]
         trace.event("jevtree.scored", search_id=search_id, url=node.url, depth=node.depth, evidence=node.evidence,
+                    identification=node.identification, verification=node.verification,
                     links=len(links), page_truncated=len(page) < len(node.document.content),
                     link_scores=[{"id": f"link_{i}", "url": url, "anchor": anchor,
                                   "score": scores.get(f"link_{i}")}
@@ -417,15 +512,17 @@ class JevTree:
                 kids.append(node)
         return kids
 
-    async def _read(self, node: TreeNode, question: str, main_reasoning: str,
+    async def _read(self, node: TreeNode, question: str,
                     trace: Trace, usage: Usage) -> None:
-        state = {"question": question, "main_reasoning": main_reasoning,
+        state = {"question": question, "question_conditions": self.conditions,
                  "page_url": node.url, "page_text": node.document.content}
-        messages = [{"role": "system", "content": self.reader_prompt},
+        messages = [{"role": "system", "content": self.reader_prompt + "\n\n" + READER_CONTRACT},
                     {"role": "user", "content": json.dumps(state, ensure_ascii=False, indent=1)}]
         for attempt in range(2):
+            trace.event("jevtree.reader_request", url=node.url, attempt=attempt, messages=messages)
             try:
-                reply = await self.llm.chat(messages, max_tokens=self.reader_max_tokens, usage=usage)
+                reply = await self.llm.chat(messages, max_tokens=self.reader_max_tokens, usage=usage,
+                                            tool_choice="none")
             except Exception as exc:  # Keep the tree; report the unread page honestly.
                 trace.event("jevtree.reader_error", url=node.url, error=repr(exc))
                 node.notes = f"(Reader failed: {exc!r}. This does not mean the page lacks evidence.)"
@@ -434,13 +531,20 @@ class JevTree:
             trace.event("jevtree.read", url=node.url, attempt=attempt, chars=len(text),
                         prompt_tokens=reply.prompt_tokens, completion_tokens=reply.completion_tokens,
                         finish_reason=reply.finish_reason, reasoning=reply.reasoning, text=text)
-            if text and not reply.truncated:
-                node.notes = text
+            try:
+                if not text or reply.truncated or reply.tool_calls:
+                    raise ValueError("Incomplete reader output")
+                node.reading = parse_reading(text, node.document.content, self.conditions)
+                node.notes = json.dumps(node.reading, ensure_ascii=False, indent=1)
+                trace.event("jevtree.reader_validated", url=node.url, reading=node.reading)
                 return
-            if text:
-                node.notes = text + "\n[Reader output truncated.]"
-                return
-        node.notes = "(Reader returned no notes. This does not mean the page lacks evidence.)"
+            except (ValueError, TypeError) as exc:
+                trace.event("jevtree.reader_invalid", url=node.url, attempt=attempt, error=str(exc))
+                messages.append({"role": "user", "content":
+                    f"Invalid output: {exc}. Return complete JSON following the schema. "
+                    "Quotes must be verbatim page excerpts containing their candidate name; "
+                    "use empty arrays where the source does not support an extraction."})
+        node.notes = "(Reader output failed source/schema validation; raw output is retained in the trace.)"
 
     @staticmethod
     def _render(search: TreeNode, nodes: list[TreeNode], read: list[TreeNode]) -> str:
@@ -463,12 +567,13 @@ class JevTree:
             else:
                 head += ", search result"
             if node.evidence is not None:
-                head += f", evidence score {node.evidence:.2f}"
+                head += (f", identification {node.identification or 0:.2f}, "
+                         f"verification {node.verification or 0:.2f}")
             lines.append(head + ")")
             lines.append(node.notes or "(no notes)")
         unread = [n for n in nodes if not n.read]
         if unread:
-            lines.append("\nOther fetched pages, not read (lower evidence score):")
+            lines.append("\nOther fetched pages, not selected within the two-rank reading budget:")
             for n in unread:
                 tag = f"failed: {n.error[:80]}" if n.error else (
                     f"evidence {n.evidence:.2f}" if n.evidence is not None else "unscored")
