@@ -1,0 +1,102 @@
+{
+  "name": "format_parallel_False_1",
+  "request": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Reasoning: medium\nYou test native tool-call serialization. Only call the supplied tool."
+      },
+      {
+        "role": "user",
+        "content": "Read BOTH independent supplied records: https://example.org/alpha and https://example.org/beta. Emit two web_fetch calls in this single response, one url per call. Do not wait for a result between the two calls. This is a format diagnostic; no tool is actually executed."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "web_fetch",
+          "description": "Select one supplied unread source for recursive reading. You may emit several web_fetch calls in this response, one url each, in priority order. Only select pages useful for the current identifying relation; you need not fill the allowance.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "An exact supplied URL or source ID (e.g. S3).",
+                "enum": [
+                  "https://example.org/alpha",
+                  "https://example.org/beta"
+                ]
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    ],
+    "tool_choice": "auto",
+    "model": "openai/gpt-oss-20b",
+    "max_tokens": 8192,
+    "temperature": 1.0,
+    "top_p": 1.0
+  },
+  "response": {
+    "id": "chatcmpl-864ba58b223a34bb",
+    "choices": [
+      {
+        "finish_reason": "tool_calls",
+        "index": 0,
+        "logprobs": null,
+        "message": {
+          "content": null,
+          "refusal": null,
+          "role": "assistant",
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "tool_calls": [
+            {
+              "id": "chatcmpl-tool-9005e7d620b7a60a",
+              "function": {
+                "arguments": "{\"url\": \"https://example.org/alpha\"}",
+                "name": "web_fetch"
+              },
+              "type": "function"
+            }
+          ],
+          "reasoning": "User wants two web_fetch calls for both URLs. Must supply calls in same response. No waiting. Just two calls."
+        },
+        "stop_reason": 200012,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "created": 1790310297,
+    "model": "openai/gpt-oss-20b",
+    "object": "chat.completion",
+    "moderation": null,
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.29.0-055445d6",
+    "usage": {
+      "completion_tokens": 53,
+      "prompt_tokens": 266,
+      "total_tokens": 319,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": null
+      },
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null,
+    "ec_transfer_params": null,
+    "metrics": null
+  }
+}

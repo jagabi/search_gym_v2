@@ -30,7 +30,8 @@ from .paths import resolve
 from .scoring import Judgement, from_dict
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
-from .research_state import ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL, ENTRY_PROMPT
+from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL,
+                             ENTRY_PROMPT, ENTRY_RETURN_PROMPT, batch_fetch_tool, entry_prompt)
 from .tree import write_svg
 
 __all__ = ["Cache", "Record", "Runner"]
@@ -39,7 +40,8 @@ __all__ = ["Cache", "Record", "Runner"]
 # agent/16 — 문서 예산을 균등분할에서 워터필링으로 바꿨다(작은 문서가 남긴
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
-DEPTHSEARCH_CACHE_VERSION = "agent/46-ds-directed-reading"
+DEPTHSEARCH_CACHE_VERSION = "agent/57-ds-adaptive-entry"
+JEVTREE_CACHE_VERSION = "agent/63-jevtree-no-main-reasoning"
 JUDGE_VERSION = "judge/1"
 
 
@@ -270,7 +272,8 @@ class Runner:
         빠지면 depth 1 결과를 depth 3 실행이 조용히 재사용한다.
         """
         return digest(
-            DEPTHSEARCH_CACHE_VERSION if self.method == "depthsearch" else CACHE_VERSION,
+            {"depthsearch": DEPTHSEARCH_CACHE_VERSION, "jevtree": JEVTREE_CACHE_VERSION}.get(
+                self.method, CACHE_VERSION),
             self.method,
             self.profile.repo,
             _agent_fingerprint(self.agent.config),
@@ -427,10 +430,22 @@ _DEPLOYMENT_ONLY = ("api_key", "base_url", "timeout_s")
 def _agent_fingerprint(config: AgentConfig) -> str:
     """캐시 키에 들어갈 에이전트 설정. 결과에 영향을 주는 값만 넣는다."""
     values = {k: v for k, v in asdict(config).items() if k not in _DEPLOYMENT_ONLY}
+    if not values.get("jev_model"):
+        # Preserve existing cache identities for methods without the Jev tree.
+        values = {k: v for k, v in values.items() if not k.startswith("jev_")}
+    else:
+        from .jevtree import EVIDENCE_QUESTION, LINK_CRITERIA
+        from .jevtree import ENTRY_CRITERIA, ENTRY_NOTE
+        values["jev_questions"] = [EVIDENCE_QUESTION, LINK_CRITERIA, ENTRY_CRITERIA, ENTRY_NOTE]
+    if not values.get("adaptive_entry"):
+        values.pop("adaptive_entry", None)
+    if not values.get("dual_route"):
+        values.pop("dual_route", None)
     if not values.get("relational_reading"):
         values.pop("relational_reading", None)
     else:
-        values["entry_prompt"] = ENTRY_PROMPT
+        values["entry_prompt"] = entry_prompt(config.adaptive_entry)
+        values["entry_return_prompt"] = ENTRY_RETURN_PROMPT
     if not values.get("independent_clues"):
         values.pop("independent_clues", None)
     else:
@@ -444,7 +459,7 @@ def _agent_fingerprint(config: AgentConfig) -> str:
         values["selector_tool"] = SELECT_FETCH_TOOL
         values["final_prompt"] = FINAL_SYSTEM
     if config.relational_reading:
-        values["selector_tool"] = SELECT_FETCH_TOOL
+        values["selector_tool"] = batch_fetch_tool([], 6)
         values["final_prompt"] = FINAL_SYSTEM
     return json.dumps(values, sort_keys=True, ensure_ascii=False)
 
@@ -453,7 +468,12 @@ def _explorer_fingerprint(config: ExplorerConfig | None, method: str) -> str:
     """explorer 설정. **깊이와 예산이 반드시 들어가야** 조건 간 캐시가 안 섞인다."""
     if config is None or method == "ragent":
         return "none"
-    return json.dumps(asdict(config), sort_keys=True, ensure_ascii=False)
+    values = asdict(config)
+    if not values["extractive_evidence"]:
+        values.pop("extractive_evidence")  # Preserve existing baseline cache identities.
+    if not values["source_return"]:
+        values.pop("source_return")
+    return json.dumps(values, sort_keys=True, ensure_ascii=False)
 
 
 def _write(path: Path, payload: Any) -> None:

@@ -109,9 +109,11 @@ class SourceTests(unittest.TestCase):
 class FlowTests(unittest.IsolatedAsyncioTestCase):
     async def test_configured_depthsearch_search_entry_reader_then_main(self):
         cfg = load_test(method="depthsearch")
+        cfg.agent.dual_route = False  # Single-route protocol regression.
+        cfg.agent.adaptive_entry = False
         url = "https://archives.example/treaty"
         llm = FakeLLM([call("web_search", {"query": "value record"}),
-                       fetch_call(url),
+                       call('web_fetch', {'urls': [url]}),
                        note("Value: 42\n**Expand:** no"),
                        Reply(text="Done; value established."), Reply(text="42"), Reply(text="42")])
         tools = FakeTools()
@@ -122,7 +124,7 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.answer, "42")
         self.assertEqual({s["function"]["name"] for s in llm.requests[0][1]}, {"web_search"})
         self.assertEqual({s["function"]["name"] for s in llm.requests[1][1]}, {"web_fetch"})
-        self.assertIsNone(llm.requests[2][1])  # Source extraction has no tools.
+        self.assertIsNone(llm.requests[2][1])
         self.assertEqual({s["function"]["name"] for s in llm.requests[4][1]}, {"web_search"})
         self.assertIsNone(llm.requests[-1][1])  # Final synthesis has no tools.
         self.assertFalse(llm.replies)
@@ -130,13 +132,15 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_link_rich_index_can_reach_depth_three_and_keeps_source_notes(self):
         cfg = load_test(method="depthsearch").explorer
+        cfg.extractive_evidence = True  # Exercise the retained experimental contract explicitly.
+        cfg.source_return = False
         budget, trace = Budget(cfg.max_expansion_nodes), MemoryTrace()
         item, detail = "https://a.example/item", "https://b.example/detail"
         llm = FakeLLM([
-            note("PARENT INDEX ONLY\n**Next links:** " + item + "\n**Expand:** yes, target record", "not_found"),
+            note("**Evidence:** [P1]\n**Next links:** " + item + "\n**Expand:** yes, target record", "not_found"),
             fetch_call(item),
-            note("CHILD FIELD\n**Next links:** " + detail + "\n**Expand:** yes, missing measurement"),
-            fetch_call(detail), note("LEAF VALUE: 42"), Reply(text="DONE"), Reply(text="DONE"),
+            note("**Evidence:** [P1]\n**Next links:** " + detail + "\n**Expand:** yes, missing measurement"),
+            fetch_call(detail), note("**Evidence:** [P1]"), Reply(text="DONE"), Reply(text="DONE"),
         ])
         pages = {item: "CHILD FIELD. [measurement](" + detail + ")", detail: "LEAF VALUE: 42"}
         fetch = AsyncMock(side_effect=lambda url: Document(url, pages[url]))

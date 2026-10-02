@@ -25,17 +25,18 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from .explorer import Budget, Document, Explorer, ExplorerConfig, ExplorerResult, _norm
+from .explorer import Budget, Document, Explorer, ExplorerConfig, ExplorerResult, _norm, _page_links
 from .llm import LLM, Usage, recover_tool_calls, normalize_tool_names, history_tool_call
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
 from .urls import normalize_fetch_url
-from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL, ENTRY_PROMPT,
-                             parse_control, is_search_endpoint)
+from .jevtree import Jev, JevTree
+from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL, ENTRY_PROMPT, entry_prompt,
+                             parse_control, is_search_endpoint, batch_fetch_tool, entry_return_messages)
 
 __all__ = ["METHODS", "AgentConfig", "RunResult", "SearchAgent", "Step"]
 
-METHODS = ("ragent", "search-o1", "depthsearch")
+METHODS = ("ragent", "search-o1", "depthsearch", "jevtree")
 
 SEARCH_EXHAUSTED = (
     "web_search limit reached — you have used all {used} of your {limit} searches and "
@@ -91,6 +92,10 @@ class _FetchSession:
     history: list[dict[str, Any]] = field(default_factory=list)
     decision: str = ""
     call_id: str = ""
+    selections: list[tuple[str, str]] = field(default_factory=list)
+    context: list[dict[str, Any]] = field(default_factory=list)
+    calls: int = 0
+    root_reads: int = 0
 
 
 @dataclass(slots=True)
@@ -129,6 +134,17 @@ class AgentConfig:
     independent_clues: bool = False
     # DS: native entry reading, relation-guided recursion, no state-update LLM.
     relational_reading: bool = False
+    dual_route: bool = False
+    adaptive_entry: bool = False
+    # jevtree only: Jev selects and expands pages behind the main web_search. Empty model = off.
+    jev_model: str = ""
+    jev_entries: int = 3           # e: search results opened per search, by entry score
+    jev_branch: int = 3            # b: links expanded per page, by link score
+    jev_depth: int = 3             # d: root is depth 1
+    jev_reads: int = 6             # r: pages read per search (pooled over its trees), by evidence score
+    jev_floor: float = 0.15        # τ: pages below this evidence score are not read
+    jev_page_tokens: int = 20000   # page_text cap in Jev state (Jev window ~32k incl. questions)
+    jev_reasoning_tokens: int = 2000  # legacy snapshot field; no longer used by Jev
 
 
 @dataclass(slots=True)
@@ -315,6 +331,7 @@ class SearchAgent:
             timeout_s=self.config.timeout_s,
             model_name=self.config.model_name,
         )
+        self.jev = Jev(self.config.jev_model) if method == "jevtree" else None
 
     @property
     def uses_explorer(self) -> bool:
@@ -336,6 +353,8 @@ class SearchAgent:
         _available_specs에서 검색만 허용한다. 이전 선택기 모드 DS와
         search-o1은 검색 내부에서 읽기를 실행하므로 메인에는 검색만 제공한다.
         """
+        if self.method == "jevtree":
+            return ["web_search"]
         if self.relational_reading or self.method == "search-o1" or (self.method == "depthsearch" and self.config.depthsearch_control
                                           and not self.independent_clues):
             return ["web_search"]
@@ -403,6 +422,16 @@ class SearchAgent:
                         url_spec = function.get("parameters", {}).get("properties", {}).get("url")
                         if isinstance(url_spec, dict):
                             url_spec["description"] = "An observed source ID (S1, S2, ...) or an absolute HTTP(S) URL."
+        if self.method == "jevtree":
+            specs = copy.deepcopy(specs)
+            for spec in specs:
+                if spec["function"]["name"] == "web_search":
+                    spec["function"]["description"] += (
+                        f"\nAfter each search, up to {cfg.jev_entries} of the most promising results "
+                        f"are opened automatically and their links followed (up to depth {cfg.jev_depth}); "
+                        "notes from the most relevant pages are returned with the results. "
+                        "Your current reasoning guides which pages are opened."
+                    )
         explorer_cfg = self.explorer_config or ExplorerConfig()
         budget = Budget(explorer_cfg.max_expansion_nodes if self.uses_explorer else 0)
 
@@ -411,6 +440,14 @@ class SearchAgent:
         async def guarded_fetch(url: str) -> Document:
             return await self._document(url, tools, question, trace, result)
 
+        jevtree = JevTree(
+            jev=self.jev, llm=self.llm, fetch=guarded_fetch,
+            reader_prompt=_system_prompt(self.explorer_prompt, self.profile.reasoning_effort),
+            reader_max_tokens=explorer_cfg.max_tokens, entries=cfg.jev_entries,
+            branch=cfg.jev_branch, depth=cfg.jev_depth,
+            reads=cfg.jev_reads, floor=cfg.jev_floor, jev_page_tokens=cfg.jev_page_tokens,
+            visited=set(),
+        ) if self.jev is not None else None
         explorer = (
             Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch,
                      enforce_tool_availability=self.method == "depthsearch",
@@ -439,8 +476,55 @@ class SearchAgent:
         )
 
         tool_resume_attempts = 0
+        dual_route = self.method == "depthsearch" and cfg.dual_route
+        first_route_messages = []
+        first_route_stats = {}
+        first_route_checkpoint = ""
+        initial_messages = copy.deepcopy(messages)
+
+        def switch_route(draft=""):
+            nonlocal messages, first_route_messages, first_route_stats, first_route_checkpoint, tool_resume_attempts
+            first_route_messages = messages[:]
+            if draft:
+                first_route_messages.append({"role": "user", "content":
+                    "Route A tentative answer (hypothesis, verify against sources):\n" + draft})
+            first_query = next((c.arguments.get("query", "") for s in result.steps
+                                for c in s.tool_calls if c.name == "web_search"), "")
+            first_route_stats = dict(result.research_state.metrics) if result.research_state else {}
+            first_route_checkpoint = result.research_state.render() if result.research_state else ""
+            trace.event("research.route_switch", searches_used=result.searches,
+                        first_query=first_query, route_a_draft=draft)
+            result.research_state = ResearchState()
+            result.context_tokens = 0
+            result.context_exhausted = False
+            tool_resume_attempts = 0
+            messages = copy.deepcopy(initial_messages) + [{"role": "user", "content":
+                "Investigate the original question through another identifying relation. "
+                "An earlier independent route began with the query below. Choose a different "
+                "clue from the original question rather than paraphrasing that query or assuming "
+                "its candidate is correct. Follow this route through recursive reading and "
+                "verification. Its evidence will be combined with the earlier route at the end.\n"
+                "Earlier starting query (not evidence): " + first_query}]
+
+        def synthesis_messages():
+            if not first_route_messages:
+                return messages
+            return first_route_messages + [{"role": "user", "content":
+                "Independent route B follows. Source IDs are local to each route; use source URLs. "
+                "Compare both routes against the original question. Neither route's candidate "
+                "is privileged; use distinguishing evidence and explicit contradictions."}] + messages[len(initial_messages):]
+
+        def synthesis_checkpoint():
+            current = result.research_state.render() if result.research_state else ""
+            return ("Route A:\n" + first_route_checkpoint + "\n\nRoute B:\n" + current
+                    if first_route_messages else current)
+
         try:
             for turn in range(1, cfg.max_turns + 1):
+                if (dual_route and not first_route_messages and cfg.max_searches > 1
+                        and result.searches >= (cfg.max_searches + 1) // 2
+                        and result.searches < cfg.max_searches):
+                    switch_route()
                 result.turns = turn
                 step = Step(turn=turn)
                 result.steps.append(step)
@@ -452,8 +536,8 @@ class SearchAgent:
                     # seeds return snippets; legacy sessions also return reading.
                     # Switch directly to answer synthesis after search exhaustion.
                     trace.event("run.finalizing", turn=turn, reason="search_exhausted")
-                    final = await self._salvage(messages, trace, result.usage, answer_only=True,
-                        checkpoint=result.research_state.render() if result.research_state else "")
+                    final = await self._salvage(synthesis_messages(), trace, result.usage, answer_only=True,
+                        checkpoint=synthesis_checkpoint())
                     result.answer = step.text = final
                     result.stop_reason = "finalized" if final else "no_answer"
                     break
@@ -507,6 +591,11 @@ class SearchAgent:
                 if not reply.tool_calls:
                     action_text = _looks_like_action(step.text) or (
                         self.method == "depthsearch" and _looks_like_unfinished_research(step.text))
+                    if (dual_route and not first_route_messages and step.text.strip()
+                            and not action_text and not reply.truncated
+                            and result.searches < cfg.max_searches and turn < cfg.max_turns):
+                        switch_route(step.text.strip())
+                        continue
                     # A missing/malformed tool response is not the end of research.
                     # Keep tools and evidence for one bounded continuation before
                     # falling back to answer-only finalization.
@@ -546,8 +635,11 @@ class SearchAgent:
                         review = ({"draft": usable_draft, "draft_reasoning": step.reasoning}
                                   if self.method == "depthsearch" and usable_draft else {})
                         if result.research_state:
-                            review["checkpoint"] = result.research_state.render()
-                        final = await self._salvage(messages, trace, result.usage, **review)
+                            review["checkpoint"] = synthesis_checkpoint()
+                        if first_route_messages:
+                            review.pop("draft", None)
+                            review.pop("draft_reasoning", None)
+                        final = await self._salvage(synthesis_messages(), trace, result.usage, **review)
                         result.answer = final or usable_draft
                         result.stop_reason = "finalized" if final else (
                             "answered" if usable_draft else "truncated" if reply.truncated else "no_answer"
@@ -593,6 +685,7 @@ class SearchAgent:
                         step=step,
                         trace=trace,
                         question=question,
+                        jevtree=jevtree,
                     )
                     if seed_turn and call.function.name == "web_search" and not step.tool_calls[-1].refused:
                         seed_consumed = True
@@ -603,7 +696,7 @@ class SearchAgent:
                 result.stop_reason = "max_turns"
                 trace.event("run.truncated", reason="max_turns", turns=cfg.max_turns)
                 recovery = self._checkpoint_recovery(result)
-                final = await self._salvage(messages, trace, result.usage,
+                final = await self._salvage(synthesis_messages(), trace, result.usage,
                     answer_only=(self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading)
                                  and result.searches >= cfg.max_searches), **recovery)
                 if final:
@@ -623,12 +716,15 @@ class SearchAgent:
             #
             # 이게 없으면 그 문항은 답 0자로 끝나 0점이 되고, 모델의 실력이 아니라
             # 서버 버그가 점수에 섞인다.
-            salvaged = await self._salvage(messages, trace, result.usage, **self._checkpoint_recovery(result))
+            salvaged = await self._salvage(synthesis_messages(), trace, result.usage, **self._checkpoint_recovery(result))
             if salvaged:
                 result.answer = salvaged
                 result.stop_reason = "salvaged"
                 trace.event("run.salvaged", answer_chars=len(salvaged))
 
+        if first_route_stats and result.research_state:
+            for key, value in first_route_stats.items():
+                result.research_state.metrics[key] = result.research_state.metrics.get(key, 0) + value
         result.budget = budget.as_dict()
         result.latency_ms = (time.perf_counter() - started) * 1000
         trace.event("run.end", **result.as_dict())
@@ -785,6 +881,8 @@ class SearchAgent:
 
     async def aclose(self) -> None:
         await self.llm.aclose()
+        if self.jev is not None:
+            await self.jev.aclose()
 
     # --- 도구 ---------------------------------------------------------------
 
@@ -799,6 +897,7 @@ class SearchAgent:
         step: Step,
         trace: Trace,
         question: str,
+        jevtree: JevTree | None = None,
     ) -> str:
         cfg = self.config
         name = call.function.name
@@ -809,7 +908,9 @@ class SearchAgent:
         record = ToolCall(name=name, arguments=arguments)
         step.tool_calls.append(record)
 
-        if self.method == "depthsearch" and (cfg.depthsearch_control or self.relational_reading) and not self.independent_clues and name == "web_fetch":
+        if name == "web_fetch" and (self.method == "jevtree" or (
+                self.method == "depthsearch" and (cfg.depthsearch_control or self.relational_reading)
+                and not self.independent_clues)):
             record.refused = True
             record.result = ("web_fetch is not a main action. Page reading is handled inside web_search. "
                              "Use web_search if available and needed, or answer from the returned evidence.")
@@ -862,6 +963,8 @@ class SearchAgent:
                 trace=trace,
                 question=question,
                 turn=step.turn,
+                jevtree=jevtree,
+                main_reasoning=step.reasoning,
             )
         elif name == "web_fetch":
             reading_goal = ""
@@ -929,6 +1032,8 @@ class SearchAgent:
         trace: Trace,
         question: str,
         turn: int,
+        jevtree: JevTree | None = None,
+        main_reasoning: str = "",
     ) -> tuple[str, int]:
         """검색 결과를 반환하고 방법별 선택적/일괄 페이지 처리를 수행한다."""
         result.search_attempts += 1
@@ -970,6 +1075,11 @@ class SearchAgent:
                 text = json.dumps(parsed, ensure_ascii=False)
                 return text, len(outcome.text)
             text = json.dumps(parsed, ensure_ascii=False)
+            if self.relational_reading:
+                text = await self._read_entry_batch(text=text, focus=focus, query=query,
+                    tools=tools, explorer=explorer, budget=budget, result=result,
+                    record=record, trace=trace, question=question, turn=turn)
+                return text, len(outcome.text)
             session = _FetchSession()
             recoveries = 0
             stop = "turn_limit"
@@ -1027,6 +1137,9 @@ class SearchAgent:
         # 텍스트보다 훨씬 나은 판단 근거다.
         if not self.config.search_top_k or explorer is None:
             text = json.dumps(parsed, ensure_ascii=False)
+            if jevtree is not None:
+                text += "\n\n" + await self._jev_reading(jevtree, query, parsed, result, record,
+                                                         trace, question, main_reasoning)
             return text, len(outcome.text)
 
         # search-o1 — 상위 k개를 자동으로 열어 explorer 에게 한 번에 넘긴다.
@@ -1090,6 +1203,29 @@ class SearchAgent:
         if answer_box := parsed.get("answer_box"):
             text = f"{text}\n\n**Search answer box:** {json.dumps(answer_box, ensure_ascii=False)}"
         return text, len(outcome.text)
+
+    async def _jev_reading(self, jevtree: JevTree, query: str, parsed: dict[str, Any],
+                           result: RunResult, record: ToolCall, trace: Trace,
+                           question: str, main_reasoning: str) -> str:
+        """jevtree: Jev opens and expands the best results; notes go back with the results."""
+        log, text, stats = await jevtree.run_search(
+            query, parsed.get("organic") or [], question=question,
+            main_reasoning=main_reasoning, trace=trace, usage=result.usage)
+        result.explorations.append(log)
+        record.explorations.append(log)
+        result.auto_fetches += stats["entries"]
+        result.expansion_nodes += max(0, stats["nodes"] - stats["entries"])
+        result.explorer_calls += stats["reads"]
+        result.max_depth_reached = max(result.max_depth_reached, stats["max_depth"])
+        for key, amount in (("search_entries", stats["entries"]), ("tree_nodes", stats["nodes"]),
+                            ("tree_reads", stats["reads"]), ("tree_fetch_failed", stats["fetch_failed"]),
+                            ("tree_duplicates", stats.get("duplicates", 0)),
+                            ("links_scored", stats["links_scored"]),
+                            ("jev_requests", stats["jev_requests"]), ("jev_attempts", stats["jev_attempts"]),
+                            ("jev_input_tokens", stats["jev_input_tokens"]),
+                            ("jev_failures", stats["jev_failures"])):
+            result.reader_stats[key] = result.reader_stats.get(key, 0) + amount
+        return text
 
     async def _document(
         self, url: str, tools: Any, question: str, trace: Trace,
@@ -1231,7 +1367,9 @@ class SearchAgent:
                         state.register(source_url, route=origin["route"], query=origin["query"])
             # Preserve link navigation choices without treating link labels as facts.
             links_text = "\n".join(n.get("text", "") for n in exploration.notes)
-            for linked in re.findall(r"https?://[^\s<>\]\)\"`]+", links_text):
+            linked_urls = (_page_links(links_text, balanced=True).values() if self.relational_reading
+                           else re.findall(r"https?://[^\s<>\]\)\"`]+", links_text))
+            for linked in linked_urls:
                 try:
                     state.register(linked.rstrip(".,;"))
                 except ValueError:
@@ -1240,10 +1378,133 @@ class SearchAgent:
                 await self._control(question, result, trace, focus, select=False)
         return exploration.render_for_gate(), raw_chars
 
+    async def _read_entry_batch(self, *, text: str, focus: list[str], query: str,
+                               tools: Any, explorer: Explorer, budget: Budget, result: RunResult,
+                               record: ToolCall, trace: Trace, question: str, turn: int) -> str:
+        """One root plan, recursive reads in model order, then a tool-free return."""
+        state = result.research_state
+        session = _FetchSession()
+        max_calls = max(1, self.explorer_config.max_turns)
+        attempts = min(1 + self.config.max_tool_recoveries, max(1, max_calls - 1))
+        recoveries = 0
+        if self.config.max_fetches and result.fetches + result.auto_fetches >= self.config.max_fetches:
+            trace.event("search.entry_session_end", turn=turn, reason="fetch_limit", recoveries=0)
+            return text
+        while session.calls < max(1, max_calls - 1):
+            session.selections = []
+            for attempt in range(min(attempts, max(1, max_calls - 1 - session.calls))):
+                await self._control(question, result, trace, focus, select=True,
+                                    session=session, query=query, batch=True)
+                if session.decision not in {"invalid_tool_call", "empty_response", "truncated"}:
+                    break
+                if attempt + 1 < attempts:
+                    recoveries += 1
+                    state.count("selector_recoveries")
+
+            trace.event("search.batch_plan", turn=turn, sources=[sid for sid, _ in session.selections],
+                        selection_calls=session.calls, decision=session.decision)
+            goal = state.selection_goal
+            returned: dict[str, list[str]] = {}
+            for order, (sid, call_id) in enumerate(session.selections, 1):
+                session.root_reads += 1
+                source = state.sources[sid]
+                url = source["url"]
+                if self.config.max_fetches and result.fetches + result.auto_fetches >= self.config.max_fetches:
+                    notes = "Root fetch allowance exhausted; this selected URL was not opened."
+                    trace.event("search.batch_root_skipped", turn=turn, source=sid, reason="fetch_limit")
+                elif source["status"] in {"read", "failed"}:
+                    # A preceding recursive tree may already have reached this root.
+                    notes = (f"{sid} ({url}) was already {source['status']} during this batch. "
+                             "Its evidence/access result is in the preceding page notes; no new fetch was made.")
+                    trace.event("search.batch_root_skipped", turn=turn, source=sid, reason="already_processed")
+                else:
+                    auto = ToolCall(name="web_fetch", arguments={"url": url})
+                    result.auto_fetches += 1
+                    state.count("selected_entries")
+                    trace.event("search.selected_entry", turn=turn, entry_turn=order, source=sid, url=url,
+                                selection_mode="batch")
+                    notes, _ = await self._fetch(url=url, tools=tools, explorer=explorer,
+                        budget=budget, result=result, record=auto, trace=trace, question=question, turn=turn,
+                        reading_goal=f"Selected source: {sid}, {source['title']} ({url})\n" + goal)
+                    if auto.is_error:
+                        notes = ("Document lead retained (search metadata, not verified page evidence):\n"
+                                 + json.dumps({"id": sid, "url": url, "title": source["title"],
+                                               "snippets": source["snippets"], "access": "failed"}, ensure_ascii=False)
+                                 + "\nAccess failure does not reject the document; retain its title/author "
+                                   "for another copy.\n" + notes)
+                    for entry in auto.explorations:
+                        entry["entry"], entry["source_id"] = "selective_search", sid
+                    record.explorations.extend(auto.explorations)
+                    trace.event("search.selected_result", turn=turn, url=url, is_error=auto.is_error,
+                                result_chars=len(notes), duration_ms=auto.duration_ms)
+                    text += "\n\nSelected recursive reading:\n" + notes
+                returned.setdefault(call_id, []).append(_strip_special(notes))
+            for call_id, notes in returned.items():
+                session.history.append({"role": "tool", "tool_call_id": call_id,
+                                        "content": "\n\n".join(notes)})
+
+            if (not self.config.adaptive_entry or not session.selections
+                    or session.root_reads >= self.explorer_config.max_turns):
+                break
+
+        if session.decision == "skip":
+            interpretation = session.history[-1].get("content", "")
+        else:
+            interpretation = await self._finish_entry_batch(session, result, trace, max_calls)
+        if interpretation:
+            text += ("\n\nEntry reader's working connections and gaps (interpretation, not source evidence):\n"
+                     + _strip_special(interpretation))
+        trace.event("search.entry_session_end", turn=turn, reason="batch_complete" if session.selections else session.decision,
+                    recoveries=recoveries, model_calls=session.calls)
+        return text
+
+    async def _finish_entry_batch(self, session: _FetchSession, result: RunResult,
+                                  trace: Trace, max_calls: int) -> str:
+        """Close the entry dialogue without reopening selection or losing page notes."""
+        if not session.context:
+            return ""
+        context = copy.deepcopy(session.context)
+        snapshot = json.loads(context[1]["content"])
+        snapshot["selectable"] = []
+        snapshot["selection_mode"] = "closed"
+        for source in snapshot["sources"]:
+            current = result.research_state.sources[source["id"]]
+            source["status"] = current["status"]
+            if current.get("error"):
+                source["access_error"] = current["error"]
+        context[1]["content"] = json.dumps(snapshot, ensure_ascii=False)
+        messages = entry_return_messages(context, session.history)
+        messages[0]["content"] = _system_prompt(messages[0]["content"], self.profile.reasoning_effort)
+        for attempt in range(min(2, max(0, max_calls - session.calls))):
+            if await self.llm.count_tokens(json.dumps(messages, ensure_ascii=False)) + self.config.max_tokens > self.config.context_limit:
+                trace.event("control.skipped", mode="batch_return", reason="context_limit")
+                return ""
+            result.research_state.count("controller_calls")
+            result.research_state.count("batch_return_calls")
+            session.calls += 1
+            trace.event("control.request", mode="batch_return", messages=messages, tools=None, tool_choice="none")
+            try:
+                reply = await self.llm.chat(messages, max_tokens=self.config.max_tokens,
+                                            tools=None, tool_choice="none", usage=result.usage)
+            except Exception as exc:
+                result.research_state.count("controller_errors")
+                trace.event("control.error", mode="batch_return", error=repr(exc))
+                return ""
+            valid = bool(reply.text.strip()) and not reply.tool_calls and not reply.truncated and not _looks_like_action(reply.text)
+            trace.event("control.response", mode="batch_return", text=reply.text, reasoning=reply.reasoning,
+                        finish_reason=reply.finish_reason, valid=valid,
+                        tool_calls=[{"name": c.function.name, "arguments": c.function.arguments} for c in reply.tool_calls])
+            if valid:
+                return reply.text
+            result.research_state.count("batch_return_invalid")
+            messages.append({"role": "user", "content": "Return the short reading summary as text now. No tool calls or research plan."})
+        return ""
+
     async def _control(self, question: str, result: RunResult, trace: Trace,
                        focus: list[str], *, select: bool, session: _FetchSession | None = None,
-                       query: str = "") -> str | None:
+                       query: str = "", batch: bool = False) -> str | None:
         """One bounded, same-model decision; malformed updates leave valid state intact."""
+        batch = bool(batch and select and self.relational_reading)
         state = result.research_state
         assert state is not None
         if select and session is None:
@@ -1283,7 +1544,7 @@ class SearchAgent:
                 sources[-1]["access_error"] = s["error"]
         payload = {"question": question, "mode": "select" if select else "update-only",
                    "working_state": state.snapshot(), "selectable": selectable, "sources": sources}
-        prompt = ENTRY_PROMPT if self.relational_reading and select else SELECT_PROMPT if select else CONTROL_PROMPT
+        prompt = entry_prompt(self.config.adaptive_entry) if self.relational_reading and select and batch else SELECT_PROMPT if select else CONTROL_PROMPT
         offered_tools = None
         if select:
             payload["current_query"] = query
@@ -1303,10 +1564,22 @@ class SearchAgent:
                 offered_tools[0]["function"]["parameters"]["properties"]["url"]["enum"] += selectable
                 offered_tools[0]["function"]["parameters"]["properties"]["url"]["description"] = (
                     "An exact supplied URL or source ID (e.g. S3).")
+                if batch:
+                    payload["selection_mode"] = "adaptive_batches" if self.config.adaptive_entry else "one_batch"
+                    payload["max_root_reads"] = max(0, self.explorer_config.max_turns - session.root_reads)
+                    if self.config.adaptive_entry:
+                        payload["remaining_entry_calls"] = max(0, self.explorer_config.max_turns - session.calls)
+                    if self.config.max_fetches:
+                        payload["max_root_reads"] = min(payload["max_root_reads"],
+                            max(0, self.config.max_fetches - result.fetches - result.auto_fetches))
+                    offered_tools = [batch_fetch_tool(
+                        offered_tools[0]["function"]["parameters"]["properties"]["url"]["enum"],
+                        payload["max_root_reads"])]
         messages = [{"role": "system", "content": _system_prompt(prompt, self.profile.reasoning_effort)},
                     {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
         if select:
             # Refresh the menu, retain the actual assistant/tool conversation.
+            session.context = list(messages)
             messages.extend(session.history)
         request_text = json.dumps({"messages": messages, "tools": offered_tools}, ensure_ascii=False)
         if await self.llm.count_tokens(request_text) + self.config.max_tokens > self.config.context_limit:
@@ -1316,6 +1589,8 @@ class SearchAgent:
                 session.decision = "context_limit"
             return None
         state.count("controller_calls")
+        if select:
+            session.calls += 1
         trace.event("control.request", mode=payload["mode"], messages=messages, tools=offered_tools,
                     tool_choice="auto" if select else "none")
         try:
@@ -1335,24 +1610,36 @@ class SearchAgent:
             recovered = recover_tool_calls(reply, offered_tools)
             normalized = normalize_tool_names(reply, offered_tools)
             selected = None
+            accepted: list[tuple[str, int]] = []
             if reply.truncated:
                 decision = "truncated"
             elif reply.tool_calls:
                 decision = "invalid_tool_call"
-                if len(reply.tool_calls) == 1:
-                    call = reply.tool_calls[0]
-                    try:
-                        args = json.loads(call.function.arguments)
-                        if (call.function.name == "web_fetch" and isinstance(args, dict)
-                                and set(args) == {"url"} and isinstance(args["url"], str)):
-                            # Selection is restricted to observed unread entries;
-                            # child readers keep their existing URL expansion rules.
-                            selected = next((sid for sid in selectable
-                                             if state.sources[sid]["url"] == args["url"]
-                                             or (self.relational_reading and sid == args["url"])), None)
-                    except (ValueError, TypeError):
-                        pass
-                    if selected:
+                if batch or len(reply.tool_calls) == 1:
+                    for pos, call in enumerate(reply.tool_calls):
+                        urls = []
+                        try:
+                            args = json.loads(call.function.arguments)
+                            key = "urls" if batch else "url"
+                            if call.function.name == "web_fetch" and isinstance(args, dict) and set(args) == {key}:
+                                if batch and isinstance(args[key], list):
+                                    urls = args[key]
+                                elif not batch and isinstance(args[key], str):
+                                    urls = [args[key]]
+                        except (ValueError, TypeError):
+                            pass
+                        for url in urls:
+                            sid = None
+                            if isinstance(url, str):
+                                sid = next((sid for sid in selectable
+                                            if state.sources[sid]["url"] == url
+                                            or (self.relational_reading and sid == url)), None)
+                            if sid and sid not in {s for s, _ in accepted} and (not batch or len(accepted) < payload["max_root_reads"]):
+                                accepted.append((sid, pos))
+                            elif batch:
+                                state.count("batch_unexecuted_urls")
+                    if accepted:
+                        selected = accepted[0][0]
                         decision = "fetch"
             else:
                 decision = "skip" if reply.text.strip() else "empty_response"
@@ -1360,12 +1647,24 @@ class SearchAgent:
             assistant = _assistant_message(reply)
             session.history.append(assistant)
             if selected:
-                session.call_id = assistant["tool_calls"][0]["id"]
+                session.call_id = assistant["tool_calls"][accepted[0][1]]["id"]
+                if batch:
+                    session.selections = [(sid, assistant["tool_calls"][pos]["id"]) for sid, pos in accepted]
+                    accepted_positions = {pos for _, pos in accepted}
+                    for pos, call in enumerate(assistant["tool_calls"]):
+                        if pos not in accepted_positions:
+                            state.count("batch_unexecuted_calls")
+                            session.history.append({"role": "tool", "tool_call_id": call["id"], "content":
+                                "This call was not executed: it was invalid, duplicated another selected source, "
+                                "or exceeded the supplied root allowance. Valid selections will be read; "
+                                "the batch will then return to the planner."})
             elif decision != "skip":
                 feedback = ("No page was fetched. Compare the supplied titles and snippets: if one offers "
                             "a useful next step, copy its exact url into web_fetch. Otherwise reply normally "
                             "to return to the search planner; do not invent a replacement URL. "
                             "Search requests, read/failed pages, and page-only links are unavailable here.")
+                if batch:
+                    feedback += ' Use the urls array, including for one source: {"urls":["S1"]}, copying current source IDs.'
                 if assistant["tool_calls"]:
                     for call in assistant["tool_calls"]:
                         session.history.append({"role": "tool", "tool_call_id": call["id"], "content": feedback})
@@ -1374,6 +1673,7 @@ class SearchAgent:
             trace.event("control.response", mode="select", text=raw_text, reasoning=reply.reasoning,
                         finish_reason=reply.finish_reason, valid=decision in {"fetch", "skip"},
                         decision=decision, selected=selected, recovered_tool_call=recovered,
+                        selected_sources=[sid for sid, _ in accepted],
                         normalized_tool_names=normalized,
                         tool_calls=[{"name": c.function.name, "arguments": c.function.arguments}
                                     for c in reply.tool_calls])

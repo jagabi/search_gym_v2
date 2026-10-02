@@ -20,6 +20,12 @@ def config(**overrides):
         isolate_extraction_context=True, prune_unhelpful_branches=True), **overrides))
 
 
+def batch_fetch(*urls):
+    reply=call('web_fetch', {'urls': list(urls)})
+    reply.reasoning='Read complementary records for the missing relations.'
+    return reply
+
+
 class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
     def make(self, replies, **overrides):
         llm = FakeLLM(replies)
@@ -30,9 +36,9 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
         return agent, llm
 
     async def test_three_siblings_before_main_no_state_update_and_final_search_read(self):
-        replies = [call('web_search', {'query': 'candidate record'})]
+        replies = [call('web_search', {'query': 'candidate record'}),batch_fetch('S1','S2','S3')]
         for i in range(3):
-            replies += [fetch_call(f'S{i+1}'), note(f'Evidence {i}\n**Connections:** A -> B{i}\n**Missing:** date\n**Expand:** no')]
+            replies += [note(f'Evidence {i}\n**Connections:** A -> B{i}\n**Missing:** date\n**Expand:** no')]
         replies += [Reply(text='Three source connections established; date remains unknown.'), Reply(text='Answer')]
         agent,llm=self.make(replies,max_searches=1)
         tools,trace=EntryTools(),MemoryTrace()
@@ -42,9 +48,11 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tools.fetched,URLS[:3])
         self.assertEqual((result.searches,result.auto_fetches,result.expansion_nodes),(1,3,0))
         requests=[e for k,e in trace.events if k=='control.request']
-        self.assertTrue(all(e['mode']=='select' for e in requests))
-        self.assertEqual(len(requests),4)
-        self.assertEqual(result.usage.calls,9)  # main search + 4 entry turns + 3 extracts + final.
+        self.assertEqual([e['mode'] for e in requests],['select','batch_return'])
+        self.assertEqual(len(requests),2)
+        self.assertEqual(result.usage.calls,7)  # main + plan + 3 extracts + batch return + final.
+        self.assertIsNone(requests[-1]['tools'])
+        self.assertEqual(requests[-1]['tool_choice'],'none')
         self.assertNotIn('working_state',json.loads(requests[0]['messages'][1]['content']))
         self.assertIn('Evidence 0',str(llm.requests[-1][0]))
         self.assertIn('Three source connections established',str(llm.requests[-1][0]))
@@ -58,7 +66,7 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
             async def fetch(self,url):
                 self.fetched.append(url); return Document(url,pages[url])
         agent,llm=self.make([
-            call('web_search',{'query':'QUERY_YEAR_2015'}),fetch_call(URLS[0]),
+            call('web_search',{'query':'QUERY_YEAR_2015'}),batch_fetch(URLS[0]),
             note(f'PARENT_FACT_ONLY\n**Next links:**\n{child} | verify FIRST_BOOK_RELATION\n**Expand:** yes'),
             note(f'CHILD_FACT_ONLY\n**Next links:**\n{leaf} | verify ORIGINAL_TITLE_RELATION\n**Expand:** yes'),
             note('Original title: Baby\n**Connections:** Book -> original title Baby\n**Expand:** no'),
@@ -78,7 +86,7 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('ORIGINAL_TITLE_RELATION',str(navigation[2]['messages']))
         self.assertNotIn('FIRST_BOOK_RELATION',str(navigation[2]['messages']))
         self.assertIn('Book -> original title Baby',str(llm.requests[-1][0]))
-        self.assertTrue(all(e['mode']=='select' for k,e in trace.events if k=='control.request'))
+        self.assertEqual([e['mode'] for k,e in trace.events if k=='control.request'],['select','batch_return'])
         self.assertEqual(sum(k=='expand.from_note' for k,e in trace.events),2)
         self.assertEqual(sum(e.get('phase')=='recover' for k,e in trace.events if k=='explorer.response'),0)
         self.assertEqual(result.usage.calls,9)  # 3 extracts, 2 parent decisions, 2 entry, main + final.
@@ -89,7 +97,7 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
             async def fetch(self,url):
                 self.fetched.append(url)
                 return Document(url,'403 Forbidden',is_error=True)
-        agent,llm=self.make([call('web_search',{'query':'identified thesis'}),fetch_call('S1'),
+        agent,llm=self.make([call('web_search',{'query':'identified thesis'}),batch_fetch('S1'),
             Reply(text='Identified document inaccessible; seek another copy.'),Reply(text='Answer')],max_searches=1)
         trace=MemoryTrace(); result=await agent.run('Q','Research',Failed(),trace)
         self.assertIsNone(result.error)
@@ -100,15 +108,16 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(failed['title'])
         self.assertTrue(failed['evidence'])
         self.assertIn('403',failed['access_error'])
-        self.assertNotIn('S1',payload['selectable'])
-        self.assertNotIn(URLS[0],requests[1]['tools'][0]['function']['parameters']['properties']['url']['enum'])
+        self.assertNotIn('selectable',payload)
+        self.assertFalse(requests[1]['tools'])
+        self.assertEqual(requests[1]['tool_choice'],'none')
         self.assertIn('Document lead retained',str(llm.requests[-1][0]))
         self.assertFalse(llm.replies)
 
     async def test_planner_and_entry_context_reach_navigation_but_not_extraction(self):
         search=call('web_search',{'query':'QUERY_UNVERIFIED_YEAR'})
         search.reasoning='PLANNER_CANDIDATE needs a release date; previous year was a guess.'
-        fetch=fetch_call('S1');fetch.reasoning='ENTRY_PURPOSE verify candidate release date'
+        fetch=batch_fetch('S1');fetch.reasoning='ENTRY_PURPOSE verify candidate release date'
         agent,llm=self.make([search,fetch,note('Exact supplied fact\n**Expand:** yes'),
             Reply(text='DONE'),Reply(text='Local check done'),Reply(text='Answer')],max_searches=1)
         trace=MemoryTrace();result=await agent.run('Find a release date.','Research',EntryTools(),trace)
@@ -226,8 +235,8 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
             async def fetch(self,url):
                 self.fetched.append(url)
                 return Document(url,f'Title: Record\nURL Source: {url}\nMarkdown Content:\nIdentical exact record')
-        agent,llm=self.make([call('web_search',{'query':'record'}),fetch_call(URLS[0]),
-            note('Fact retained\n**Expand:** no'),fetch_call(URLS[1]),Reply(text='DONE'),Reply(text='Answer')])
+        agent,llm=self.make([call('web_search',{'query':'record'}),batch_fetch(URLS[0],URLS[1]),
+            note('Fact retained\n**Expand:** no'),Reply(text='DONE'),Reply(text='Answer')])
         trace=MemoryTrace(); result=await agent.run('Q','Research',Mirrors(),trace)
         self.assertIsNone(result.error)
         self.assertEqual(result.explorer_calls,1)
@@ -251,7 +260,7 @@ class RelationalReadingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_no_useful_entries_returns_to_main_and_new_search(self):
         agent,llm=self.make([call('web_search',{'query':'first'}),Reply(text='No useful route'),
-            call('web_search',{'query':'different relation'}),fetch_call(URLS[0]),
+            call('web_search',{'query':'different relation'}),batch_fetch(URLS[0]),
             note('Useful fact\n**Expand:** no'),Reply(text='DONE'),Reply(text='Answer')])
         tools=EntryTools();result=await agent.run('Q','Research',tools,MemoryTrace())
         self.assertIsNone(result.error)

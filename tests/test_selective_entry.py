@@ -96,7 +96,8 @@ class StateTests(unittest.TestCase):
     def test_baseline_fingerprint_is_unchanged(self):
         cfg = AgentConfig()
         previous = {k: v for k, v in asdict(cfg).items()
-                    if k not in {"base_url", "api_key", "timeout_s", "depthsearch_control", "independent_clues", "relational_reading"}}
+                    if k not in {"base_url", "api_key", "timeout_s", "depthsearch_control", "independent_clues", "relational_reading", "dual_route", "adaptive_entry"}
+                    and not k.startswith("jev_")}
         self.assertEqual(_agent_fingerprint(cfg), json.dumps(previous, sort_keys=True, ensure_ascii=False))
         self.assertNotEqual(_agent_fingerprint(cfg), _agent_fingerprint(AgentConfig(depthsearch_control=True)))
 

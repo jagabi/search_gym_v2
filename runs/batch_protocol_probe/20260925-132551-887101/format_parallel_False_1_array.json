@@ -1,0 +1,106 @@
+{
+  "name": "format_parallel_False_1_array",
+  "request": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "Reasoning: medium\nYou test native tool-call serialization. Only call the supplied tool."
+      },
+      {
+        "role": "user",
+        "content": "Read BOTH independent supplied records: https://example.org/alpha and https://example.org/beta. Emit one web_fetch call with urls containing both URLs. This is a format diagnostic; no tool is actually executed."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "web_fetch",
+          "description": "Read the selected supplied sources recursively. Pass their URLs or source IDs in priority order in urls. One call selects the batch; reply normally if none is useful.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "urls": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "https://example.org/alpha",
+                    "https://example.org/beta"
+                  ]
+                },
+                "minItems": 1,
+                "maxItems": 6
+              }
+            },
+            "required": [
+              "urls"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    ],
+    "tool_choice": "auto",
+    "model": "openai/gpt-oss-20b",
+    "max_tokens": 8192,
+    "temperature": 1.0,
+    "top_p": 1.0
+  },
+  "response": {
+    "id": "chatcmpl-bca17260858dd467",
+    "choices": [
+      {
+        "finish_reason": "tool_calls",
+        "index": 0,
+        "logprobs": null,
+        "message": {
+          "content": null,
+          "refusal": null,
+          "role": "assistant",
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "tool_calls": [
+            {
+              "id": "chatcmpl-tool-8f257201df12a059",
+              "function": {
+                "arguments": "{\"urls\": [\"https://example.org/alpha\", \"https://example.org/beta\"]}",
+                "name": "web_fetch"
+              },
+              "type": "function"
+            }
+          ],
+          "reasoning": "They want a function call, but no execution. According to policy, tool call must be a real function call. But here it's a diagnostic, no actual execution. But we can still produce the tool call JSON. The schema is functions.web_fetch with urls: array of the two URLs. Probably need to output: `{\"name\":\"functions.web_fetch\",\"arguments\":\"{\\\"urls\\\":[\\\"https://example.org/alpha\\\",\\\"https://example.org/beta\\\"]}\"}`. Actually consistent with previous examples: previous output: `{\"name\":\"functions.web_fetch\",\"arguments\":\"{\\\"urls\\\":[\\\"https://example.org/alpha\\\",\\\"https://example.org/beta\\\"]}\"}`\nThat's correct."
+        },
+        "stop_reason": 200012,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "created": 1790310364,
+    "model": "openai/gpt-oss-20b",
+    "object": "chat.completion",
+    "moderation": null,
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.29.0-055445d6",
+    "usage": {
+      "completion_tokens": 176,
+      "prompt_tokens": 225,
+      "total_tokens": 401,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": null
+      },
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null,
+    "ec_transfer_params": null,
+    "metrics": null
+  }
+}

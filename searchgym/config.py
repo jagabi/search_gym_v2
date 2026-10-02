@@ -382,6 +382,14 @@ def _validate(config: TestConfig) -> None:
                 "max_depth 가 1보다 크면 max_subtree_children 도 1 이상이어야 합니다."
             )
 
+    if config.method == "jevtree":
+        if not config.agent.jev_model:
+            raise ValueError("jevtree 는 agent.jev_model 이 필요합니다.")
+        if min(config.agent.jev_entries, config.agent.jev_branch, config.agent.jev_depth) < 1 or config.agent.jev_reads < 0:
+            raise ValueError("jev_branch/jev_depth 는 1 이상, jev_reads 는 0 이상이어야 합니다.")
+    elif config.agent.jev_model:
+        raise ValueError("agent.jev_model 은 jevtree 에서만 씁니다.")
+
     # 자동 페치는 search-o1 만 한다. 나머지 둘은 메인 모델이 검색 결과를 보고 고른다.
     if config.method == "search-o1":
         if config.agent.search_top_k <= 0:
