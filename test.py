@@ -38,7 +38,7 @@ from pathlib import Path
 from searchgym.benchmarks import load_benchmark
 from searchgym.config import load_test
 from searchgym.judge import Judge
-from searchgym.paths import find_run, load_env, resolve, run_dir
+from searchgym.paths import find_run, load_env, require_env, resolve, run_dir
 from searchgym.report import enable_utf8, quiet_libraries, summarize, table, write_json
 from searchgym.runner import Runner
 from searchgym.serving import profile_for
@@ -104,6 +104,13 @@ async def main_async(argv: list[str] | None = None) -> int:
     if args.resume is not None and not config.run.cache:
         print("--resume 과 --no-cache 는 같이 못 씁니다.", file=sys.stderr)
         return 1
+
+    if config.method == "jevtree" and not args.dry_run:
+        try:
+            require_env("TYPESAFE_API_KEY")
+        except RuntimeError as exc:
+            print(f"실행 준비 오류: {exc}", file=sys.stderr)
+            return 1
 
     profile = profile_for(config.model)
     dataset = config.benchmark.dataset(args.split or "validation")

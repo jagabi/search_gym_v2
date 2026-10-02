@@ -1,8 +1,10 @@
 import asyncio
+import io
 import json
 import tempfile
 import unittest
 from pathlib import Path
+from contextlib import redirect_stderr
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -173,6 +175,23 @@ class JevLoggingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sum(e["event"] == "jev.response" for e in events), 2)
         self.assertEqual((usage.calls, usage.attempts, usage.failures), (0, 3, 1))
         self.assertTrue(events[-1]["failed"])
+
+    async def test_missing_key_stops_cli_before_creating_run_or_calling_models(self):
+        import test as cli
+
+        error = io.StringIO()
+        with patch.dict("os.environ", {"TYPESAFE_API_KEY": ""}), \
+                patch.object(cli, "load_env"), \
+                patch.object(cli, "_resolve_dir") as resolve_dir, \
+                patch.object(cli, "Runner") as runner, redirect_stderr(error):
+            code = await cli.main_async([
+                "--method", "jevtree", "--model", "gpt-oss",
+                "--benchmark", "browsecomp", "--split", "test", "--limit", "10",
+            ])
+        self.assertEqual(code, 1)
+        self.assertIn("TYPESAFE_API_KEY", error.getvalue())
+        resolve_dir.assert_not_called()
+        runner.assert_not_called()
 
 
 if __name__ == "__main__":
