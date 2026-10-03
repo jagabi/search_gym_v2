@@ -31,7 +31,6 @@ from .serving import ServeProfile
 from .trace import ToolCall, Trace
 from .urls import normalize_fetch_url
 from .jevtree import Jev, JevTree
-from .jevtree_state import CANDIDATE_UPDATES_SCHEMA
 from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL, ENTRY_PROMPT, entry_prompt,
                              parse_control, is_search_endpoint, batch_fetch_tool, entry_return_messages)
 
@@ -435,8 +434,6 @@ class SearchAgent:
                         "conditions as needed; do not invent country, nationality or date filters. "
                         "Verify source-backed candidates and their missing conditions."
                     )
-                    spec["function"]["parameters"]["properties"]["candidate_updates"] = copy.deepcopy(
-                        CANDIDATE_UPDATES_SCHEMA)
         explorer_cfg = self.explorer_config or ExplorerConfig()
         budget = Budget(explorer_cfg.max_expansion_nodes if self.uses_explorer else 0)
 
@@ -520,8 +517,6 @@ class SearchAgent:
                 "is privileged; use distinguishing evidence and explicit contradictions."}] + messages[len(initial_messages):]
 
         def synthesis_checkpoint():
-            if jevtree is not None:
-                return jevtree.checkpoint()
             current = result.research_state.render() if result.research_state else ""
             return ("Route A:\n" + first_route_checkpoint + "\n\nRoute B:\n" + current
                     if first_route_messages else current)
@@ -552,11 +547,6 @@ class SearchAgent:
                     break
                 request_messages = messages
                 choice = {}
-                if jevtree is not None:
-                    # Refresh memory without appending repeated snapshots to history.
-                    checkpoint = jevtree.checkpoint()
-                    request_messages = messages + [{"role": "user", "content": checkpoint}]
-                    trace.event("jevtree.main_checkpoint", turn=turn, checkpoint=checkpoint)
                 if self.method == "depthsearch":
                     request_messages = messages + [{"role": "user", "content":
                         self._action_notice(active_specs, result, budget)
@@ -648,7 +638,7 @@ class SearchAgent:
                         usable_draft = step.text.strip() if not reply.truncated and not action_text else ""
                         review = ({"draft": usable_draft, "draft_reasoning": step.reasoning}
                                   if self.method == "depthsearch" and usable_draft else {})
-                        if result.research_state or jevtree is not None:
+                        if result.research_state:
                             review["checkpoint"] = synthesis_checkpoint()
                         if first_route_messages:
                             review.pop("draft", None)
@@ -710,8 +700,6 @@ class SearchAgent:
                 result.stop_reason = "max_turns"
                 trace.event("run.truncated", reason="max_turns", turns=cfg.max_turns)
                 recovery = self._checkpoint_recovery(result)
-                if jevtree is not None:
-                    recovery["checkpoint"] = synthesis_checkpoint()
                 final = await self._salvage(synthesis_messages(), trace, result.usage,
                     answer_only=(self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading)
                                  and result.searches >= cfg.max_searches), **recovery)
@@ -732,10 +720,7 @@ class SearchAgent:
             #
             # 이게 없으면 그 문항은 답 0자로 끝나 0점이 되고, 모델의 실력이 아니라
             # 서버 버그가 점수에 섞인다.
-            recovery = self._checkpoint_recovery(result)
-            if jevtree is not None:
-                recovery["checkpoint"] = synthesis_checkpoint()
-            salvaged = await self._salvage(synthesis_messages(), trace, result.usage, **recovery)
+            salvaged = await self._salvage(synthesis_messages(), trace, result.usage, **self._checkpoint_recovery(result))
             if salvaged:
                 result.answer = salvaged
                 result.stop_reason = "salvaged"
@@ -848,7 +833,7 @@ class SearchAgent:
                 "unknown. Use the requested format; do not call tools or describe further research."
             )})
             trace.event("run.review_draft", draft=draft, reasoning_chars=len(draft_reasoning))
-        if checkpoint and self.method in {"depthsearch", "jevtree"}:
+        if checkpoint and self.method == "depthsearch":
             rebuilt.append({"role": "user", "content": checkpoint + "\n\n"
                 "Write the final answer now. Review the provisional answer against its cited "
                 "evidence and any contradictions. Keep supported items, revise contradicted "
@@ -972,18 +957,6 @@ class SearchAgent:
 
         trace.event("tool.call", turn=step.turn, tool=name, arguments=arguments)
         if name == "web_search":
-            if jevtree is not None and "candidate_updates" in arguments:
-                try:
-                    jevtree.memory.update(arguments["candidate_updates"])
-                    trace.event("jevtree.candidate_update", updates=arguments["candidate_updates"],
-                                candidates=jevtree.memory.candidates)
-                except ValueError as exc:
-                    record.is_error = record.refused = True
-                    result.invalid_tool_calls += 1
-                    record.result = f"Invalid candidate_updates: {exc}. Retry; search budget was not used."
-                    record.result_chars = len(record.result)
-                    trace.event("tool.invalid_arguments", tool=name, arguments=arguments, error=str(exc))
-                    return record.result
             text, raw_chars = await self._search(
                 query=str(arguments.get("query") or ""),
                 tools=tools,

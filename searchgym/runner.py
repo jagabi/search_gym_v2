@@ -41,7 +41,7 @@ __all__ = ["Cache", "Record", "Runner"]
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
 DEPTHSEARCH_CACHE_VERSION = "agent/57-ds-adaptive-entry"
-JEVTREE_CACHE_VERSION = "agent/64-jevtree-candidate-conditions"
+JEVTREE_CACHE_VERSION = "agent/65-jevtree-freeform-reader"
 JUDGE_VERSION = "judge/1"
 
 

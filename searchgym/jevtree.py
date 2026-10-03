@@ -5,8 +5,8 @@
       → each entry page: candidate identification + condition verification + link_i
       → top-b links by link score are fetched (depth 2, then depth 3)
       → up to r pages alternating identification/verification ranks (>= floor)
-        are read independently and their source quotations validated
-      → results + structured notes and persistent candidates return to the main
+        are read independently in free-form prose
+      → results + reader notes return verbatim to the main
 
 Terms: entry width e (results opened per search, by entry score), branching
 width b (links expanded per page, by link score), depth d, read budget r
@@ -31,8 +31,7 @@ from urllib.parse import urlsplit
 
 from .explorer import Document, _JUNK, _balanced_markdown_links, _content_fingerprint, _norm, _page_links
 from .llm import LLM, Usage
-from .jevtree_state import (CandidateMemory, CONDITION_PROMPT, READER_CONTRACT,
-                            parse_conditions, parse_reading)
+from .jevtree_state import CONDITION_PROMPT, parse_conditions
 from .research_state import is_search_endpoint
 from .trace import Trace
 
@@ -106,7 +105,6 @@ class TreeNode:
     error: str = ""
     notes: str = ""
     read: bool = False
-    reading: dict[str, Any] | None = None
     children: list["TreeNode"] = field(default_factory=list)
     # (link score, url, anchor) for links visible in this page's Jev view
     link_scores: list[tuple[float, str, str]] = field(default_factory=list)
@@ -125,7 +123,6 @@ class TreeNode:
             "status": ("not_found" if self.error else "partial" if self.read else "unread"),
             "error": self.error or None,
             "information": self.notes,
-            "structured_reading": self.reading,
             "information_chars": len(self.notes),
             "turns": int(self.read),
             "opened": [c.log() for c in self.children],
@@ -291,7 +288,6 @@ class JevTree:
         self.visited = visited  # per question, across main fetches
         self.contents: dict[str, str] = {}  # body fingerprint -> first URL (redirect copies)
         self.conditions: list[dict[str, str]] = []
-        self.memory = CandidateMemory()
 
     async def prepare(self, question: str, trace: Trace, usage: Usage) -> None:
         """Extract verbatim question conditions once, without main hypotheses."""
@@ -318,9 +314,6 @@ class JevTree:
             self.conditions = [{"id": "C1", "text": question}]
             trace.event("jevtree.conditions_fallback", reason="Use original question without inferred constraints")
         trace.event("jevtree.conditions", conditions=self.conditions)
-
-    def checkpoint(self) -> str:
-        return self.memory.render(self.conditions)
 
     def _select_readers(self, nodes: list[TreeNode]) -> list[TreeNode]:
         """Alternate identification/verification slots, deduplicating both ranks."""
@@ -399,12 +392,6 @@ class JevTree:
                     read=[(n.url, n.evidence) for n in to_read],
                     unread=[(n.url, n.evidence) for n in nodes if not n.read])
         await asyncio.gather(*(self._read(n, question, trace, usage) for n in to_read))
-        # Stable candidate/evidence IDs independent of reader completion order.
-        for node in to_read:
-            if node.reading is not None:
-                self.memory.ingest(node.reading, node.url)
-        trace.event("jevtree.candidate_state", search_id=search_id,
-                    candidates=self.memory.candidates, evidence=self.memory.evidence)
         stats["nodes"] = len(nodes)
         stats["reads"] = len(to_read)
         stats["max_depth"] = max((n.depth for n in nodes), default=0)
@@ -516,7 +503,7 @@ class JevTree:
                     trace: Trace, usage: Usage) -> None:
         state = {"question": question, "question_conditions": self.conditions,
                  "page_url": node.url, "page_text": node.document.content}
-        messages = [{"role": "system", "content": self.reader_prompt + "\n\n" + READER_CONTRACT},
+        messages = [{"role": "system", "content": self.reader_prompt},
                     {"role": "user", "content": json.dumps(state, ensure_ascii=False, indent=1)}]
         for attempt in range(2):
             trace.event("jevtree.reader_request", url=node.url, attempt=attempt, messages=messages)
@@ -531,20 +518,14 @@ class JevTree:
             trace.event("jevtree.read", url=node.url, attempt=attempt, chars=len(text),
                         prompt_tokens=reply.prompt_tokens, completion_tokens=reply.completion_tokens,
                         finish_reason=reply.finish_reason, reasoning=reply.reasoning, text=text)
-            try:
-                if not text or reply.truncated or reply.tool_calls:
-                    raise ValueError("Incomplete reader output")
-                node.reading = parse_reading(text, node.document.content, self.conditions)
-                node.notes = json.dumps(node.reading, ensure_ascii=False, indent=1)
-                trace.event("jevtree.reader_validated", url=node.url, reading=node.reading)
+            if text:
+                # Pass useful prose through even when incomplete. No format or
+                # quotation validator may discard the reader's findings.
+                node.notes = text + ("\n[Reader output truncated.]" if reply.truncated else "")
                 return
-            except (ValueError, TypeError) as exc:
-                trace.event("jevtree.reader_invalid", url=node.url, attempt=attempt, error=str(exc))
-                messages.append({"role": "user", "content":
-                    f"Invalid output: {exc}. Return complete JSON following the schema. "
-                    "Quotes must be verbatim page excerpts containing their candidate name; "
-                    "use empty arrays where the source does not support an extraction."})
-        node.notes = "(Reader output failed source/schema validation; raw output is retained in the trace.)"
+            messages.append({"role": "user", "content":
+                "Return your page notes as free-form prose now. No tool calls."})
+        node.notes = "(Reader returned no notes. This does not mean the page lacks evidence.)"
 
     @staticmethod
     def _render(search: TreeNode, nodes: list[TreeNode], read: list[TreeNode]) -> str:

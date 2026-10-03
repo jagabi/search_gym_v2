@@ -1,4 +1,4 @@
-"""Offline regressions for candidate continuity, source grounding and dual ranking."""
+"""Offline regressions for free-form reading, condition extraction and dual ranking."""
 import copy
 import json
 import unittest
@@ -11,7 +11,7 @@ from test_reader_integrity import FakeLLM, MemoryTrace
 from searchgym.agent import AgentConfig, SearchAgent
 from searchgym.explorer import Document, ExplorerConfig
 from searchgym.jevtree import JevTree, TreeNode
-from searchgym.jevtree_state import CandidateMemory, parse_conditions, parse_reading
+from searchgym.jevtree_state import parse_conditions
 from searchgym.llm import Reply, Usage
 from searchgym.serving import profile_for
 
@@ -22,13 +22,6 @@ PAGE = "Example Film was published in 2019."
 URL = "https://source.example/film"
 
 
-def reading(relation="supports", quote=PAGE):
-    return {"page_title": "Film", "facts": [{"candidate": "Example Film", "condition_id": "C2",
-            "relation": relation, "fact": quote, "quote": quote}],
-            "leads": [{"name": "Example Film", "quote": quote, "condition_ids": ["C1"]}],
-            "missing_condition_ids": ["C1"]}
-
-
 class CandidateTests(unittest.TestCase):
     def test_question_conditions_cannot_introduce_guessed_country(self):
         self.assertEqual(parse_conditions(json.dumps({"conditions": [c["text"] for c in CONDITIONS]}),
@@ -36,39 +29,6 @@ class CandidateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_conditions('{"conditions": ["from Ghana"]}', QUESTION)
 
-    def test_quotes_and_candidate_names_must_come_from_page(self):
-        self.assertEqual(parse_reading(json.dumps(reading()), PAGE, CONDITIONS), reading())
-        for invalid in (reading(quote="Example Film was published in 2020."), reading()):
-            if invalid["facts"][0]["quote"] == PAGE:
-                invalid["facts"][0]["candidate"] = "Invented Film"
-            with self.assertRaises(ValueError):
-                parse_reading(json.dumps(invalid), PAGE, CONDITIONS)
-
-    def test_candidate_persists_and_unknown_is_not_rejection_evidence(self):
-        memory = CandidateMemory()
-        memory.ingest(reading(), URL)
-        original = copy.deepcopy(memory.candidates)
-        with self.assertRaisesRegex(ValueError, "contradicting"):
-            memory.update([{"candidate_id": "K1", "action": "verify", "reason": "Check book"},
-                           {"candidate_id": "K1", "action": "reject", "reason": "Unknown author",
-                            "evidence_ids": ["E1"]}])
-        self.assertEqual(memory.candidates, original)  # failed batch is atomic
-        memory.ingest({"facts": [], "leads": []}, "https://source.example/unrelated")
-        self.assertIn("Example Film", memory.render(CONDITIONS))
-        memory.update([{"candidate_id": "K1", "action": "verify", "reason": "Check author"}])
-        self.assertEqual(memory.candidates["K1"]["status"], "verifying")
-        self.assertIn('"unknown":["C1"]', memory.render(CONDITIONS))
-
-    def test_rejection_retains_candidate_and_new_evidence_reopens_it(self):
-        memory = CandidateMemory()
-        memory.ingest(reading("contradicts"), URL)
-        memory.update([{"candidate_id": "K1", "action": "reject", "reason": "Wrong year",
-                        "evidence_ids": ["E1"]}])
-        self.assertIn('"status":"rejected"', memory.render(CONDITIONS))
-        memory.ingest(reading(), "https://other.example/film")
-        self.assertEqual(memory.candidates["K1"]["status"], "retained")
-        self.assertEqual(len(memory.candidates), 1)
-        self.assertEqual(len(CandidateMemory().candidates), 0)
 
 
 class PipelineTests(unittest.IsolatedAsyncioTestCase):
@@ -99,37 +59,43 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tree._select_readers([TreeNode("https://low.example", 1,
                                                       identification=.1, verification=.1)]), [])
 
-    async def test_reader_retries_ungrounded_quote_and_never_receives_main_reasoning(self):
-        llm = FakeLLM([Reply(text=json.dumps(reading(quote="Example Film invented fact."))),
-                       Reply(text=json.dumps(reading()))])
+    async def test_reader_preserves_prose_without_format_or_quote_validation(self):
+        text = 'A useful candidate is Example Film; the source suggests a 2019 publication.\nNext, check the author.'
+        llm = FakeLLM([Reply(text=text)])
         tree, trace = self.tree(llm), MemoryTrace()
         tree.conditions = CONDITIONS
         node = TreeNode(URL, 1, document=Document(URL, PAGE))
         await tree._read(node, QUESTION, trace, Usage())
-        self.assertEqual(node.reading, reading())
-        self.assertEqual(len(llm.requests), 2)
-        for messages, _ in llm.requests:
-            self.assertNotIn("main_reasoning", json.loads(messages[1]["content"]))
-        self.assertTrue(any(k == "jevtree.reader_invalid" for k, _ in trace.events))
+        self.assertEqual(node.notes, text)
+        self.assertEqual(len(llm.requests), 1)
+        messages = llm.requests[0][0]
+        self.assertEqual(messages[0]['content'], tree.reader_prompt)
+        self.assertNotIn('main_reasoning', json.loads(messages[1]['content']))
+        self.assertFalse(any(k in ('jevtree.reader_invalid', 'jevtree.reader_validated') for k, _ in trace.events))
 
-    async def test_truncated_reader_never_becomes_candidate_evidence(self):
-        llm = FakeLLM([Reply(text=json.dumps(reading()), finish_reason="length"),
-                       Reply(text="not JSON")])
+    async def test_truncated_reader_preserves_partial_notes_without_retry(self):
+        llm = FakeLLM([Reply(text='Example Film was published', finish_reason='length')])
         tree = self.tree(llm)
-        tree.conditions = CONDITIONS
         node = TreeNode(URL, 1, document=Document(URL, PAGE))
         await tree._read(node, QUESTION, MemoryTrace(), Usage())
-        self.assertIsNone(node.reading)
-        self.assertIn("failed source/schema validation", node.notes)
-        self.assertFalse(tree.memory.candidates)
+        self.assertEqual(node.notes, 'Example Film was published\n[Reader output truncated.]')
+        self.assertEqual(len(llm.requests), 1)
 
-    async def test_agent_keeps_candidate_through_empty_search_and_final_synthesis(self):
-        updates = [{"candidate_id": "K1", "action": "verify", "reason": "Check original book"}]
+    async def test_empty_reader_retries_once_without_requesting_json(self):
+        llm = FakeLLM([Reply(text=''), Reply(text=PAGE)])
+        tree = self.tree(llm)
+        node = TreeNode(URL, 1, document=Document(URL, PAGE))
+        await tree._read(node, QUESTION, MemoryTrace(), Usage())
+        self.assertEqual(node.notes, PAGE)
+        self.assertEqual(len(llm.requests), 2)
+        self.assertIn('free-form prose', llm.requests[1][0][-1]['content'])
+
+    async def test_agent_keeps_freeform_notes_through_empty_search_and_final_synthesis(self):
         llm = FakeLLM([
             Reply(text=json.dumps({"conditions": [c["text"] for c in CONDITIONS]})),
             call("web_search", {"query": "film publication year original book"}),
-            Reply(text=json.dumps(reading())),
-            call("web_search", {"query": "Example Film original book", "candidate_updates": updates}),
+            Reply(text=PAGE),
+            call("web_search", {"query": "Example Film original book"}),
             Reply(text="Example Film"), Reply(text="Example Film"),
         ])
         bodies = []
@@ -157,14 +123,14 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(llm.requests), 6)
         for index in (3, 4, 5):
             self.assertIn("Example Film", str(llm.requests[index][0]))
-            self.assertIn("Persistent candidate memory", str(llm.requests[index][0]))
-        self.assertIn('"status":"verifying"', str(llm.requests[4][0]))
+            self.assertIn(PAGE, str(llm.requests[index][0]))
+            self.assertNotIn("Persistent candidate memory", str(llm.requests[index][0]))
         schema = llm.requests[1][1][0]["function"]
-        self.assertIn("candidate_updates", schema["parameters"]["properties"])
+        self.assertNotIn("candidate_updates", schema["parameters"]["properties"])
         self.assertNotIn("current reasoning guides", schema["description"])
         self.assertTrue(all("main_reasoning" not in body for body in bodies))
         self.assertTrue(all(body["question_conditions"] == CONDITIONS for body in bodies))
-        self.assertTrue(any(k == "jevtree.candidate_update" for k, _ in trace.events))
+        self.assertFalse(any(k == "jevtree.candidate_update" for k, _ in trace.events))
 
 
 if __name__ == "__main__":
