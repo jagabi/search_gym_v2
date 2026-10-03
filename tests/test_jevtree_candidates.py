@@ -9,11 +9,13 @@ from offline import FakeTools
 from test_depthsearch_core import call
 from test_reader_integrity import FakeLLM, MemoryTrace
 from searchgym.agent import AgentConfig, SearchAgent
+from searchgym.config import load_test
 from searchgym.explorer import Document, ExplorerConfig
 from searchgym.jevtree import JevTree, TreeNode
 from searchgym.jevtree_state import parse_conditions
 from searchgym.llm import Reply, Usage
 from searchgym.serving import profile_for
+from searchgym.runner import Runner, _agent_fingerprint
 
 
 QUESTION = "Which film was published in 2019?"
@@ -23,6 +25,35 @@ URL = "https://source.example/film"
 
 
 class CandidateTests(unittest.TestCase):
+    def test_real_jevtree_config_builds_runner_cache_key_and_tracks_both_scores(self):
+        config = load_test("conf.yaml", method="jevtree", model="gpt-oss",
+                           benchmark="browsecomp", limit=10)
+        # Exercise the production cache path with a nonempty jev_model. Default
+        # AgentConfig used in most unit tests skips Jev's fingerprint branch.
+        self.assertTrue(config.agent.jev_model)
+        runner = Runner.__new__(Runner)
+        runner.method = "jevtree"
+        runner.profile = profile_for(config.model)
+        runner.agent = SimpleNamespace(config=config.agent)
+        runner.explorer_config = config.explorer
+        runner.explorer_prompt = config.explorer_prompt
+        benchmark = SimpleNamespace(build_prompt=lambda item: item.question)
+        item = SimpleNamespace(question=QUESTION)
+        def key():
+            return runner.cache_key(benchmark, item, config.system_prompt)
+        original = key()
+        self.assertEqual(len(original), 64)
+        self.assertEqual(key(), original)
+        for name in ("IDENTIFICATION_QUESTION", "VERIFICATION_QUESTION"):
+            with patch("searchgym.jevtree." + name, {"type": "noul", "instructions": "changed"}):
+                self.assertNotEqual(key(), original)
+        with patch("searchgym.jevtree_state.CONDITION_PROMPT", "changed"):
+            self.assertNotEqual(key(), original)
+
+    def test_baseline_cache_fingerprint_does_not_include_jev_prompts(self):
+        fingerprint = json.loads(_agent_fingerprint(AgentConfig()))
+        self.assertFalse(any(k.startswith("jev_") for k in fingerprint))
+
     def test_question_conditions_cannot_introduce_guessed_country(self):
         self.assertEqual(parse_conditions(json.dumps({"conditions": [c["text"] for c in CONDITIONS]}),
                                           QUESTION), CONDITIONS)

@@ -434,9 +434,12 @@ def _agent_fingerprint(config: AgentConfig) -> str:
         # Preserve existing cache identities for methods without the Jev tree.
         values = {k: v for k, v in values.items() if not k.startswith("jev_")}
     else:
-        from .jevtree import EVIDENCE_QUESTION, LINK_CRITERIA
+        from .jevtree import IDENTIFICATION_QUESTION, VERIFICATION_QUESTION, LINK_CRITERIA
         from .jevtree import ENTRY_CRITERIA, ENTRY_NOTE
-        values["jev_questions"] = [EVIDENCE_QUESTION, LINK_CRITERIA, ENTRY_CRITERIA, ENTRY_NOTE]
+        from .jevtree_state import CONDITION_PROMPT
+        values["jev_questions"] = [IDENTIFICATION_QUESTION, VERIFICATION_QUESTION,
+                                   LINK_CRITERIA, ENTRY_CRITERIA, ENTRY_NOTE]
+        values["jev_condition_prompt"] = CONDITION_PROMPT
     if not values.get("adaptive_entry"):
         values.pop("adaptive_entry", None)
     if not values.get("dual_route"):
