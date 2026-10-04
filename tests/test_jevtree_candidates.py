@@ -1,4 +1,4 @@
-"""Offline regressions for free-form reading, condition extraction and dual ranking."""
+"""Offline regressions for free-form reading without condition extraction."""
 import copy
 import json
 import unittest
@@ -11,15 +11,13 @@ from test_reader_integrity import FakeLLM, MemoryTrace
 from searchgym.agent import AgentConfig, SearchAgent
 from searchgym.config import load_test
 from searchgym.explorer import Document, ExplorerConfig
-from searchgym.jevtree import JevTree, TreeNode
-from searchgym.jevtree_state import parse_conditions
+from searchgym.jevtree import JevTree, TreeNode, SEARCH_FOLLOWUP
 from searchgym.llm import Reply, Usage
 from searchgym.serving import profile_for
 from searchgym.runner import Runner, _agent_fingerprint
 
 
 QUESTION = "Which film was published in 2019?"
-CONDITIONS = [{"id": "C1", "text": "Which film"}, {"id": "C2", "text": "published in 2019"}]
 PAGE = "Example Film was published in 2019."
 URL = "https://source.example/film"
 
@@ -47,19 +45,14 @@ class CandidateTests(unittest.TestCase):
         for name in ("IDENTIFICATION_QUESTION", "VERIFICATION_QUESTION"):
             with patch("searchgym.jevtree." + name, {"type": "noul", "instructions": "changed"}):
                 self.assertNotEqual(key(), original)
-        with patch("searchgym.jevtree_state.CONDITION_PROMPT", "changed"):
+        with patch("searchgym.jevtree_input.INPUT_VERSION", "changed"):
+            self.assertNotEqual(key(), original)
+        with patch("searchgym.jevtree.SEARCH_FOLLOWUP", "changed"):
             self.assertNotEqual(key(), original)
 
     def test_baseline_cache_fingerprint_does_not_include_jev_prompts(self):
         fingerprint = json.loads(_agent_fingerprint(AgentConfig()))
         self.assertFalse(any(k.startswith("jev_") for k in fingerprint))
-
-    def test_question_conditions_cannot_introduce_guessed_country(self):
-        self.assertEqual(parse_conditions(json.dumps({"conditions": [c["text"] for c in CONDITIONS]}),
-                                          QUESTION), CONDITIONS)
-        with self.assertRaises(ValueError):
-            parse_conditions('{"conditions": ["from Ghana"]}', QUESTION)
-
 
 
 class PipelineTests(unittest.IsolatedAsyncioTestCase):
@@ -71,14 +64,13 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         config.update(overrides)
         return JevTree(**config)
 
-    async def test_condition_extraction_runs_once_and_falls_back_without_guesses(self):
-        llm = FakeLLM([Reply(text='{"conditions":["Ghana"]}'), Reply(text='invalid')])
+    async def test_search_without_pages_never_calls_condition_model(self):
+        llm = FakeLLM([])
         tree, trace, usage = self.tree(llm), MemoryTrace(), Usage()
-        await tree.prepare(QUESTION, trace, usage)
-        await tree.prepare(QUESTION, trace, usage)
-        self.assertEqual(tree.conditions, [{"id": "C1", "text": QUESTION}])
-        self.assertEqual(usage.calls, 2)
-        self.assertTrue(any(k == "jevtree.conditions_fallback" for k, _ in trace.events))
+        await tree.run_search('query', [], question=QUESTION, main_reasoning='', trace=trace, usage=usage)
+        self.assertEqual(usage.calls, 0)
+        self.assertEqual(llm.requests, [])
+        self.assertFalse(any('conditions' in k for k, _ in trace.events))
 
     async def test_dual_selection_reserves_verification_and_deduplicates(self):
         tree = self.tree(FakeLLM([]), reads=4)
@@ -94,7 +86,6 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         text = 'A useful candidate is Example Film; the source suggests a 2019 publication.\nNext, check the author.'
         llm = FakeLLM([Reply(text=text)])
         tree, trace = self.tree(llm), MemoryTrace()
-        tree.conditions = CONDITIONS
         node = TreeNode(URL, 1, document=Document(URL, PAGE))
         await tree._read(node, QUESTION, trace, Usage())
         self.assertEqual(node.notes, text)
@@ -102,6 +93,7 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         messages = llm.requests[0][0]
         self.assertEqual(messages[0]['content'], tree.reader_prompt)
         self.assertNotIn('main_reasoning', json.loads(messages[1]['content']))
+        self.assertNotIn('question_conditions', json.loads(messages[1]['content']))
         self.assertFalse(any(k in ('jevtree.reader_invalid', 'jevtree.reader_validated') for k, _ in trace.events))
 
     async def test_truncated_reader_preserves_partial_notes_without_retry(self):
@@ -123,7 +115,6 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_agent_keeps_freeform_notes_through_empty_search_and_final_synthesis(self):
         llm = FakeLLM([
-            Reply(text=json.dumps({"conditions": [c["text"] for c in CONDITIONS]})),
             call("web_search", {"query": "film publication year original book"}),
             Reply(text=PAGE),
             call("web_search", {"query": "Example Film original book"}),
@@ -151,17 +142,35 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.answer, "Example Film")
         self.assertEqual(result.searches, 2)
         self.assertEqual(tools.fetch.await_count, 1)  # second search has no unread pages
-        self.assertEqual(len(llm.requests), 6)
-        for index in (3, 4, 5):
+        self.assertEqual(len(llm.requests), 5)
+        for request_index, query in [(2, 'film publication year original book'),
+                                     (3, 'Example Film original book')]:
+            tool_messages = [m['content'] for m in llm.requests[request_index][0] if m['role'] == 'tool']
+            suffix = SEARCH_FOLLOWUP.format(query=json.dumps(query, ensure_ascii=False))
+            self.assertTrue(tool_messages[-1].endswith(suffix))
+            self.assertEqual(tool_messages[-1].count('Next action:'), 1)
+        for index in (2, 3, 4):
             self.assertIn("Example Film", str(llm.requests[index][0]))
             self.assertIn(PAGE, str(llm.requests[index][0]))
             self.assertNotIn("Persistent candidate memory", str(llm.requests[index][0]))
-        schema = llm.requests[1][1][0]["function"]
+        schema = llm.requests[0][1][0]["function"]
         self.assertNotIn("candidate_updates", schema["parameters"]["properties"])
         self.assertNotIn("current reasoning guides", schema["description"])
         self.assertTrue(all("main_reasoning" not in body for body in bodies))
-        self.assertTrue(all(body["question_conditions"] == CONDITIONS for body in bodies))
+        self.assertTrue(all('question_conditions' not in body for body in bodies))
+        self.assertFalse(any('conditions' in k for k, _ in trace.events))
         self.assertFalse(any(k == "jevtree.candidate_update" for k, _ in trace.events))
+
+    async def test_followup_stays_last_when_search_result_is_trimmed(self):
+        agent = object.__new__(SearchAgent)
+        agent.config = AgentConfig(context_limit=600)
+        agent.llm = FakeLLM([])
+        suffix = '\n\n' + SEARCH_FOLLOWUP.format(query=json.dumps('new query'))
+        from searchgym.agent import RunResult
+        output, truncated = await agent._fit('source text ' * 1000, RunResult(), suffix=suffix)
+        self.assertTrue(truncated)
+        self.assertTrue(output.endswith(suffix))
+        self.assertTrue(output.startswith('source text'))
 
 
 if __name__ == "__main__":

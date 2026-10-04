@@ -41,7 +41,7 @@ __all__ = ["Cache", "Record", "Runner"]
 # 몫을 큰 문서에 돌려준다). search-o1 이 보는 내용이 달라지므로 이전 결과는 못 쓴다.
 CACHE_VERSION = "agent/35"
 DEPTHSEARCH_CACHE_VERSION = "agent/57-ds-adaptive-entry"
-JEVTREE_CACHE_VERSION = "agent/65-jevtree-freeform-reader"
+JEVTREE_CACHE_VERSION = "agent/68-jevtree-query-followup"
 JUDGE_VERSION = "judge/1"
 
 
@@ -435,11 +435,12 @@ def _agent_fingerprint(config: AgentConfig) -> str:
         values = {k: v for k, v in values.items() if not k.startswith("jev_")}
     else:
         from .jevtree import IDENTIFICATION_QUESTION, VERIFICATION_QUESTION, LINK_CRITERIA
-        from .jevtree import ENTRY_CRITERIA, ENTRY_NOTE
-        from .jevtree_state import CONDITION_PROMPT
+        from .jevtree import ENTRY_CRITERIA, ENTRY_NOTE, SEARCH_FOLLOWUP
+        from .jevtree_input import INPUT_VERSION
         values["jev_questions"] = [IDENTIFICATION_QUESTION, VERIFICATION_QUESTION,
                                    LINK_CRITERIA, ENTRY_CRITERIA, ENTRY_NOTE]
-        values["jev_condition_prompt"] = CONDITION_PROMPT
+        values["jev_input_format"] = INPUT_VERSION
+        values["jev_search_followup"] = SEARCH_FOLLOWUP
     if not values.get("adaptive_entry"):
         values.pop("adaptive_entry", None)
     if not values.get("dual_route"):

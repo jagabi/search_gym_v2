@@ -2,9 +2,9 @@
 
     main web_search(query)                    the main model only writes queries
       → Jev: result_i per search result       entry score; top-e results (>= floor)
-      → each entry page: candidate identification + condition verification + link_i
+      → 5k-token prefix: direct answer + full-page answer likelihood + link_i
       → top-b links by link score are fetched (depth 2, then depth 3)
-      → up to r pages alternating identification/verification ranks (>= floor)
+      → up to r pages alternating direct-answer/answer-likelihood ranks (>= floor)
         are read independently in free-form prose
       → results + reader notes return verbatim to the main
 
@@ -31,7 +31,7 @@ from urllib.parse import urlsplit
 
 from .explorer import Document, _JUNK, _balanced_markdown_links, _content_fingerprint, _norm, _page_links
 from .llm import LLM, Usage
-from .jevtree_state import CONDITION_PROMPT, parse_conditions
+from .jevtree_input import LINK_CRITERIA, complete_prefix, page_requests
 from .research_state import is_search_endpoint
 from .trace import Trace
 
@@ -40,54 +40,35 @@ JEV_URL = "https://api.typesafe.ai/v1/systemone"
 LINKS_PER_REQUEST = 100
 MAX_LINKS = 300
 
-ENTRY_NOTE = (
-    "`question` is the original research question. "
-    "`search_results` are the results of `search_query` (titles, URLs, snippets only)."
-)
-STATE_NOTE = (
-    "`question` is the original research question. "
-    "`page_text` is the fetched page (possibly truncated)."
-)
+SEARCH_FOLLOWUP = """Next action:
+The results above were obtained using the query {query}.
+
+Use these results together with all evidence collected so far. If they support
+an answer to the original question, return the final answer instead of searching again.
+
+If you cannot answer yet and another search is available:
+- If you found a promising candidate or a new connection, use it to search for
+  a specific fact that is still unverified.
+- If you gained no new lead, abandon the current approach. Start from a different
+  clue, relationship, or type of source in the original question.
+- Do not repeat the previous query with only a number, a few keywords, or synonyms
+  changed. The next query must seek different information, not rephrase the same search."""
+
+ENTRY_NOTE = "Rate search_results against question."
 IDENTIFICATION_QUESTION = {
     "type": "noul",
-    "instructions": (
-        STATE_NOTE + " Does this page identify a concrete candidate through a distinctive "
-        "condition or relation in `question_conditions`, narrowing the original question?"
-    ),
-    "criteria": {
-        "true": "Names a plausible candidate and explicitly connects it to a distinguishing "
-                "clue, or gives a concrete relation that substantially narrows the candidate set. "
-                "A partial but distinctive identifying clue is useful; all conditions need not match.",
-        "false": "Only shares a broad topic, common birthplace, generic date range or isolated "
-                 "keyword without narrowing the target; or is unrelated, blocked or empty.",
-    },
+    "instructions": "Does page_text explicitly answer question?",
+    "criteria": {"true": "Answer directly supported.", "false": "No explicit answer."},
 }
 VERIFICATION_QUESTION = {
     "type": "noul",
-    "instructions": STATE_NOTE + " Does this page explicitly confirm or refute a condition "
-                    "in `question_conditions` for a concrete, plausible candidate for `question`?",
-    "criteria": {
-        "true": "A source statement links a plausible candidate to a requested date, entity, "
-                "attribute or relation, letting that condition be checked. Explicit contradictory "
-                "facts are useful too; merely not mentioning a condition is not a contradiction.",
-        "false": "Only topical similarity or unrelated facts; no explicit candidate-condition "
-                 "relation that can be checked. An error, blocked page or navigation only.",
-    },
-}
-LINK_CRITERIA = {
-    "true": "The anchor and nearby source text connect this link to a specific condition "
-            "in question_conditions: identifying a candidate, connecting entities, or checking "
-            "a candidate's missing fact or contradiction. A useful intermediate page counts "
-            "even when it cannot answer the whole question by itself.",
-    "false": "The link is navigation or site chrome, or leads to a topic unrelated to the "
-             "facts the question asks for.",
+    "instructions": "Does this possibly truncated page_text suggest the full page may contain the answer to question?",
+    "criteria": {"true": "Specific clues suggest the answer.", "false": "Unrelated or generic overlap."},
 }
 
 ENTRY_CRITERIA = {
-    "true": "Opening this result would likely give facts needed to answer the question or "
-            "verify a candidate, either on the page itself or through pages it links to.",
-    "false": "The result is unrelated, spam that only repeats query words, a search or "
-             "listing page with no route to the needed facts, or otherwise not worth opening.",
+    "true": "Helps find the answer.",
+    "false": "Unrelated or spam.",
 }
 
 
@@ -287,36 +268,9 @@ class JevTree:
         self.jev_page_tokens = jev_page_tokens
         self.visited = visited  # per question, across main fetches
         self.contents: dict[str, str] = {}  # body fingerprint -> first URL (redirect copies)
-        self.conditions: list[dict[str, str]] = []
-
-    async def prepare(self, question: str, trace: Trace, usage: Usage) -> None:
-        """Extract verbatim question conditions once, without main hypotheses."""
-        if self.conditions:
-            return
-        messages = [{"role": "system", "content": CONDITION_PROMPT},
-                    {"role": "user", "content": question}]
-        for attempt in range(2):
-            trace.event("jevtree.conditions_request", attempt=attempt, messages=messages)
-            try:
-                reply = await self.llm.chat(messages, max_tokens=4096, usage=usage, tool_choice="none")
-                trace.event("jevtree.conditions_response", attempt=attempt, text=reply.text,
-                            reasoning=reply.reasoning, finish_reason=reply.finish_reason,
-                            prompt_tokens=reply.prompt_tokens, completion_tokens=reply.completion_tokens)
-                if reply.truncated or reply.tool_calls:
-                    raise ValueError("Incomplete condition extraction")
-                self.conditions = parse_conditions(reply.text, question)
-                break
-            except Exception as exc:
-                trace.event("jevtree.conditions_error", attempt=attempt, error=repr(exc))
-                messages.append({"role": "user", "content":
-                    "Return complete JSON with a conditions array of exact excerpts copied from the question."})
-        if not self.conditions:
-            self.conditions = [{"id": "C1", "text": question}]
-            trace.event("jevtree.conditions_fallback", reason="Use original question without inferred constraints")
-        trace.event("jevtree.conditions", conditions=self.conditions)
 
     def _select_readers(self, nodes: list[TreeNode]) -> list[TreeNode]:
-        """Alternate identification/verification slots, deduplicating both ranks."""
+        """Alternate direct-answer/answer-likelihood ranks (legacy field names)."""
         queues = [sorted((n for n in nodes if (getattr(n, score) or 0) >= self.floor),
                          key=lambda n: getattr(n, score) or 0, reverse=True)
                   for score in ("identification", "verification")]
@@ -339,7 +293,6 @@ class JevTree:
     async def run_search(self, query: str, results: list[dict[str, Any]], *, question: str,
                          main_reasoning: str, trace: Trace, usage: Usage) -> tuple[dict[str, Any], str, dict[str, int]]:
         """Grow trees and read both ranks; main_reasoning is a legacy unused argument."""
-        await self.prepare(question, trace, usage)
         stats = {"fetched": 0, "fetch_failed": 0, "jev_requests": 0, "links_scored": 0, "entries": 0}
         jev_usage = JevUsage()
         search_id = uuid4().hex
@@ -353,13 +306,12 @@ class JevTree:
                 continue
             candidates.append((url, str(row.get("title") or ""), str(row.get("snippet") or "")))
         if candidates:
-            state = {"question": question, "question_conditions": self.conditions, "search_query": query,
+            state = {"question": question, "search_query": query,
                      "search_results": [{"id": f"result_{i}", "title": t, "url": u, "snippet": sn}
                                         for i, (u, t, sn) in enumerate(candidates)]}
             questions = {f"result_{i}": {
                 "type": "noul",
-                "instructions": (ENTRY_NOTE + f" Would opening `search_results` item result_{i} "
-                                 f"({u}) help answer `question`?"),
+                "instructions": ENTRY_NOTE + f" Would result_{i} help find the answer?",
                 "criteria": ENTRY_CRITERIA,
             } for i, (u, _t, _sn) in enumerate(candidates)}
             scores = await self.jev.noul(
@@ -403,53 +355,42 @@ class JevTree:
 
     async def _score(self, node: TreeNode, question: str, trace: Trace,
                      stats: dict[str, int], jev_usage: JevUsage, search_id: str) -> None:
-        page, _ = await self.llm.cap(node.document.content, self.jev_page_tokens)
-        state = {"question": question, "question_conditions": self.conditions,
-                 "page_url": node.url, "page_text": page}
+        source = node.document.content
+        page, excerpt_cut = await self.llm.cap(source, self.jev_page_tokens)
+        page = complete_prefix(source, page)
         links = (candidate_links(page, node.url, self.visited)
                  if node.depth < self.depth else [])
-        questions: list[dict[str, Any]] = [{"candidate_identification": IDENTIFICATION_QUESTION,
-                                         "condition_verification": VERIFICATION_QUESTION}]
-        for start in range(0, len(links), LINKS_PER_REQUEST):
-            chunk = {}
-            for i, (url, anchor) in enumerate(links[start:start + LINKS_PER_REQUEST], start):
-                position = page.find(url)
-                if position < 0 and anchor:
-                    position = page.find(anchor)
-                # The full page is already in state; keep this locator short and
-                # do not duplicate long URLs inside every surrounding excerpt.
-                nearby = (page[max(0, position - 60):position] + " [link] "
-                          + page[position + len(url):position + len(url) + 60]) if position >= 0 else ""
-                chunk[f"link_{i}"] = {
-                    "type": "noul",
-                    "instructions": ("Would this link identify a candidate or check a question_condition? Source data: "
-                                     + json.dumps({"url": url, "anchor": anchor, "nearby_text": nearby},
-                                                  ensure_ascii=False)),
-                    "criteria": LINK_CRITERIA,
-                }
-            if start == 0:
-                questions[0].update(chunk)
-            else:
-                questions.append(chunk)
+        packets = page_requests(
+            question=question, page_url=node.url, page=page, links=links,
+            page_questions={"direct_answer": IDENTIFICATION_QUESTION,
+                            "answer_likelihood": VERIFICATION_QUESTION},
+            links_per_request=LINKS_PER_REQUEST)
+        trace.event("jevtree.input_compacted", search_id=search_id, url=node.url,
+                    source_chars=len(source), excerpt_chars=len(page), excerpt_truncated=excerpt_cut,
+                    links=len(links), chunks=len(packets),
+                    request_chars=sum(len(json.dumps({"state": s, "questions": q}, ensure_ascii=False))
+                                      for s, q in packets))
         scores: dict[str, float] = {}
         results = await asyncio.gather(*(self.jev.noul(
             state, q, trace, usage=jev_usage,
             context={"search_id": search_id, "phase": "page", "page_url": node.url,
                      "parent_url": node.parent, "depth": node.depth,
-                     "chunk_index": i, "chunks": len(questions)},
-        ) for i, q in enumerate(questions)))
+                     "chunk_index": i, "chunks": len(packets)},
+        ) for i, (state, q) in enumerate(packets)))
         for part in results:
             scores.update(part)
         stats["links_scored"] += len(links)
-        node.identification = scores.get("candidate_identification")
-        node.verification = scores.get("condition_verification")
+        # Preserve historical report fields while exposing the new meanings explicitly.
+        node.identification = scores.get("direct_answer")
+        node.verification = scores.get("answer_likelihood")
         # Legacy reports use evidence; selection uses the two separate ranks.
         node.evidence = max(node.identification or 0, node.verification or 0)
         node.link_scores = [(scores.get(f"link_{i}", 0.0), url, anchor)
                             for i, (url, anchor) in enumerate(links)]
         trace.event("jevtree.scored", search_id=search_id, url=node.url, depth=node.depth, evidence=node.evidence,
                     identification=node.identification, verification=node.verification,
-                    links=len(links), page_truncated=len(page) < len(node.document.content),
+                    direct_answer=node.identification, answer_likelihood=node.verification,
+                    links=len(links), page_truncated=len(page) < len(source),
                     link_scores=[{"id": f"link_{i}", "url": url, "anchor": anchor,
                                   "score": scores.get(f"link_{i}")}
                                  for i, (url, anchor) in enumerate(links)],
@@ -501,8 +442,7 @@ class JevTree:
 
     async def _read(self, node: TreeNode, question: str,
                     trace: Trace, usage: Usage) -> None:
-        state = {"question": question, "question_conditions": self.conditions,
-                 "page_url": node.url, "page_text": node.document.content}
+        state = {"question": question, "page_url": node.url, "page_text": node.document.content}
         messages = [{"role": "system", "content": self.reader_prompt},
                     {"role": "user", "content": json.dumps(state, ensure_ascii=False, indent=1)}]
         for attempt in range(2):
@@ -548,8 +488,8 @@ class JevTree:
             else:
                 head += ", search result"
             if node.evidence is not None:
-                head += (f", identification {node.identification or 0:.2f}, "
-                         f"verification {node.verification or 0:.2f}")
+                head += (f", direct_answer {node.identification or 0:.2f}, "
+                         f"answer_likelihood {node.verification or 0:.2f}")
             lines.append(head + ")")
             lines.append(node.notes or "(no notes)")
         unread = [n for n in nodes if not n.read]

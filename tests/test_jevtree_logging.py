@@ -39,7 +39,7 @@ class JevLoggingTests(unittest.IsolatedAsyncioTestCase):
             return text, False
 
         async def chat(messages, **kwargs):
-            return Reply(text=json.dumps({"conditions": [messages[1]["content"]]}))
+            raise AssertionError('No preparation LLM call is allowed')
 
         config = dict(jev=self.jev, llm=SimpleNamespace(cap=cap, chat=chat), fetch=fetch,
                       reader_prompt="read", reader_max_tokens=100, entries=1,
@@ -87,7 +87,13 @@ class JevLoggingTests(unittest.IsolatedAsyncioTestCase):
                          {e["request_id"] for e in responses})
         root_requests = [e for e in requests if e["body"]["state"].get("page_url") == root]
         self.assertEqual([len(e["body"]["questions"]) for e in root_requests], [102, 1])
-        self.assertTrue(all(e["body"]["state"]["page_text"] == page for e in root_requests))
+        self.assertIn("Full page text", root_requests[0]["body"]["state"]["page_text"])
+        self.assertEqual(root_requests[1]["body"]["state"]["page_text"],
+                         root_requests[0]["body"]["state"]["page_text"])
+        later_state = root_requests[1]["body"]["state"]
+        self.assertIn('[Anchor 100](link_100)', later_state['page_text'])
+        self.assertNotIn('question_conditions', later_state)
+        self.assertNotIn('link_contexts', later_state)
         self.assertEqual([e["context"]["chunk_index"] for e in root_requests], [0, 1])
         self.assertTrue(all(e["context"]["search_id"] == log["search_id"] for e in requests))
         self.assertTrue(all(json.loads(e["response_text"])["extra"]["preserve"]

@@ -30,7 +30,7 @@ from .llm import LLM, Usage, recover_tool_calls, normalize_tool_names, history_t
 from .serving import ServeProfile
 from .trace import ToolCall, Trace
 from .urls import normalize_fetch_url
-from .jevtree import Jev, JevTree
+from .jevtree import Jev, JevTree, SEARCH_FOLLOWUP
 from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL, ENTRY_PROMPT, entry_prompt,
                              parse_control, is_search_endpoint, batch_fetch_tool, entry_return_messages)
 
@@ -143,7 +143,7 @@ class AgentConfig:
     jev_depth: int = 3             # d: root is depth 1
     jev_reads: int = 6             # r: alternate candidate-identification and condition-verification ranks
     jev_floor: float = 0.15        # τ: minimum entry/identification/verification score
-    jev_page_tokens: int = 20000   # page_text cap in Jev state (Jev window ~32k incl. questions)
+    jev_page_tokens: int = 5000    # only complete URLs inside this token-capped prefix are scored
     jev_reasoning_tokens: int = 2000  # legacy snapshot field; no longer used by Jev
 
 
@@ -522,8 +522,6 @@ class SearchAgent:
                     if first_route_messages else current)
 
         try:
-            if jevtree is not None:
-                await jevtree.prepare(question, trace, result.usage)
             for turn in range(1, cfg.max_turns + 1):
                 if (dual_route and not first_route_messages and cfg.max_searches > 1
                         and result.searches >= (cfg.max_searches + 1) // 2
@@ -999,7 +997,11 @@ class SearchAgent:
             record.refused = True
             result.invalid_tool_calls += 1
 
-        text, truncated = await self._fit(text, result)
+        suffix = ""
+        if self.method == "jevtree" and name == "web_search":
+            suffix = "\n\n" + SEARCH_FOLLOWUP.format(
+                query=json.dumps(str(arguments.get("query") or ""), ensure_ascii=False))
+        text, truncated = await self._fit(text, result, suffix=suffix)
         if truncated:
             result.context_exhausted = True
             trace.event(
@@ -1708,13 +1710,19 @@ class SearchAgent:
         trace.event("control.state", **state.snapshot())
         return None
 
-    async def _fit(self, text: str, result: RunResult) -> tuple[str, bool]:
+    async def _fit(self, text: str, result: RunResult, *, suffix: str = "") -> tuple[str, bool]:
         """도구 결과가 컨텍스트 상한을 넘기면 남은 토큰만큼만 남긴다."""
         remaining = self.config.context_limit - result.context_tokens
         if remaining <= 0:
             return CONTEXT_EXHAUSTED.strip(), True
+        if suffix:
+            # Reserve the final instruction before trimming source text so it
+            # remains at the end of the next main-model tool message.
+            remaining -= await self.llm.count_tokens(suffix)
+            if remaining <= 0:
+                return CONTEXT_EXHAUSTED.strip(), True
         capped, truncated = await self.llm.cap(text, remaining)
-        return (capped + CONTEXT_EXHAUSTED, True) if truncated else (capped, False)
+        return (capped + CONTEXT_EXHAUSTED + suffix, True) if truncated else (capped + suffix, False)
 
 
 # --- 도우미 -----------------------------------------------------------------
