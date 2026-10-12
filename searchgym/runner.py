@@ -434,10 +434,10 @@ def _agent_fingerprint(config: AgentConfig) -> str:
         # Preserve existing cache identities for methods without the Jev tree.
         values = {k: v for k, v in values.items() if not k.startswith("jev_")}
     else:
-        from .jevtree import IDENTIFICATION_QUESTION, VERIFICATION_QUESTION, LINK_CRITERIA
+        from .jevtree import IDENTIFICATION_QUESTION, QUERY_ANSWER_QUESTION, LINK_CRITERIA
         from .jevtree import ENTRY_CRITERIA, ENTRY_NOTE, SEARCH_FOLLOWUP
         from .jevtree_input import INPUT_VERSION
-        values["jev_questions"] = [IDENTIFICATION_QUESTION, VERIFICATION_QUESTION,
+        values["jev_questions"] = [IDENTIFICATION_QUESTION, QUERY_ANSWER_QUESTION,
                                    LINK_CRITERIA, ENTRY_CRITERIA, ENTRY_NOTE]
         values["jev_input_format"] = INPUT_VERSION
         values["jev_search_followup"] = SEARCH_FOLLOWUP

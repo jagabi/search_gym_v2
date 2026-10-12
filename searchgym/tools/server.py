@@ -20,6 +20,7 @@ import os
 import random
 import threading
 import time
+from urllib.parse import urlsplit
 from typing import Any
 
 from anyio import to_thread
@@ -48,6 +49,10 @@ load_env()
 
 SERPER_HOST = "google.serper.dev"
 JINA_HOST = "r.jina.ai"
+JINA_BASE_URL = os.getenv("JINA_BASE_URL", "https://r.jina.ai").rstrip("/")
+JINA_MAX_CONCURRENT = max(1, int(os.getenv("JINA_MAX_CONCURRENT", "50")))
+_jina_slots = threading.BoundedSemaphore(JINA_MAX_CONCURRENT)
+_jina_thread_limiter = None
 TIMEOUT_S = 30.0
 
 SEARCH_RESULTS = int(os.getenv("SEARCH_RESULTS", "10"))
@@ -151,13 +156,17 @@ _pacer_lock = threading.Lock()
 _pacer: _Pacer | None = None
 
 
-def _jina_pacer() -> _Pacer:
+def _jina_pacer() -> _Pacer | None:
     """Jina 전용 페이서. 키가 있으면 한도가 훨씬 높다.
 
     `JINA_RPM` 으로 직접 줄 수 있다. 비워 두면 키 유무로 정한다 — 무료 티어는
     분당 20회라 18로 여유를 두고, 키가 있으면 유료 한도에 맞춰 올린다.
     """
     global _pacer
+    raw = os.getenv("JINA_RPM", "").strip()
+    # Self-hosted Reader has no hosted-service RPM limit. Zero explicitly disables it.
+    if raw == "0" or (not raw and urlsplit(JINA_BASE_URL).hostname != JINA_HOST):
+        return None
     with _pacer_lock:
         if _pacer is None:
             raw = os.getenv("JINA_RPM", "").strip()
@@ -177,12 +186,17 @@ def _request(
     *,
     pacer: _Pacer | None = None,
     retries: int = 0,
+    scheme: str = "https",
+    timeout_s: float = TIMEOUT_S,
+    slots: Any = None,
 ) -> str:
     """HTTP 한 번. `pacer` 가 있으면 속도를 맞추고, 재시도 가능한 응답은 다시 보낸다."""
     for attempt in range(retries + 1):
         if pacer is not None:
             pacer.acquire()
-        conn = http.client.HTTPSConnection(host, timeout=TIMEOUT_S)
+        conn = (http.client.HTTPConnection if scheme == "http" else http.client.HTTPSConnection)(host, timeout=timeout_s)
+        if slots is not None:
+            slots.acquire()
         try:
             conn.request(method, path, body, headers)
             response = conn.getresponse()
@@ -191,6 +205,8 @@ def _request(
             retry_after = response.getheader("Retry-After") or ""
         finally:
             conn.close()
+            if slots is not None:
+                slots.release()
 
         if status == 200:
             return payload
@@ -287,7 +303,10 @@ def fetch(url: str) -> str:
         headers["X-With-Images-Summary"] = "true"
     if JINA_ENGINE:
         headers["X-Engine"] = JINA_ENGINE
-    if key := os.getenv("JINA_API_KEY"):
+    endpoint = urlsplit(JINA_BASE_URL)
+    if endpoint.scheme not in ("http", "https") or not endpoint.netloc:
+        raise RuntimeError("JINA_BASE_URL must be an absolute HTTP(S) address")
+    if (key := os.getenv("JINA_API_KEY")) and endpoint.hostname == JINA_HOST:
         headers["Authorization"] = f"Bearer {key}"
     # Jina Reader는 읽을 주소를 경로에 그대로 이어 붙인다.
     # 페이서와 재시도를 여기서 건다 — 모든 페치가 지나가는 단일 관문이라, 속도
@@ -300,8 +319,10 @@ def fetch(url: str) -> str:
     # 나왔다). 모델에게는 **자기가 요청한 주소**만 보여 준다.
     try:
         text = _request(
-            JINA_HOST, "GET", f"/{url}", headers,
+            endpoint.netloc, "GET", f"{endpoint.path.rstrip('/')}/{url}", headers,
             pacer=_jina_pacer(), retries=JINA_RETRIES,
+            scheme=endpoint.scheme, timeout_s=float(os.getenv("JINA_TIMEOUT_S", "60")),
+            slots=_jina_slots,
         )
     except RuntimeError as exc:
         detail = str(exc).split(": ", 1)[-1]
@@ -336,7 +357,11 @@ async def web_fetch(url: str) -> str:
     Args:
         url: Absolute URL of the page to read, including the scheme.
     """
-    return await to_thread.run_sync(lambda: fetch(url))
+    global _jina_thread_limiter
+    if _jina_thread_limiter is None:
+        from anyio import CapacityLimiter
+        _jina_thread_limiter = CapacityLimiter(JINA_MAX_CONCURRENT)
+    return await to_thread.run_sync(lambda: fetch(url), limiter=_jina_thread_limiter)
 
 
 def main() -> None:

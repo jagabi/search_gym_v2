@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LDS — 한 행동씩 보기</title>
+<style>
+body{margin:0;background:#f7f8fa;color:#192a3d;font-family:system-ui,"Malgun Gothic",sans-serif}
+nav{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 20px;background:white;border-bottom:1px solid #ccd2db;position:sticky;top:0}
+button,input{font:inherit;padding:8px 12px}button{cursor:pointer}input{width:65px}a{color:#245f9c}
+figure{margin:12px auto;max-width:1700px}img{display:block;width:100%;height:auto;background:white}
+.hint{color:#65758a;font-size:14px}#status{font-variant-numeric:tabular-nums}
+</style></head><body>
+<nav aria-label="단계 이동"><button id="prev" type="button">← 이전</button><button id="next" type="button">다음 →</button>
+<label>Action # <input id="number" type="number" min="1" value="1"></label><span id="status" aria-live="polite"></span>
+<a id="original" target="_blank">현재 SVG 원본 열기</a><span class="hint">키보드 ← → 로도 이동</span></nav>
+<figure><img id="frame" alt="현재 행동의 트리 상태"></figure>
+<script>
+const actions=__ACTION_DATA__;
+let current=0;
+const frame=document.getElementById('frame'),number=document.getElementById('number');
+number.max=actions.length;
+function show(i){current=Math.max(0,Math.min(actions.length-1,i));const a=actions[current];
+ const path='action_'+String(a.number).padStart(3,'0')+'.svg';
+ frame.src=path;frame.alt='Action '+a.number+': '+a.title;
+ document.getElementById('original').href=path;number.value=a.number;
+ document.getElementById('status').textContent='/ '+actions.length+' · fetch '+a.fetch+'/40 · JEV '+a.jev;
+ document.getElementById('prev').disabled=current===0;document.getElementById('next').disabled=current===actions.length-1;
+ history.replaceState(null,'','#'+a.number);
+}
+document.getElementById('prev').onclick=()=>show(current-1);
+document.getElementById('next').onclick=()=>show(current+1);
+number.onchange=()=>show((Number(number.value)||1)-1);
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;if(e.key==='ArrowRight'){e.preventDefault();show(current+1)}if(e.key==='ArrowLeft'){e.preventDefault();show(current-1)}});
+show((Number(location.hash.slice(1))||1)-1);
+</script></body></html>

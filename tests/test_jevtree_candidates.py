@@ -42,7 +42,7 @@ class CandidateTests(unittest.TestCase):
         original = key()
         self.assertEqual(len(original), 64)
         self.assertEqual(key(), original)
-        for name in ("IDENTIFICATION_QUESTION", "VERIFICATION_QUESTION"):
+        for name in ("IDENTIFICATION_QUESTION", "QUERY_ANSWER_QUESTION"):
             with patch("searchgym.jevtree." + name, {"type": "noul", "instructions": "changed"}):
                 self.assertNotEqual(key(), original)
         with patch("searchgym.jevtree_input.INPUT_VERSION", "changed"):
@@ -72,35 +72,57 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(llm.requests, [])
         self.assertFalse(any('conditions' in k for k, _ in trace.events))
 
-    async def test_dual_selection_reserves_verification_and_deduplicates(self):
-        tree = self.tree(FakeLLM([]), reads=4)
-        nodes = [TreeNode(f"https://example.org/{i}", 1, identification=a, verification=b)
+    async def test_dual_selection_reserves_query_and_deduplicates(self):
+        tree = self.tree(FakeLLM([]), reads=4, direct_reads=2, query_reads=2)
+        nodes = [TreeNode(f"https://example.org/{i}", 1, identification=a, query_answer=b)
                  for i, (a, b) in enumerate([(.99, .9), (.98, .1), (.97, .1), (.96, .1), (.2, .95)])]
         chosen = tree._select_readers(nodes)
-        self.assertEqual([n.url.rsplit('/', 1)[-1] for n in chosen], ["0", "4", "1", "2"])
-        self.assertEqual(len({n.url for n in chosen}), 4)
+        self.assertEqual([n.url.rsplit('/', 1)[-1] for n in chosen], ["0", "1", "4"])
+        self.assertEqual(len({n.url for n in chosen}), 3)
         self.assertEqual(tree._select_readers([TreeNode("https://low.example", 1,
-                                                      identification=.1, verification=.1)]), [])
+                                                      identification=.1, query_answer=.1)]), [])
 
     async def test_reader_preserves_prose_without_format_or_quote_validation(self):
         text = 'A useful candidate is Example Film; the source suggests a 2019 publication.\nNext, check the author.'
         llm = FakeLLM([Reply(text=text)])
         tree, trace = self.tree(llm), MemoryTrace()
         node = TreeNode(URL, 1, document=Document(URL, PAGE))
-        await tree._read(node, QUESTION, trace, Usage())
+        await tree._read(node, QUESTION, trace, Usage(), query='Find film publication')
         self.assertEqual(node.notes, text)
         self.assertEqual(len(llm.requests), 1)
         messages = llm.requests[0][0]
         self.assertEqual(messages[0]['content'], tree.reader_prompt)
         self.assertNotIn('main_reasoning', json.loads(messages[1]['content']))
+        self.assertEqual(json.loads(messages[1]['content'])['search_query'], 'Find film publication')
         self.assertNotIn('question_conditions', json.loads(messages[1]['content']))
         self.assertFalse(any(k in ('jevtree.reader_invalid', 'jevtree.reader_validated') for k, _ in trace.events))
+
+    def test_two_direct_four_query_slots_with_overlap_and_no_transfer(self):
+        tree = self.tree(FakeLLM([]), reads=6, direct_reads=2, query_reads=4)
+        nodes = [TreeNode(f'https://example.org/{i}', 1, identification=d, query_answer=q)
+                 for i, (d, q) in enumerate([(.99, .99), (.98, .2), (.97, .1),
+                                            (.01, .98), (.01, .97), (.01, .96), (.01, .95)])]
+        chosen = tree._select_readers(nodes)
+        self.assertEqual([n.url.rsplit('/', 1)[-1] for n in chosen], ['0', '1', '3', '4', '5', '6'])
+        self.assertEqual([n.reader_objective for n in chosen], ['direct_answer'] * 2 + ['query_answer'] * 4)
+        self.assertEqual(len(tree._select_readers(nodes[:3])), 2)  # don't steal empty query slots
+        with self.assertRaises(ValueError):
+            self.tree(FakeLLM([]), reads=6, direct_reads=3, query_reads=4)
+
+    async def test_reader_without_original_question_still_receives_query(self):
+        llm = FakeLLM([Reply(text='The archive opened in 1994.')])
+        node = TreeNode(URL, 1, document=Document(URL, PAGE))
+        await self.tree(llm)._read(node, '', MemoryTrace(), Usage(), query='archive opening year')
+        state = json.loads(llm.requests[0][0][1]['content'])
+        self.assertEqual(state['question'], '')
+        self.assertEqual(state['search_query'], 'archive opening year')
+        self.assertEqual(set(state), {'question', 'search_query', 'page_url', 'page_text'})
 
     async def test_truncated_reader_preserves_partial_notes_without_retry(self):
         llm = FakeLLM([Reply(text='Example Film was published', finish_reason='length')])
         tree = self.tree(llm)
         node = TreeNode(URL, 1, document=Document(URL, PAGE))
-        await tree._read(node, QUESTION, MemoryTrace(), Usage())
+        await tree._read(node, QUESTION, MemoryTrace(), Usage(), query='Find film publication')
         self.assertEqual(node.notes, 'Example Film was published\n[Reader output truncated.]')
         self.assertEqual(len(llm.requests), 1)
 
@@ -108,7 +130,7 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         llm = FakeLLM([Reply(text=''), Reply(text=PAGE)])
         tree = self.tree(llm)
         node = TreeNode(URL, 1, document=Document(URL, PAGE))
-        await tree._read(node, QUESTION, MemoryTrace(), Usage())
+        await tree._read(node, QUESTION, MemoryTrace(), Usage(), query='Find film publication')
         self.assertEqual(node.notes, PAGE)
         self.assertEqual(len(llm.requests), 2)
         self.assertIn('free-form prose', llm.requests[1][0][-1]['content'])

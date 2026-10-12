@@ -2,9 +2,9 @@
 
     main web_search(query)                    the main model only writes queries
       → Jev: result_i per search result       entry score; top-e results (>= floor)
-      → 5k-token prefix: direct answer + full-page answer likelihood + link_i
-      → top-b links by link score are fetched (depth 2, then depth 3)
-      → up to r pages alternating direct-answer/answer-likelihood ranks (>= floor)
+      → 5k-token prefix: original answer + current query answer + link_i
+      → top-b links are candidates for level or budgeted LDS expansion
+      → separate original-answer/query-answer reader quotas (>= floor)
         are read independently in free-form prose
       → results + reader notes return verbatim to the main
 
@@ -54,20 +54,20 @@ If you cannot answer yet and another search is available:
 - Do not repeat the previous query with only a number, a few keywords, or synonyms
   changed. The next query must seek different information, not rephrase the same search."""
 
-ENTRY_NOTE = "Rate search_results against question."
+ENTRY_NOTE = "Prioritize answering search_query; direct evidence for question also counts."
 IDENTIFICATION_QUESTION = {
     "type": "noul",
     "instructions": "Does page_text explicitly answer question?",
     "criteria": {"true": "Answer directly supported.", "false": "No explicit answer."},
 }
-VERIFICATION_QUESTION = {
+QUERY_ANSWER_QUESTION = {
     "type": "noul",
-    "instructions": "Does this possibly truncated page_text suggest the full page may contain the answer to question?",
-    "criteria": {"true": "Specific clues suggest the answer.", "false": "Unrelated or generic overlap."},
+    "instructions": "Does page_text provide evidence that answers search_query, even if question remains unresolved?",
+    "criteria": {"true": "Query answer supported by source facts.", "false": "Mere mention or no query answer."},
 }
 
 ENTRY_CRITERIA = {
-    "true": "Helps find the answer.",
+    "true": "Helps answer the query or directly answers the original question.",
     "false": "Unrelated or spam.",
 }
 
@@ -82,6 +82,8 @@ class TreeNode:
     evidence: float | None = None
     identification: float | None = None
     verification: float | None = None
+    query_answer: float | None = None
+    reader_objective: str = ""
     document: Document | None = None
     error: str = ""
     notes: str = ""
@@ -89,6 +91,10 @@ class TreeNode:
     children: list["TreeNode"] = field(default_factory=list)
     # (link score, url, anchor) for links visible in this page's Jev view
     link_scores: list[tuple[float, str, str]] = field(default_factory=list)
+    node_id: str = ""
+    root_id: str = ""
+    rank: int = 0
+    discrepancy: int = 0
 
     def log(self) -> dict[str, Any]:
         """Same shape as explorer logs so explorer.json/tree.svg keep working."""
@@ -100,6 +106,9 @@ class TreeNode:
             "evidence_score": self.evidence,
             "identification_score": self.identification,
             "verification_score": self.verification,
+            "direct_answer": self.identification,
+            "query_answer": self.query_answer,
+            "reader_objective": self.reader_objective,
             "read": self.read,
             "status": ("not_found" if self.error else "partial" if self.read else "unread"),
             "error": self.error or None,
@@ -107,6 +116,8 @@ class TreeNode:
             "information_chars": len(self.notes),
             "turns": int(self.read),
             "opened": [c.log() for c in self.children],
+            "node_id": self.node_id, "root_id": self.root_id,
+            "sibling_rank": self.rank, "discrepancy": self.discrepancy,
         }
 
 
@@ -259,6 +270,10 @@ class JevTree:
         floor: float,
         jev_page_tokens: int,
         visited: set[str],
+        strategy: str = "level",
+        fetch_budget: int = 40,
+        direct_reads: int | None = None,
+        query_reads: int | None = None,
     ) -> None:
         self.jev, self.llm, self.fetch = jev, llm, fetch
         self.reader_prompt = reader_prompt
@@ -267,31 +282,45 @@ class JevTree:
         self.branch, self.depth, self.reads, self.floor = branch, depth, reads, floor
         self.jev_page_tokens = jev_page_tokens
         self.visited = visited  # per question, across main fetches
+        if strategy not in ("level", "lds"):
+            raise ValueError(f"Unknown JEV strategy: {strategy}")
+        if min(entries, branch, depth, fetch_budget) < 1 or (strategy == "lds" and fetch_budget < entries):
+            raise ValueError("JEV limits must be positive; LDS fetch budget must cover starting roots")
+        self.strategy, self.fetch_budget = strategy, fetch_budget
+        if direct_reads is None:
+            direct_reads = reads - query_reads if query_reads is not None else reads // 3
+        if query_reads is None:
+            query_reads = reads - direct_reads
+        if min(direct_reads, query_reads) < 0 or direct_reads + query_reads != reads:
+            raise ValueError("JEV direct/query reader budgets must be nonnegative and sum to reads")
+        self.reader_budgets = {"direct_answer": direct_reads, "query_answer": query_reads}
         self.contents: dict[str, str] = {}  # body fingerprint -> first URL (redirect copies)
 
     def _select_readers(self, nodes: list[TreeNode]) -> list[TreeNode]:
-        """Alternate direct-answer/answer-likelihood ranks (legacy field names)."""
-        queues = [sorted((n for n in nodes if (getattr(n, score) or 0) >= self.floor),
-                         key=lambda n: getattr(n, score) or 0, reverse=True)
-                  for score in ("identification", "verification")]
+        """Reserve original-answer slots first, then query slots; read each URL once.
+
+        An overlap consumes only the direct slot, allowing another query page.
+        Insufficient eligible pages leave slots unused; budgets do not transfer.
+        """
         selected: list[TreeNode] = []
         seen: set[str] = set()
-        while len(selected) < self.reads:
-            added = False
-            for queue in queues:
-                while queue and queue[0].url in seen:
-                    queue.pop(0)
-                if queue and len(selected) < self.reads:
-                    node = queue.pop(0)
-                    selected.append(node)
-                    seen.add(node.url)
-                    added = True
-            if not added:
-                break
+        for objective, score in (("direct_answer", "identification"), ("query_answer", "query_answer")):
+            queue = sorted((n for n in nodes if (getattr(n, score) or 0) >= self.floor),
+                           key=lambda n: getattr(n, score) or 0, reverse=True)
+            used = 0
+            for node in queue:
+                if used >= self.reader_budgets[objective]:
+                    break
+                if node.url in seen:
+                    continue
+                node.reader_objective = objective
+                selected.append(node)
+                seen.add(node.url)
+                used += 1
         return selected
 
     async def run_search(self, query: str, results: list[dict[str, Any]], *, question: str,
-                         main_reasoning: str, trace: Trace, usage: Usage) -> tuple[dict[str, Any], str, dict[str, int]]:
+                         main_reasoning: str = "", trace: Trace, usage: Usage) -> tuple[dict[str, Any], str, dict[str, int]]:
         """Grow trees and read both ranks; main_reasoning is a legacy unused argument."""
         stats = {"fetched": 0, "fetch_failed": 0, "jev_requests": 0, "links_scored": 0, "entries": 0}
         jev_usage = JevUsage()
@@ -311,7 +340,7 @@ class JevTree:
                                         for i, (u, t, sn) in enumerate(candidates)]}
             questions = {f"result_{i}": {
                 "type": "noul",
-                "instructions": ENTRY_NOTE + f" Would result_{i} help find the answer?",
+                "instructions": f"Would result_{i} help find an answer? " + ENTRY_NOTE,
                 "criteria": ENTRY_CRITERIA,
             } for i, (u, _t, _sn) in enumerate(candidates)}
             scores = await self.jev.noul(
@@ -319,51 +348,68 @@ class JevTree:
                 context={"search_id": search_id, "query": query, "phase": "entry"})
             search.link_scores = [(scores.get(f"result_{i}", 0.0), u, t)
                                   for i, (u, t, _sn) in enumerate(candidates)
-                                  if scores.get(f"result_{i}", 0.0) >= self.floor]
+                                  if (f"result_{i}" in scores if self.strategy == "lds"
+                                      else scores.get(f"result_{i}", 0.0) >= self.floor)]
             trace.event("jevtree.entry_scores", search_id=search_id, query=query,
                         scores=sorted(((round(scores.get(f"result_{i}", 0.0), 3), u)
                                        for i, (u, _t, _sn) in enumerate(candidates)), reverse=True))
-        level = await self._expand(search, trace, stats, width=self.entries)
-        stats["entries"] = len(level)
-        nodes = list(level)
-        while level:
-            await asyncio.gather(*(self._score(n, question, trace, stats,
-                                               jev_usage, search_id) for n in level))
-            if level[0].depth >= self.depth:
-                break
-            nxt: list[TreeNode] = []
-            for parent in level:
-                nxt.extend(await self._expand(parent, trace, stats))
-            nodes.extend(nxt)
-            level = nxt
+        lds = None
+        if self.strategy == "lds":
+            from .lds import grow_lds
+            nodes, lds = await grow_lds(self, search, question, trace, stats, jev_usage, search_id)
+        else:
+            level = await self._expand(search, trace, stats, width=self.entries)
+            stats["entries"] = len(level)
+            nodes = list(level)
+            while level:
+                await asyncio.gather(*(self._score(n, question, trace, stats,
+                                                   jev_usage, search_id, query=query) for n in level))
+                if level[0].depth >= self.depth:
+                    break
+                nxt: list[TreeNode] = []
+                for parent in level:
+                    nxt.extend(await self._expand(parent, trace, stats))
+                nodes.extend(nxt)
+                level = nxt
 
         to_read = self._select_readers(nodes)
         for node in to_read:
             node.read = True
+        if lds:
+            lds.emit("reader_selection", "Select pages for free-form reading", to_read,
+                     selected_ids=[n.node_id for n in to_read], budgets=self.reader_budgets)
         trace.event("jevtree.selection", search_id=search_id, query=query, nodes=len(nodes),
+                    budgets=self.reader_budgets,
+                    objectives=[{"url": n.url, "objective": n.reader_objective} for n in to_read],
                     read=[(n.url, n.evidence) for n in to_read],
                     unread=[(n.url, n.evidence) for n in nodes if not n.read])
-        await asyncio.gather(*(self._read(n, question, trace, usage) for n in to_read))
+        await asyncio.gather(*(self._read(n, question, trace, usage, query=query) for n in to_read))
         stats["nodes"] = len(nodes)
         stats["reads"] = len(to_read)
+        stats["direct_reads"] = sum(n.reader_objective == "direct_answer" for n in to_read)
+        stats["query_reads"] = sum(n.reader_objective == "query_answer" for n in to_read)
         stats["max_depth"] = max((n.depth for n in nodes), default=0)
         stats.update(jev_requests=jev_usage.calls, jev_attempts=jev_usage.attempts,
                      jev_input_tokens=jev_usage.input_tokens, jev_failures=jev_usage.failures)
         trace.event("jevtree.search_end", search_id=search_id, query=query, stats=stats)
         log = {**search.log(), "search_id": search_id, "query": query, "entry": "search", "jevtree": stats}
+        if lds:
+            lds.emit("search_end", "Search finished; reader notes saved", nodes, stats=dict(stats))
+            log["lds"] = lds.export(stats)
+            lds.save(stats)
         return log, self._render(search, nodes, to_read), stats
 
     async def _score(self, node: TreeNode, question: str, trace: Trace,
-                     stats: dict[str, int], jev_usage: JevUsage, search_id: str) -> None:
+                     stats: dict[str, int], jev_usage: JevUsage, search_id: str, *, query: str) -> None:
         source = node.document.content
         page, excerpt_cut = await self.llm.cap(source, self.jev_page_tokens)
         page = complete_prefix(source, page)
         links = (candidate_links(page, node.url, self.visited)
                  if node.depth < self.depth else [])
         packets = page_requests(
-            question=question, page_url=node.url, page=page, links=links,
+            question=question, search_query=query, page_url=node.url, page=page, links=links,
             page_questions={"direct_answer": IDENTIFICATION_QUESTION,
-                            "answer_likelihood": VERIFICATION_QUESTION},
+                            "query_answer": QUERY_ANSWER_QUESTION},
             links_per_request=LINKS_PER_REQUEST)
         trace.event("jevtree.input_compacted", search_id=search_id, url=node.url,
                     source_chars=len(source), excerpt_chars=len(page), excerpt_truncated=excerpt_cut,
@@ -382,14 +428,15 @@ class JevTree:
         stats["links_scored"] += len(links)
         # Preserve historical report fields while exposing the new meanings explicitly.
         node.identification = scores.get("direct_answer")
-        node.verification = scores.get("answer_likelihood")
+        node.query_answer = scores.get("query_answer")
         # Legacy reports use evidence; selection uses the two separate ranks.
-        node.evidence = max(node.identification or 0, node.verification or 0)
+        node.evidence = max(node.identification or 0, node.query_answer or 0)
         node.link_scores = [(scores.get(f"link_{i}", 0.0), url, anchor)
-                            for i, (url, anchor) in enumerate(links)]
+                            for i, (url, anchor) in enumerate(links)
+                            if self.strategy != "lds" or f"link_{i}" in scores]
         trace.event("jevtree.scored", search_id=search_id, url=node.url, depth=node.depth, evidence=node.evidence,
                     identification=node.identification, verification=node.verification,
-                    direct_answer=node.identification, answer_likelihood=node.verification,
+                    direct_answer=node.identification, query_answer=node.query_answer,
                     links=len(links), page_truncated=len(page) < len(source),
                     link_scores=[{"id": f"link_{i}", "url": url, "anchor": anchor,
                                   "score": scores.get(f"link_{i}")}
@@ -441,8 +488,9 @@ class JevTree:
         return kids
 
     async def _read(self, node: TreeNode, question: str,
-                    trace: Trace, usage: Usage) -> None:
-        state = {"question": question, "page_url": node.url, "page_text": node.document.content}
+                    trace: Trace, usage: Usage, *, query: str) -> None:
+        state = {"question": question, "search_query": query,
+                 "page_url": node.url, "page_text": node.document.content}
         messages = [{"role": "system", "content": self.reader_prompt},
                     {"role": "user", "content": json.dumps(state, ensure_ascii=False, indent=1)}]
         for attempt in range(2):
@@ -489,7 +537,7 @@ class JevTree:
                 head += ", search result"
             if node.evidence is not None:
                 head += (f", direct_answer {node.identification or 0:.2f}, "
-                         f"answer_likelihood {node.verification or 0:.2f}")
+                         f"query_answer {node.query_answer or 0:.2f}")
             lines.append(head + ")")
             lines.append(node.notes or "(no notes)")
         unread = [n for n in nodes if not n.read]

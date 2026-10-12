@@ -93,6 +93,8 @@ class WebTools:
         self._stack = AsyncExitStack()
         self._session: ClientSession | None = None
         self._specs: list[ToolSpec] = []
+        # Shared by all concurrent questions in this Runner/MCP session.
+        self._fetch_slots = asyncio.Semaphore(max(1, int(os.getenv("JINA_MAX_CONCURRENT", "50"))))
 
     async def __aenter__(self) -> WebTools:
         await self._stack.__aenter__()
@@ -116,6 +118,7 @@ class WebTools:
                         "FETCH_MAX_CHARS", "BLOCKED_TERMS",
                         "JINA_RETURN_FORMAT", "JINA_WITH_LINKS",
                         "JINA_WITH_IMAGES", "JINA_ENGINE",
+                        "JINA_BASE_URL", "JINA_RPM", "JINA_MAX_CONCURRENT", "JINA_TIMEOUT_S", "JINA_RETRIES",
                     )
                     if os.getenv(name)
                 }
@@ -169,7 +172,11 @@ class WebTools:
 
         started = time.perf_counter()
         try:
-            raw = await self._session.call_tool(name, arguments)
+            if name == "web_fetch":
+                async with self._fetch_slots:
+                    raw = await self._session.call_tool(name, arguments)
+            else:
+                raw = await self._session.call_tool(name, arguments)
         except Exception as exc:
             result = ToolResult(f"tool call failed: {exc!r}", is_error=True)
         else:

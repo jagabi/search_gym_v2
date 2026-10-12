@@ -3,8 +3,9 @@ import re
 
 from .explorer import _balanced_markdown_links, _balanced_url_tokens, _norm
 
-INPUT_VERSION = 'prefix-only-numbered-links/1'
-LINK_CRITERIA = {'true': 'Helps find the answer.', 'false': 'Unrelated or navigation.'}
+INPUT_VERSION = 'query-and-original/2'
+LINK_CRITERIA = {'true': 'Helps answer the query or directly answers the original question.',
+                 'false': 'Unrelated or navigation.'}
 
 
 def _unescape(url: str) -> str:
@@ -58,16 +59,18 @@ def numbered_page(page: str, links: list[tuple[str, str]]) -> str:
     return ''.join(parts)
 
 
-def page_requests(*, question: str, page_url: str, page: str, links: list[tuple[str, str]],
+def page_requests(*, question: str, search_query: str, page_url: str, page: str, links: list[tuple[str, str]],
                   page_questions: dict, links_per_request: int) -> list[tuple[dict, dict]]:
-    state = {'question': question, 'page_url': page_url, 'page_text': numbered_page(page, links)}
+    state = {'question': question, 'search_query': search_query,
+             'page_url': page_url, 'page_text': numbered_page(page, links)}
     packets = []
     for start in range(0, max(1, len(links)), links_per_request):
         questions = dict(page_questions) if start == 0 else {}
         for i in range(start, min(start + links_per_request, len(links))):
             questions[f'link_{i}'] = {
                 'type': 'noul',
-                'instructions': f'Would following link_{i} in page_text help answer question?',
+                'instructions': (f'Would following link_{i} in page_text help answer search_query? '
+                                 'Prioritize the query; direct evidence for question also counts.'),
                 'criteria': LINK_CRITERIA,
             }
         packets.append((state, questions))

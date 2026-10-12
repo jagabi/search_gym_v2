@@ -141,10 +141,14 @@ class AgentConfig:
     jev_entries: int = 3           # e: search results opened per search, by entry score
     jev_branch: int = 3            # b: links expanded per page, by link score
     jev_depth: int = 3             # d: root is depth 1
-    jev_reads: int = 6             # r: alternate candidate-identification and condition-verification ranks
-    jev_floor: float = 0.15        # τ: minimum entry/identification/verification score
+    jev_reads: int = 6             # total reader budget per search
+    jev_direct_reads: int | None = None  # default: one third of reads
+    jev_query_reads: int | None = None   # default: remaining reads
+    jev_floor: float = 0.15        # reader score floor; also entry floor in level strategy
     jev_page_tokens: int = 5000    # only complete URLs inside this token-capped prefix are scored
     jev_reasoning_tokens: int = 2000  # legacy snapshot field; no longer used by Jev
+    jev_strategy: str = "level"   # level (historical) | lds
+    jev_fetch_budget: int = 40    # LDS: logical fetch attempts per search, including failures
 
 
 @dataclass(slots=True)
@@ -449,6 +453,8 @@ class SearchAgent:
             branch=cfg.jev_branch, depth=cfg.jev_depth,
             reads=cfg.jev_reads, floor=cfg.jev_floor, jev_page_tokens=cfg.jev_page_tokens,
             visited=set(),
+            strategy=cfg.jev_strategy, fetch_budget=cfg.jev_fetch_budget,
+            direct_reads=cfg.jev_direct_reads, query_reads=cfg.jev_query_reads,
         ) if self.jev is not None else None
         explorer = (
             Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch,
@@ -1216,7 +1222,7 @@ class SearchAgent:
         """jevtree: Jev opens and expands the best results; notes go back with the results."""
         log, text, stats = await jevtree.run_search(
             query, parsed.get("organic") or [], question=question,
-            main_reasoning=main_reasoning, trace=trace, usage=result.usage)
+            trace=trace, usage=result.usage)
         result.explorations.append(log)
         record.explorations.append(log)
         result.auto_fetches += stats["entries"]
@@ -1225,6 +1231,8 @@ class SearchAgent:
         result.max_depth_reached = max(result.max_depth_reached, stats["max_depth"])
         for key, amount in (("search_entries", stats["entries"]), ("tree_nodes", stats["nodes"]),
                             ("tree_reads", stats["reads"]), ("tree_fetch_failed", stats["fetch_failed"]),
+                            ("tree_direct_reads", stats["direct_reads"]),
+                            ("tree_query_reads", stats["query_reads"]),
                             ("tree_duplicates", stats.get("duplicates", 0)),
                             ("links_scored", stats["links_scored"]),
                             ("jev_requests", stats["jev_requests"]), ("jev_attempts", stats["jev_attempts"]),
@@ -1246,7 +1254,11 @@ class SearchAgent:
                             "within its remaining budget, or read an existing source URL.", is_error=True)
         if result is not None:
             result.fetch_attempts += 1
+        started = time.perf_counter()
         document = await tools.fetch(url)
+        if self.method == "jevtree" and self.config.jev_strategy == "lds":
+            trace.event("fetch.raw", url=url, content=document.content, is_error=document.is_error,
+                        retrieval=document.retrieval, duration_ms=round((time.perf_counter()-started)*1000, 1))
         trace.event("fetch.source", url=url, retrieval=document.retrieval,
                     retrieval_note=document.retrieval_note, is_error=document.is_error)
         if document.is_error:

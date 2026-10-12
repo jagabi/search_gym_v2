@@ -81,6 +81,7 @@ class JevLoggingTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("main_reasoning", json.dumps(body["questions"]))
             self.assertNotIn("Current hypothesis", json.dumps(body))
             self.assertEqual(body["state"]["question"], "Original question")
+            self.assertEqual(body["state"]["search_query"], "query")
         self.assertEqual(len(requests), 4)  # entry + two link chunks + child
         self.assertEqual(len({e["request_id"] for e in requests}), 4)
         self.assertEqual({e["request_id"] for e in requests},

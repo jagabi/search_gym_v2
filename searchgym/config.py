@@ -387,6 +387,10 @@ def _validate(config: TestConfig) -> None:
             raise ValueError("jevtree 는 agent.jev_model 이 필요합니다.")
         if min(config.agent.jev_entries, config.agent.jev_branch, config.agent.jev_depth) < 1 or config.agent.jev_reads < 0:
             raise ValueError("jev_branch/jev_depth 는 1 이상, jev_reads 는 0 이상이어야 합니다.")
+        budgets = (config.agent.jev_direct_reads, config.agent.jev_query_reads)
+        if any(v is not None and not 0 <= v <= config.agent.jev_reads for v in budgets) or (
+                all(v is not None for v in budgets) and sum(budgets) != config.agent.jev_reads):
+            raise ValueError("JEV direct/query reader budgets must be nonnegative and sum to jev_reads")
     elif config.agent.jev_model:
         raise ValueError("agent.jev_model 은 jevtree 에서만 씁니다.")
 
