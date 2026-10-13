@@ -2,13 +2,13 @@
 #
 #   메인 gpt-oss: web_search 만
 #   web_search(query)
-#     → Jev noul: 검색 결과별 result_i → 상위 e개 시작점 (LDS는 진입 점수 하한 없음)
+#     → Jev noul: 검색 결과별 result_i → τ 이상인 상위 e개 시작점
 #     → 페이지마다 direct_answer(원질문) + query_answer(현재 쿼리) + 링크별 link_i
-#     → 부모당 상위 b개 후보 보관, LDS 순서로 선택; 뿌리별 한 후보씩 병렬 라운드
+#     → v66 level 탐색: 각 부모의 상위 b개 자식을 열고 다음 깊이에서 평가
 #     → 원질문 정답 2개 + 쿼리 답 4개(τ 이상, 중복 제외)를 독립 독해
 #     → 자유 서술 독해 노트를 메인에 그대로 전달 (파싱·재요약 없음)
 #
-# 용어: 시작점 e, 부모별 후보 수 b, 최대 깊이 d, 검색별 fetch 시도 예산,
+# 용어: 시작점 e, 부모별 자식 수 b, 최대 깊이 d,
 # 읽기 수 r, reader 점수 하한 τ. Jev는 순위만 매긴다. TYPESAFE_API_KEY 필요.
 
 agent:
@@ -26,11 +26,10 @@ agent:
   max_tool_recoveries: 2
 
   jev_model: jev-1.13.0
-  jev_strategy: lds             # deterministic rank-only LDS; legacy reproduction: level
-  jev_fetch_budget: 40          # per search; failed and duplicate fetches also count
-  jev_entries: 5                # mandatory starting roots when available; no entry score cutoff in LDS
-  jev_branch: 5                 # keep up to 5 ranked candidates, NOT 5 compulsory fetches
-  jev_depth: 6                  # search result is depth 1
+  jev_strategy: level           # v66의 깊이별 탐색; LDS fetch 예산은 적용하지 않음
+  jev_entries: 3                # 진입 점수 τ 이상인 상위 최대 3개
+  jev_branch: 3                 # 부모마다 최대 3개 확보; 실패·중복이면 후순위로 보충
+  jev_depth: 3                  # d1=3, d2=9, d3=27: 최대 39문서 (보충 fetch는 추가 가능)
   jev_reads: 6                  # r → 검색당 reader 최대 6회 (모든 뿌리 합산)
   jev_direct_reads: 2           # 원질문 정답 순위에서 먼저 확보
   jev_query_reads: 4            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음

@@ -455,6 +455,7 @@ class SearchAgent:
             visited=set(),
             strategy=cfg.jev_strategy, fetch_budget=cfg.jev_fetch_budget,
             direct_reads=cfg.jev_direct_reads, query_reads=cfg.jev_query_reads,
+            reader_status=getattr(tools, "reader_status", {}),
         ) if self.jev is not None else None
         explorer = (
             Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch,
@@ -467,6 +468,7 @@ class SearchAgent:
 
         trace.event(
             "run.start",
+            reader_status=getattr(tools, "reader_status", {}),
             method=self.method,
             model=self.llm.model_name,
             question=question,
@@ -1256,7 +1258,7 @@ class SearchAgent:
             result.fetch_attempts += 1
         started = time.perf_counter()
         document = await tools.fetch(url)
-        if self.method == "jevtree" and self.config.jev_strategy == "lds":
+        if self.method == "jevtree":
             trace.event("fetch.raw", url=url, content=document.content, is_error=document.is_error,
                         retrieval=document.retrieval, duration_ms=round((time.perf_counter()-started)*1000, 1))
         trace.event("fetch.source", url=url, retrieval=document.retrieval,

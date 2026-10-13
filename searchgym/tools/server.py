@@ -44,12 +44,13 @@ except ImportError:  # pragma: no cover
             from fastmcp import FastMCP
 
 from ..paths import load_env, require_env
+from ..local_reader import local_reader_url, probe_local_reader
 
 load_env()
 
 SERPER_HOST = "google.serper.dev"
 JINA_HOST = "r.jina.ai"
-JINA_BASE_URL = os.getenv("JINA_BASE_URL", "https://r.jina.ai").rstrip("/")
+JINA_BASE_URL = os.getenv("JINA_BASE_URL", "").strip().rstrip("/")
 JINA_MAX_CONCURRENT = max(1, int(os.getenv("JINA_MAX_CONCURRENT", "50")))
 _jina_slots = threading.BoundedSemaphore(JINA_MAX_CONCURRENT)
 _jina_thread_limiter = None
@@ -303,7 +304,7 @@ def fetch(url: str) -> str:
         headers["X-With-Images-Summary"] = "true"
     if JINA_ENGINE:
         headers["X-Engine"] = JINA_ENGINE
-    endpoint = urlsplit(JINA_BASE_URL)
+    endpoint = urlsplit(local_reader_url(JINA_BASE_URL))
     if endpoint.scheme not in ("http", "https") or not endpoint.netloc:
         raise RuntimeError("JINA_BASE_URL must be an absolute HTTP(S) address")
     if (key := os.getenv("JINA_API_KEY")) and endpoint.hostname == JINA_HOST:
@@ -330,6 +331,19 @@ def fetch(url: str) -> str:
     if FETCH_MAX_CHARS and len(text) > FETCH_MAX_CHARS:
         return text[:FETCH_MAX_CHARS] + f"\n\n... (truncated at {FETCH_MAX_CHARS:,} chars)"
     return text
+
+
+@mcp.tool()
+async def local_reader_status() -> str:
+    """Internal startup check. Reports settings from the actual fetch process."""
+    await to_thread.run_sync(lambda: probe_local_reader(JINA_BASE_URL))
+    pacer = _jina_pacer()
+    return json.dumps({
+        "ready": True, "jina_base_url": local_reader_url(JINA_BASE_URL),
+        "jina_rpm": round(60 / pacer.interval) if pacer else 0,
+        "jina_max_concurrent": JINA_MAX_CONCURRENT,
+        "verified_by": "fetch_server", "health_check": "reader_root_metadata",
+    })
 
 
 @mcp.tool()

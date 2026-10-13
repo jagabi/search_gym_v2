@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,9 +34,10 @@ class LDSRecord:
                            discrepancy="non-first child costs 1; roots all start at 0",
                            tie_break="original sibling order", alternative_order="early",
                            allocation="one candidate per root per round; round barrier",
-                           jina_base_url=os.getenv("JINA_BASE_URL", "https://r.jina.ai"),
-                           jina_rpm=os.getenv("JINA_RPM", "auto"),
-                           jina_max_concurrent=int(os.getenv("JINA_MAX_CONCURRENT", "50")))
+                           jina_base_url=tree.reader_status.get("jina_base_url"),
+                           jina_rpm=tree.reader_status.get("jina_rpm"),
+                           jina_max_concurrent=tree.reader_status.get("jina_max_concurrent"),
+                           jina_verified_by=tree.reader_status.get("verified_by"))
 
     def add(self, node, parent_id=""):
         node.node_id = f"n{len(self.nodes)+1:04d}"

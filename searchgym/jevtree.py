@@ -274,8 +274,10 @@ class JevTree:
         fetch_budget: int = 40,
         direct_reads: int | None = None,
         query_reads: int | None = None,
+        reader_status: dict | None = None,
     ) -> None:
         self.jev, self.llm, self.fetch = jev, llm, fetch
+        self.reader_status = dict(reader_status or {})
         self.reader_prompt = reader_prompt
         self.reader_max_tokens = reader_max_tokens
         self.entries = entries

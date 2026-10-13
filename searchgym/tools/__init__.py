@@ -37,6 +37,7 @@ except ImportError:  # pragma: no cover - 구버전 SDK
 from ..explorer import Document
 from ..paths import PROJECT_ROOT, load_env
 from ..urls import normalize_fetch_url, reader_failure
+from ..local_reader import local_reader_url
 
 __all__ = ["ToolResult", "ToolSpec", "WebTools"]
 
@@ -93,6 +94,7 @@ class WebTools:
         self._stack = AsyncExitStack()
         self._session: ClientSession | None = None
         self._specs: list[ToolSpec] = []
+        self.reader_status: dict[str, Any] = {}
         # Shared by all concurrent questions in this Runner/MCP session.
         self._fetch_slots = asyncio.Semaphore(max(1, int(os.getenv("JINA_MAX_CONCURRENT", "50"))))
 
@@ -109,6 +111,8 @@ class WebTools:
                 )
                 read, write = transport[0], transport[1]
             else:
+                # Do not start a subprocess with an implicit hosted fallback.
+                local_reader_url(os.getenv("JINA_BASE_URL", ""))
                 # env를 지정하면 SDK가 기본 환경을 통째로 대체하므로 위에 덮어쓴다.
                 keys = {
                     name: os.environ[name]
@@ -135,6 +139,9 @@ class WebTools:
             self._session = session
 
             listing = await session.list_tools()
+            if "local_reader_status" not in {tool.name for tool in listing.tools}:
+                raise RuntimeError("Run blocked: fetch server lacks the local Jina preflight. Update/restart the MCP server.")
+            await self._check_local_reader()
             self._specs = [
                 ToolSpec(
                     name=tool.name,
@@ -142,11 +149,30 @@ class WebTools:
                     input_schema=dict(_field(tool, "inputSchema", "input_schema") or _EMPTY),
                 )
                 for tool in listing.tools
+                if tool.name != "local_reader_status"
             ]
         except BaseException:
             await self._stack.aclose()
             raise
         return self
+
+    async def _check_local_reader(self) -> None:
+        try:
+            result = await asyncio.wait_for(self.call("local_reader_status", {}), timeout=15)
+            if result.is_error:
+                raise ValueError(result.text)
+            status = json.loads(result.text)
+            if not isinstance(status, dict) or status.get("ready") is not True:
+                raise ValueError("fetch server did not confirm readiness")
+            status["jina_base_url"] = local_reader_url(status.get("jina_base_url", ""))
+            if status.get("verified_by") != "fetch_server":
+                raise ValueError("missing fetch-server verification")
+        except (RuntimeError, ValueError, TypeError, asyncio.TimeoutError) as exc:
+            raise RuntimeError(f"Local Jina preflight failed; benchmark blocked: {exc}") from exc
+        self.reader_status = status
+        print(f"Local Jina ready: {status['jina_base_url']} "
+              f"(RPM={status.get('jina_rpm')}, concurrency={status.get('jina_max_concurrent')}; fetch-server verified)",
+              file=sys.stderr)
 
     async def __aexit__(self, *exc_info: Any) -> Any:
         self._session = None
