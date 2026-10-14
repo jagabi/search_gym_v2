@@ -230,7 +230,8 @@ def _other_language_wiki(url: str, page_url: str) -> bool:
     return bool(a and b and a.group(2) == b.group(2) and a.group(1) != b.group(1))
 
 
-def candidate_links(text: str, page_url: str, skip: set[str]) -> list[tuple[str, str]]:
+def candidate_links(text: str, page_url: str, skip: set[str], *,
+                    trace: Trace | None = None) -> list[tuple[str, str]]:
     """Links visible in the (truncated) page Jev sees, minus self/visited/junk."""
     anchors = _anchors(text)
     here = _norm(page_url)
@@ -243,7 +244,16 @@ def candidate_links(text: str, page_url: str, skip: set[str]) -> list[tuple[str,
         if norm in seen:
             continue
         seen.add(norm)
-        if norm == here or norm in skip or is_search_endpoint(raw):
+        if norm == here or norm in skip:
+            continue
+        try:
+            search_endpoint = is_search_endpoint(raw)
+        except ValueError as exc:
+            if trace is not None:
+                trace.event("jevtree.invalid_link", url=raw, parent=page_url,
+                            phase="page", error=str(exc))
+            continue
+        if search_endpoint:
             continue
         if any(j in lower for j in _JUNK + _SEARCH_HOSTS) or "r.jina.ai" in lower:
             continue
@@ -331,7 +341,15 @@ class JevTree:
         candidates = []
         for row in results:
             url = str(row.get("link") or "")
-            if not url.startswith(("http://", "https://")) or is_search_endpoint(url):
+            if not url.startswith(("http://", "https://")):
+                continue
+            try:
+                search_endpoint = is_search_endpoint(url)
+            except ValueError as exc:
+                trace.event("jevtree.invalid_link", url=url, phase="entry",
+                            search_id=search_id, error=str(exc))
+                continue
+            if search_endpoint:
                 continue
             if _norm(url) in self.visited:
                 continue
@@ -406,7 +424,7 @@ class JevTree:
         source = node.document.content
         page, excerpt_cut = await self.llm.cap(source, self.jev_page_tokens)
         page = complete_prefix(source, page)
-        links = (candidate_links(page, node.url, self.visited)
+        links = (candidate_links(page, node.url, self.visited, trace=trace)
                  if node.depth < self.depth else [])
         packets = page_requests(
             question=question, search_query=query, page_url=node.url, page=page, links=links,

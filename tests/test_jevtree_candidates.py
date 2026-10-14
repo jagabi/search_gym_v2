@@ -72,6 +72,16 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(llm.requests, [])
         self.assertFalse(any('conditions' in k for k, _ in trace.events))
 
+    async def test_invalid_search_result_does_not_abort_valid_result_ranking(self):
+        tree, trace = self.tree(FakeLLM([])), MemoryTrace()
+        tree.jev.noul.return_value = {'result_0': 0.0}
+        await tree.run_search('query', [{'link': 'http://#'}, {'link': URL}],
+                              question=QUESTION, trace=trace, usage=Usage())
+        state = tree.jev.noul.call_args.args[0]
+        self.assertEqual([r['url'] for r in state['search_results']], [URL])
+        self.assertTrue(any(k == 'jevtree.invalid_link' and v['phase'] == 'entry'
+                            for k, v in trace.events))
+
     async def test_dual_selection_reserves_query_and_deduplicates(self):
         tree = self.tree(FakeLLM([]), reads=4, direct_reads=2, query_reads=2)
         nodes = [TreeNode(f"https://example.org/{i}", 1, identification=a, query_answer=b)

@@ -8,6 +8,18 @@ from searchgym.jevtree_input import complete_prefix, numbered_page, page_request
 
 
 class PrefixInputTests(unittest.TestCase):
+    def test_malformed_page_links_are_logged_and_valid_links_still_numbered(self):
+        # Ireland.com returned this hostless URL in the q598 failure.
+        page = '[Plan your trip](http://#)[Help](http://#) [Good](https://example.org/good)'
+        events = []
+        trace = SimpleNamespace(event=lambda kind, **fields: events.append((kind, fields)))
+        links = candidate_links(page, 'http://ireland.com/', set(), trace=trace)
+        self.assertEqual(links, [('https://example.org/good', 'Good')])
+        self.assertIn('[Good](link_0)', numbered_page(page, links))
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0][0], 'jevtree.invalid_link')
+        self.assertEqual(events[0][1]['url'], 'http://#')
+
     def test_markdown_url_crossing_cut_is_not_a_candidate(self):
         source = '[Good](https://example.org/good) then [Tail](https://example.org/long-tail) end'
         prefix = complete_prefix(source, source[:source.index('long-tail') + 3])
