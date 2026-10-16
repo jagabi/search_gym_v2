@@ -147,8 +147,19 @@ class AgentConfig:
     jev_floor: float = 0.15        # reader score floor; also entry floor in level strategy
     jev_page_tokens: int = 5000    # only complete URLs inside this token-capped prefix are scored
     jev_reasoning_tokens: int = 2000  # legacy snapshot field; no longer used by Jev
-    jev_strategy: str = "level"   # level (historical) | lds
+    jev_strategy: str = "level"   # level (historical) | lds | raw
     jev_fetch_budget: int = 40    # LDS: logical fetch attempts per search, including failures
+    # Raw evidence experiment: local decisions, curl traversal, browser finalists.
+    jev_base_url: str = "http://100.89.209.104:8101"
+    jev_concurrency: int = 4
+    jev_frontier_width: int = 10
+    jev_chunk_tokens: int = 512
+    jev_bundle_tokens: int = 5000
+    jev_overlap_chunks: int = 2
+    jev_neighbor_chunks: int = 1
+    jev_direct_chunks: int = 4
+    jev_query_chunks: int = 8
+    jev_output_tokens: int = 16000
 
 
 @dataclass(slots=True)
@@ -335,7 +346,11 @@ class SearchAgent:
             timeout_s=self.config.timeout_s,
             model_name=self.config.model_name,
         )
-        self.jev = Jev(self.config.jev_model) if method == "jevtree" else None
+        if method == "jevtree" and self.config.jev_strategy == "raw":
+            from .rawtree import LocalDecision
+            self.jev = LocalDecision(self.config)
+        else:
+            self.jev = Jev(self.config.jev_model) if method == "jevtree" else None
 
     @property
     def uses_explorer(self) -> bool:
@@ -443,8 +458,8 @@ class SearchAgent:
 
         # 모든 페치가 지나는 단 하나의 경로. 오염 필터와 토큰 절단이 여기 한 번만
         # 걸리므로 세 방법이 같은 분량의 웹을 보게 된다.
-        async def guarded_fetch(url: str) -> Document:
-            return await self._document(url, tools, question, trace, result)
+        async def guarded_fetch(url: str, *, engine: str | None = None) -> Document:
+            return await self._document(url, tools, question, trace, result, engine=engine)
 
         jevtree = JevTree(
             jev=self.jev, llm=self.llm, fetch=guarded_fetch,
@@ -456,7 +471,10 @@ class SearchAgent:
             strategy=cfg.jev_strategy, fetch_budget=cfg.jev_fetch_budget,
             direct_reads=cfg.jev_direct_reads, query_reads=cfg.jev_query_reads,
             reader_status=getattr(tools, "reader_status", {}),
-        ) if self.jev is not None else None
+        ) if self.jev is not None and cfg.jev_strategy != "raw" else None
+        if self.jev is not None and cfg.jev_strategy == "raw":
+            from .rawtree import RawTree
+            jevtree = RawTree(self.jev, cfg, guarded_fetch)
         explorer = (
             Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch,
                      enforce_tool_availability=self.method == "depthsearch",
@@ -1229,7 +1247,7 @@ class SearchAgent:
         record.explorations.append(log)
         result.auto_fetches += stats["entries"]
         result.expansion_nodes += max(0, stats["nodes"] - stats["entries"])
-        result.explorer_calls += stats["reads"]
+        result.explorer_calls += stats.get("summary_calls", stats["reads"])
         result.max_depth_reached = max(result.max_depth_reached, stats["max_depth"])
         for key, amount in (("search_entries", stats["entries"]), ("tree_nodes", stats["nodes"]),
                             ("tree_reads", stats["reads"]), ("tree_fetch_failed", stats["fetch_failed"]),
@@ -1241,11 +1259,15 @@ class SearchAgent:
                             ("jev_input_tokens", stats["jev_input_tokens"]),
                             ("jev_failures", stats["jev_failures"])):
             result.reader_stats[key] = result.reader_stats.get(key, 0) + amount
+        for key in ("fast_fetches", "browser_fetches", "bundles_scored", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms"):
+            if key in stats:
+                result.reader_stats[key] = result.reader_stats.get(key, 0) + stats[key]
         return text
 
     async def _document(
         self, url: str, tools: Any, question: str, trace: Trace,
         result: RunResult | None = None,
+        *, engine: str | None = None,
     ) -> Document:
         """페치 → 오염 필터 → 토큰 절단. 페이지를 여는 유일한 경로다."""
         if self.method == "depthsearch" and self.config.depthsearch_control and is_search_endpoint(url):
@@ -1257,7 +1279,7 @@ class SearchAgent:
         if result is not None:
             result.fetch_attempts += 1
         started = time.perf_counter()
-        document = await tools.fetch(url)
+        document = await tools.fetch(url, engine=engine) if engine else await tools.fetch(url)
         if self.method == "jevtree":
             trace.event("fetch.raw", url=url, content=document.content, is_error=document.is_error,
                         retrieval=document.retrieval, duration_ms=round((time.perf_counter()-started)*1000, 1))
@@ -1278,6 +1300,10 @@ class SearchAgent:
             document.is_error = True
             document.content = "BLOCKED: answer-reposting page; use the underlying factual sources."
             trace.event("contamination.blocked_page", url=url)
+            return document
+
+        # RawTree applies its own 5k prefix and chunks the *whole* browser body.
+        if engine is not None:
             return document
 
         document.content, truncated = await self.llm.cap(

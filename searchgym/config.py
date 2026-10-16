@@ -383,6 +383,20 @@ def _validate(config: TestConfig) -> None:
             )
 
     if config.method == "jevtree":
+        if config.agent.jev_strategy not in ("level", "lds", "raw"):
+            raise ValueError("jev_strategy must be level, lds or raw")
+        if config.agent.jev_strategy == "raw":
+            a = config.agent
+            from .local_reader import local_reader_url
+            local_reader_url(a.jev_base_url)
+            if min(a.jev_concurrency, a.jev_frontier_width, a.jev_fetch_budget,
+                   a.jev_chunk_tokens, a.jev_bundle_tokens, a.jev_output_tokens) < 1:
+                raise ValueError("RawTree concurrency and token/fetch budgets must be positive")
+            if a.jev_chunk_tokens > a.jev_bundle_tokens or min(a.jev_overlap_chunks, a.jev_neighbor_chunks,
+                                                              a.jev_direct_chunks, a.jev_query_chunks) < 0:
+                raise ValueError("Invalid RawTree chunk sizes or quotas")
+            if a.jev_direct_reads is None or a.jev_query_reads is None:
+                raise ValueError("RawTree requires explicit direct/query page quotas")
         if not config.agent.jev_model:
             raise ValueError("jevtree 는 agent.jev_model 이 필요합니다.")
         if min(config.agent.jev_entries, config.agent.jev_branch, config.agent.jev_depth) < 1 or config.agent.jev_reads < 0:

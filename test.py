@@ -105,7 +105,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         print("--resume 과 --no-cache 는 같이 못 씁니다.", file=sys.stderr)
         return 1
 
-    if config.method == "jevtree" and not args.dry_run:
+    if config.method == "jevtree" and config.agent.jev_strategy != "raw" and not args.dry_run:
         try:
             require_env("TYPESAFE_API_KEY")
         except RuntimeError as exc:

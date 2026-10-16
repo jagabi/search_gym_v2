@@ -1,15 +1,7 @@
-# JevTree — 메인은 검색어만 쓰고, Jev가 열 페이지를 고른다.
-#
-#   메인 gpt-oss: web_search 만
-#   web_search(query)
-#     → Jev noul: 검색 결과별 result_i → τ 이상인 상위 e개 시작점
-#     → 페이지마다 direct_answer(원질문) + query_answer(현재 쿼리) + 링크별 link_i
-#     → v66 level 탐색: 각 부모의 상위 b개 자식을 열고 다음 깊이에서 평가
-#     → 원질문 정답 2개 + 쿼리 답 4개(τ 이상, 중복 제외)를 독립 독해
-#     → 자유 서술 독해 노트를 메인에 그대로 전달 (파싱·재요약 없음)
-#
-# 용어: 시작점 e, 부모별 자식 수 b, 최대 깊이 d,
-# 읽기 수 r, reader 점수 하한 τ. Jev는 순위만 매긴다. TYPESAFE_API_KEY 필요.
+# RawTree experiment: local d3 decisions; no summary model.
+# Search roots -> curl/body prefix -> bounded depth-5 tree -> top browser pages
+# -> Docling chunks/bundles -> source excerpts with adjacent chunks.
+# Legacy level/LDS implementations remain available; this config selects raw.
 
 agent:
   base_url: http://127.0.0.1:8000/v1
@@ -21,23 +13,34 @@ agent:
   max_searches: 10
   max_fetches: 0                # 메인 fetch 없음
   search_results: 10
-  fetch_max_tokens: 32768       # reader가 받는 페이지 상한(공통 값)
+  fetch_max_tokens: 32768       # legacy reader setting; raw browser bodies are not cut here
   context_limit: 122880
   max_tool_recoveries: 2
 
-  jev_model: jev-1.13.0
-  jev_strategy: level           # v66의 깊이별 탐색; LDS fetch 예산은 적용하지 않음
-  jev_entries: 3                # 진입 점수 τ 이상인 상위 최대 3개
-  jev_branch: 3                 # 부모마다 최대 3개 확보; 실패·중복이면 후순위로 보충
-  jev_depth: 3                  # d1=3, d2=9, d3=27: 최대 39문서 (보충 fetch는 추가 가능)
-  jev_reads: 6                  # r → 검색당 reader 최대 6회 (모든 뿌리 합산)
+  jev_model: vllm-sr/d3-mini
+  jev_base_url: http://100.89.209.104:8101
+  jev_concurrency: 4            # all question workers share this decision limit
+  jev_strategy: raw             # curl traversal -> browser finalists -> raw chunks
+  jev_entries: 10               # fetch all search roots; no snippet gate
+  jev_branch: 2                 # each parent nominates up to 2 links
+  jev_depth: 5
+  jev_frontier_width: 10        # global top 10 nominations at each depth
+  jev_fetch_budget: 50          # fast fetch attempts per search, including failures
+  jev_reads: 6                  # browser page budget; no summary calls
   jev_direct_reads: 2           # 원질문 정답 순위에서 먼저 확보
   jev_query_reads: 4            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음
-  jev_floor: 0.15               # τ → reader 점수 하한; level 전략에서는 시작점 선정에도 적용
+  jev_floor: 0.15               # bundle/atomic-chunk threshold; browser top-k has no floor
   jev_page_tokens: 5000         # JEV 본문 토큰 상한. 절단 범위 안의 완전한 URL만 평가
+  jev_chunk_tokens: 512         # Docling HybridChunker, d3 tokenizer
+  jev_bundle_tokens: 5000
+  jev_overlap_chunks: 2
+  jev_neighbor_chunks: 1
+  jev_direct_chunks: 4
+  jev_query_chunks: 8
+  jev_output_tokens: 16000      # includes adjacent chunks; whole chunks only
 
 explorer:
-  # reader 설정만 쓴다. 재귀·예산 필드는 jevtree에서 사용하지 않는다.
+  # Legacy schema fields only; the raw strategy never calls the reader model.
   max_depth: 1
   max_tokens: 8192              # reader 출력 상한
   max_document_tokens: 32768
@@ -46,7 +49,7 @@ explorer:
 system_prompt: |
   You are a research assistant. Your only tool is `web_search` (up to 10 searches).
   After each search, the most promising results are opened automatically, their links
-  are followed, and notes from the most relevant pages come back with the results.
+  are followed, and source excerpts from the most relevant pages come back with the results.
   Your job is to write the queries that reach the right pages.
 
   Each query targets one page that would state or link to a missing fact: an entity's
@@ -75,7 +78,7 @@ system_prompt: |
   conditions are confirmed, contradicted or unknown, and what the next query should
   find.
 
-  Notes are free-form readings of individual pages. Treat reported source facts
+  The returned excerpts are source text, not generated summaries. Treat source facts
   as evidence and tentative candidates as leads to verify. A mention alone does
   not establish all conditions. Compare candidates against every
   condition, revise on explicit contradictions, and preserve unknowns as unknowns.

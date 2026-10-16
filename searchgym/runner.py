@@ -209,6 +209,8 @@ class Runner:
         semaphore = asyncio.Semaphore(self.workers)
 
         async with WebTools(search_results=self.agent.config.search_results) as tools:
+            if self.method == "jevtree" and self.agent.config.jev_strategy == "raw":
+                await self.agent.jev.prepare()
             async def one(item: Item) -> Record:
                 async with semaphore:
                     record = await self.run_one(
@@ -434,6 +436,9 @@ def _agent_fingerprint(config: AgentConfig) -> str:
         # Preserve existing cache identities for methods without the Jev tree.
         values = {k: v for k, v in values.items() if not k.startswith("jev_")}
     else:
+        if values.get("jev_strategy") == "raw":
+            from .rawtree import VERSION
+            values["rawtree_version"] = VERSION
         from .jevtree import IDENTIFICATION_QUESTION, QUERY_ANSWER_QUESTION, LINK_CRITERIA
         from .jevtree import ENTRY_CRITERIA, ENTRY_NOTE, SEARCH_FOLLOWUP
         from .jevtree_input import INPUT_VERSION

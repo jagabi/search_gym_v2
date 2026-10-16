@@ -22,6 +22,7 @@ import os
 import re
 import sys
 import time
+import httpx
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from typing import Any
@@ -95,11 +96,14 @@ class WebTools:
         self._session: ClientSession | None = None
         self._specs: list[ToolSpec] = []
         self.reader_status: dict[str, Any] = {}
+        self._reader_http = None
         # Shared by all concurrent questions in this Runner/MCP session.
         self._fetch_slots = asyncio.Semaphore(max(1, int(os.getenv("JINA_MAX_CONCURRENT", "50"))))
 
     async def __aenter__(self) -> WebTools:
         await self._stack.__aenter__()
+        self._reader_http = await self._stack.enter_async_context(httpx.AsyncClient(
+            timeout=float(os.getenv("JINA_TIMEOUT_S", "60")), trust_env=False))
         try:
             if self._url:
                 headers = {}
@@ -224,7 +228,7 @@ class WebTools:
             return {}, result
         return (parsed if isinstance(parsed, dict) else {}), result
 
-    async def fetch(self, url: str) -> Document:
+    async def fetch(self, url: str, *, engine: str | None = None) -> Document:
         """URL 하나를 열어 `Document` 로 돌려준다. explorer 가 이걸 쓴다."""
         try:
             url = normalize_fetch_url(url)
@@ -233,6 +237,8 @@ class WebTools:
         blocked_terms = os.getenv("BLOCKED_TERMS", "deepsearchqa,browsecomp,evobrowsecomp,kbrowsecomp,dsqa-full").split(",")
         if any(t.strip().lower() in url.lower() for t in blocked_terms if t.strip()) or "/fb-answers/" in url.lower():
             return Document(url=url, content="BLOCKED: evaluation material or answer-reposting page; find primary facts.", is_error=True)
+        if engine is not None:
+            return await self._fetch_engine(url, engine)
         from .native import file_kind, fetch_native
         native_error = ""
         if file_kind(url):
@@ -249,6 +255,35 @@ class WebTools:
                         is_error=result.is_error or bool(failure),
                         retrieval="jina_fallback" if native_error else "jina",
                         retrieval_note=native_error)
+
+    async def _fetch_engine(self, url: str, engine: str) -> Document:
+        """Explicit local transport for RawTree; never switch curl to browser silently."""
+        if engine not in ("curl", "browser"):
+            raise ValueError(f"Unsupported Reader engine: {engine}")
+        base = local_reader_url(self.reader_status.get("jina_base_url", ""))
+        if self._reader_http is None:
+            raise RuntimeError("Reader client is not open")
+        headers = {"Accept": "application/json", "X-Engine": engine,
+                   "X-Return-Format": "content", "X-Respond-With": "content",
+                   "X-With-Links-Summary": "false", "X-No-Cache": "true"}
+        try:
+            async with self._fetch_slots:
+                response = await self._reader_http.get(f"{base}/{url}", headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+            if payload.get("code") != 200 or not isinstance(payload.get("data"), dict):
+                raise ValueError(f"Reader error: {payload}")
+            data = payload["data"]
+            content = data.get("content")
+            if not isinstance(content, str):
+                raise ValueError("Reader did not return data.content")
+            failure = reader_failure(content)
+            return Document(url=url, content=content, title=str(data.get("title") or ""),
+                            is_error=bool(failure), retrieval=f"jina_{engine}",
+                            retrieval_note=failure or "")
+        except (httpx.HTTPError, ValueError, TypeError) as exc:
+            return Document(url=url, content=f"Could not read {url}: {exc}",
+                            is_error=True, retrieval=f"jina_{engine}")
 
     async def fetch_many(self, entries: list[dict[str, str]]) -> list[Document]:
         """여러 URL 을 동시에 연다. 실패한 것도 자리를 지킨다.
