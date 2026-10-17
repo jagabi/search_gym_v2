@@ -177,7 +177,11 @@ class TestConfig:
 
     def describe(self) -> dict[str, Any]:
         budget = f"search {self.agent.max_searches}"
-        if self.agent.search_top_k:
+        if self.method == "jevtree" and self.agent.jev_strategy == "raw":
+            budget += (f" / {self.agent.jev_traversal} / browser pages {self.agent.jev_fetch_budget}"
+                       f" / depth {self.agent.jev_depth} / chunk pages "
+                       f"{self.agent.jev_direct_reads}+{self.agent.jev_query_reads}")
+        elif self.agent.search_top_k:
             budget += f" / 자동페치 top-{self.agent.search_top_k}"
         else:
             budget += f" / fetch {self.agent.max_fetches or '무제한'}"
@@ -230,6 +234,9 @@ def load_test(
     path: str | None = None,
     limit: int | None = None,
     tag: str | None = None,
+    raw_traversal: str | None = None,
+    raw_link_floor: float | None = None,
+    raw_query_pages: int | None = None,
 ) -> TestConfig:
     raw = _read(conf_path)
     outer = _build(_Outer, raw, "conf")
@@ -271,6 +278,18 @@ def load_test(
         config.agent.model_name = outer.served_model_name
     if tag:
         config.run.tag = tag
+    if any(v is not None for v in (raw_traversal, raw_link_floor, raw_query_pages)):
+        if config.method != "jevtree" or config.agent.jev_strategy != "raw":
+            raise ValueError("--raw-* overrides require jevtree with jev_strategy=raw")
+        if raw_traversal is not None:
+            config.agent.jev_traversal = raw_traversal
+        if raw_link_floor is not None:
+            config.agent.jev_link_floor = raw_link_floor
+        if raw_query_pages is not None:
+            if config.agent.jev_direct_reads is None:
+                raise ValueError("RawTree requires an explicit direct page quota")
+            config.agent.jev_query_reads = raw_query_pages
+            config.agent.jev_reads = config.agent.jev_direct_reads + raw_query_pages
     _validate(config)
     return config
 
@@ -389,7 +408,11 @@ def _validate(config: TestConfig) -> None:
             a = config.agent
             from .local_reader import local_reader_url
             local_reader_url(a.jev_base_url)
-            if min(a.jev_concurrency, a.jev_frontier_width, a.jev_fetch_budget,
+            if a.jev_traversal not in ("beam", "best_first"):
+                raise ValueError("RawTree jev_traversal must be beam or best_first")
+            if not 0 <= a.jev_link_floor <= 1 or not 0 <= a.jev_floor <= 1:
+                raise ValueError("RawTree score floors must be between 0 and 1")
+            if min(a.jev_concurrency, a.jev_frontier_width, a.jev_expand_batch, a.jev_fetch_budget,
                    a.jev_chunk_tokens, a.jev_bundle_tokens, a.jev_output_tokens) < 1:
                 raise ValueError("RawTree concurrency and token/fetch budgets must be positive")
             if a.jev_chunk_tokens > a.jev_bundle_tokens or min(a.jev_overlap_chunks, a.jev_neighbor_chunks,

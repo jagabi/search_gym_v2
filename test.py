@@ -57,6 +57,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--prompt", default=None, help="메인 시스템 프롬프트를 파일에서 읽는다")
     parser.add_argument("--explorer-prompt", default=None, help="explorer 프롬프트 파일")
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument("--raw-traversal", choices=("beam", "best_first"), default=None,
+                        help="RawTree 탐색 정책 비교 (browser 수집·원문 청크 전달은 동일)")
+    parser.add_argument("--raw-link-floor", type=float, default=None,
+                        help="RawTree 링크 확장 최소 점수 (예: 0 또는 0.01)")
+    parser.add_argument("--raw-query-pages", type=int, default=None,
+                        help="RawTree 쿼리용 청킹 페이지 수; 원질문 몫과 합산해 총 읽기 예산 갱신")
     parser.add_argument("--retry-errors", action="store_true",
                         help="--resume 실행의 빈 답변·실행 오류·채점 오류만 재시도 (정상 0점은 유지)")
     parser.add_argument("--dry-run", action="store_true",
@@ -93,6 +99,9 @@ async def main_async(argv: list[str] | None = None) -> int:
         path=args.path,
         limit=args.limit,
         tag=args.tag,
+        raw_traversal=args.raw_traversal,
+        raw_link_floor=args.raw_link_floor,
+        raw_query_pages=args.raw_query_pages,
     )
     if args.prompt:
         config.system_prompt = resolve(args.prompt).read_text(encoding="utf-8").strip()

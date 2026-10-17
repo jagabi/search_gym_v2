@@ -1,6 +1,6 @@
 # RawTree experiment: local d3 decisions; no summary model.
-# Search roots -> curl/body prefix -> bounded depth-5 tree -> top browser pages
-# -> Docling chunks/bundles -> source excerpts with adjacent chunks.
+# Search roots -> browser/body prefix -> bounded best-first tree -> selected
+# saved documents -> Docling chunks/bundles -> source excerpts with neighbors.
 # Legacy level/LDS implementations remain available; this config selects raw.
 
 agent:
@@ -20,13 +20,16 @@ agent:
   jev_model: vllm-sr/d3-mini
   jev_base_url: http://100.89.209.104:8101
   jev_concurrency: 4            # all question workers share this decision limit
-  jev_strategy: raw             # curl traversal -> browser finalists -> raw chunks
+  jev_strategy: raw             # browser traversal -> saved documents -> raw chunks
+  jev_traversal: best_first     # beam is the browser-based comparison policy
+  jev_expand_batch: 4           # deterministic page batches, independent of HTTP slots
+  jev_link_floor: 0.0           # first compare policies without a cutoff; then test 0.01
   jev_entries: 10               # fetch all search roots; no snippet gate
-  jev_branch: 2                 # each parent nominates up to 2 links
+  jev_branch: 2                 # beam only: each parent nominates up to 2 links
   jev_depth: 5
-  jev_frontier_width: 10        # global top 10 nominations at each depth
-  jev_fetch_budget: 50          # fast fetch attempts per search, including failures
-  jev_reads: 6                  # browser page budget; no summary calls
+  jev_frontier_width: 10        # beam only: global top 10 nominations at each depth
+  jev_fetch_budget: 50          # logical page visits per search, including cached/failing pages
+  jev_reads: 6                  # saved pages to chunk; no second fetch or summary calls
   jev_direct_reads: 2           # 원질문 정답 순위에서 먼저 확보
   jev_query_reads: 4            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음
   jev_floor: 0.15               # bundle/atomic-chunk threshold; browser top-k has no floor

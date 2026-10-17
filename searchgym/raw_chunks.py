@@ -43,7 +43,9 @@ class SourceChunker:
         self.encoder.no_truncation()
         self.encoder.no_padding()
         self.tokenizer = DecisionTokenizer(encoder=self.encoder, limit=chunk_tokens)
-        self.hybrid = HybridChunker(tokenizer=self.tokenizer, merge_peers=True)
+        self.hybrid = HybridChunker(
+            tokenizer=self.tokenizer, merge_peers=True, always_emit_headings=True,
+        )
         self.markdown = MarkdownIt("commonmark").enable("table")
         self._lock = threading.Lock()
 

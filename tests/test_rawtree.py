@@ -54,6 +54,18 @@ class ChunkTests(unittest.TestCase):
         for value in ['Ada', '2021', 'https://example.org/record']:
             self.assertIn(value, joined)
 
+    def test_headings_without_body_survive(self):
+        c = chunker(128)
+        text = ('# Awards\n\nIntroductory context.\n\n'
+                '## Finalist: Grace Hopper\n\n'
+                '## Award details\n\nThe award is presented annually.\n\n'
+                '## Winner: Ada Lovelace, 2021\n')
+        chunks = c.chunks(text)
+        joined = '\n'.join(chunk.text for chunk in chunks)
+        for fact in ['Finalist: Grace Hopper', 'Winner: Ada Lovelace, 2021',
+                     'Introductory context.', 'The award is presented annually.']:
+            self.assertIn(fact, joined)
+
     def test_quota_overlap_does_not_consume_query_slot(self):
         rows = [{'id': 'a', 'direct_answer': .9, 'query_answer': .9},
                 {'id': 'b', 'direct_answer': .1, 'query_answer': .8}]
@@ -155,7 +167,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
 
         async def fetch(url, *, engine):
             fetched.append(url)
-            self.assertEqual(engine, 'curl')
+            self.assertEqual(engine, 'browser')
             return Document(url, full if url.endswith('/root') else
                             'Terminal [No expansion](https://example.org/deeper)')
 
@@ -245,7 +257,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await client.aclose()
 
-    async def test_failed_search_cancels_active_and_queued_sibling_requests(self):
+    async def test_failed_owned_group_cancels_active_and_queued_sibling_requests(self):
         cfg = AgentConfig(jev_strategy='raw', jev_entries=6, jev_depth=1,
                           jev_concurrency=2, jev_direct_reads=0, jev_query_reads=0)
         client = LocalDecision(cfg)
@@ -266,15 +278,13 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 cancelled.set()
 
-        async def fetch(url, *, engine):
-            return Document(url, 'Source facts')
-
         client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
         try:
             with self.assertRaisesRegex(RuntimeError, 'specific server failure'):
-                await asyncio.wait_for(RawTree(client, cfg, fetch).run_search(
-                    'target', [{'link': f'https://example.org/{i}'} for i in range(6)],
-                    question='original', trace=Capture(), usage=None), timeout=3)
+                await asyncio.wait_for(_gather_owned(*(client.noul(
+                    {'page_url': f'https://example.org/{i}'},
+                    {'query_answer': decision_question('target', query=True)},
+                    Capture(), usage=JevUsage(), context={}) for i in range(6))), timeout=3)
             self.assertTrue(cancelled.is_set())
             count_at_exit = len(posted)
             await asyncio.sleep(.01)
@@ -306,7 +316,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             await task
         self.assertTrue(cleaned.is_set())
 
-    async def test_depth_budget_and_browser_then_raw_tail(self):
+    async def test_depth_budget_and_browser_body_reuse_including_tail(self):
         cfg = AgentConfig(jev_strategy='raw', jev_entries=10, jev_branch=2, jev_depth=5,
                           jev_fetch_budget=50, jev_frontier_width=10, jev_direct_reads=2, jev_query_reads=4,
                           jev_chunk_tokens=32, jev_bundle_tokens=120, jev_direct_chunks=4, jev_query_chunks=8)
@@ -330,9 +340,8 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
 
         async def fetch(url, *, engine):
             fetched.append((url, engine))
-            if engine == 'curl':
-                return Document(url, f'Useful facts. [First]({url}/a) [Second]({url}/b)')
-            return Document(url, '# Source\n\n' + ('ordinary evidence ' * 200) + '\n\nFINAL_FACT 42.')
+            return Document(url, f'# Source\n\nUseful facts. [First]({url}/a) [Second]({url}/b)\n\n'
+                            + ('ordinary evidence ' * 200) + '\n\nFINAL_FACT 42.')
 
         trace = Capture()
         tree = RawTree(FakeDecision(), cfg, fetch)
@@ -340,12 +349,15 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                     [{'link': f'https://example.org/{i}'} for i in range(10)],
                     question='original target', trace=trace, usage=None)
         self.assertEqual(stats['max_depth'], 5)
-        self.assertEqual(stats['fast_fetches'], 50)
-        self.assertEqual(stats['browser_fetches'], 6)
+        self.assertEqual(stats['fast_fetches'], 0)
+        self.assertEqual(stats['browser_fetches'], 50)
+        self.assertEqual(stats['reads'], 6)
+        self.assertEqual(len(fetched), 50)
+        self.assertEqual(len({url for url, _ in fetched}), 50)
         self.assertEqual(stats['summary_calls'], 0)
         self.assertIn('FINAL_FACT', text)
         self.assertLessEqual(tree.jev.chunker.count(text), cfg.jev_output_tokens)
-        self.assertTrue(all(engine == 'curl' for _, engine in fetched[:50]))
+        self.assertTrue(all(engine == 'browser' for _, engine in fetched))
         selected = next(e for e in trace.events if e['event'] == 'rawtree.return')
         ids = [(r['node_id'], i) for r in selected['returned'] for i in r['chunk_ids']]
         self.assertEqual(len(ids), len(set(ids)))

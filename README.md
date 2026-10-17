@@ -1,5 +1,10 @@
 # DepthSearch / search_gym
 
+**RawTree 구현 업데이트 (2026-10-17):** browser 전체 수집·본문 재사용, 전역 best-first,
+부분 평가 실패 복구와 비교 실험 옵션은
+[구현 및 실행 안내](analysis/rawtree_best_first_implementation_20261017.md)를 따른다.
+아래 연구 기록과 이전 RawTree 설계 문서는 당시 설정을 기술한다.
+
 **연구 상태: 2026-09-27. 목표 저널: IEEE Access.** 이 문서는 이 대화에서 합의한 연구 목적,
 실험 통제값, 성공·실패 기록과 다음 작업을 이어가기 위한 기준이다. 점수는 저장된
 `records.jsonl`을 문항 ID별로 집계했다. 과거 설정과 현재 설정을 혼동하지 않는다.

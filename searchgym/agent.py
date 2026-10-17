@@ -149,10 +149,13 @@ class AgentConfig:
     jev_reasoning_tokens: int = 2000  # legacy snapshot field; no longer used by Jev
     jev_strategy: str = "level"   # level (historical) | lds | raw
     jev_fetch_budget: int = 40    # LDS: logical fetch attempts per search, including failures
-    # Raw evidence experiment: local decisions, curl traversal, browser finalists.
+    # Raw evidence: browser documents, local decisions, selected source chunks.
     jev_base_url: str = "http://100.89.209.104:8101"
     jev_concurrency: int = 4
     jev_frontier_width: int = 10
+    jev_traversal: str = "beam"  # raw: beam baseline | best_first
+    jev_expand_batch: int = 4    # logical best-first batch; independent of HTTP concurrency
+    jev_link_floor: float = 0.0  # raw link expansion only; never a page/evidence threshold
     jev_chunk_tokens: int = 512
     jev_bundle_tokens: int = 5000
     jev_overlap_chunks: int = 2
@@ -1259,7 +1262,9 @@ class SearchAgent:
                             ("jev_input_tokens", stats["jev_input_tokens"]),
                             ("jev_failures", stats["jev_failures"])):
             result.reader_stats[key] = result.reader_stats.get(key, 0) + amount
-        for key in ("fast_fetches", "browser_fetches", "bundles_scored", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms"):
+        for key in ("fast_fetches", "browser_fetches", "bundles_scored", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
+                    "page_visits", "document_reuses", "page_eval_failures", "bundle_eval_failures",
+                    "chunk_eval_failures", "links_pruned", "duplicate_candidates"):
             if key in stats:
                 result.reader_stats[key] = result.reader_stats.get(key, 0) + stats[key]
         return text

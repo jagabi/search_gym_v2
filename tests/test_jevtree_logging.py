@@ -186,12 +186,15 @@ class JevLoggingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((usage.calls, usage.attempts, usage.failures), (0, 3, 1))
         self.assertTrue(events[-1]["failed"])
 
-    async def test_missing_key_stops_cli_before_creating_run_or_calling_models(self):
+    async def test_legacy_missing_key_stops_cli_before_creating_run_or_calling_models(self):
         import test as cli
 
+        legacy = cli.load_test(method="jevtree")
+        legacy.agent.jev_strategy = "level"
         error = io.StringIO()
         with patch.dict("os.environ", {"TYPESAFE_API_KEY": ""}), \
                 patch.object(cli, "load_env"), \
+                patch.object(cli, "load_test", return_value=legacy), \
                 patch.object(cli, "_resolve_dir") as resolve_dir, \
                 patch.object(cli, "Runner") as runner, redirect_stderr(error):
             code = await cli.main_async([
