@@ -96,7 +96,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await client.aclose()
 
-    async def test_global_four_slots_and_atomic_questions(self):
+    async def test_global_four_slots_and_shared_question_packets(self):
         cfg = AgentConfig(jev_model='vllm-sr/d3-mini', jev_concurrency=4)
         client = LocalDecision(cfg)
         await client.http.aclose()
@@ -111,19 +111,96 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             peak = max(peak, active)
             await asyncio.sleep(.01)
             active -= 1
-            key = next(iter(body['questions']))
-            return httpx.Response(200, json={'answers': {key: {'noul': .7}}, 'usage': {'input_tokens': 10}})
+            return httpx.Response(200, json={
+                'answers': {key: {'noul': .7} for key in reversed(body['questions'])},
+                'usage': {'input_tokens': 10}})
 
         client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
         meter = JevUsage()
         try:
             q = decision_question('original target', query=False)
-            await asyncio.gather(*(client.noul({'page_text': 'source'}, {'direct': q, 'query': q},
+            results = await asyncio.gather(*(client.noul({'page_text': 'source'}, {'direct': q, 'query': q},
                                                NullTrace(), usage=meter, context={}) for _ in range(7)))
             self.assertEqual(peak, 4)
-            self.assertEqual(meter.calls, 14)
-            self.assertTrue(all(len(b['questions']) == 1 for b in bodies))
+            self.assertEqual(meter.calls, 7)
+            self.assertEqual(meter.attempts, 7)
+            self.assertEqual(meter.input_tokens, 70)
+            self.assertEqual(len(bodies), 7)
+            self.assertTrue(all(r == {'direct': .7, 'query': .7} for r in results))
+            self.assertTrue(all(set(b['questions']) == {'direct', 'query'} for b in bodies))
             self.assertTrue(all(set(b['state']) == {'page_text'} for b in bodies))
+        finally:
+            await client.aclose()
+
+    async def test_page_and_links_share_one_request_with_cutoff_and_score_mapping(self):
+        cfg = AgentConfig(jev_strategy='raw', jev_entries=1, jev_branch=1, jev_depth=2,
+                          jev_fetch_budget=2, jev_direct_reads=0, jev_query_reads=0)
+        client = LocalDecision(cfg)
+        await client.http.aclose()
+        client.chunker = chunker()
+        full = ('First context [First](https://example.org/first)\n'
+                'Second context [Second](https://example.org/second)\n'
+                'Cut context [Cut](https://example.org/cutoff)\n'
+                'UNSEEN [Tail](https://example.org/tail)')
+        cut = full.index('/cutoff') + 3
+        bodies, fetched = [], []
+
+        async def respond(request):
+            body = json.loads(request.content)
+            bodies.append(body)
+            values = {'direct_answer': .3, 'query_answer': .8, 'link_0': .1, 'link_1': .9}
+            return httpx.Response(200, json={
+                'answers': {k: {'noul': values[k]} for k in reversed(body['questions'])},
+                'usage': {'input_tokens': 20}})
+
+        async def fetch(url, *, engine):
+            fetched.append(url)
+            self.assertEqual(engine, 'curl')
+            return Document(url, full if url.endswith('/root') else
+                            'Terminal [No expansion](https://example.org/deeper)')
+
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        trace = Capture()
+        try:
+            with patch.object(client.chunker, 'prefix', side_effect=lambda text, limit:
+                              text[:cut] if text == full else text):
+                _, _, stats = await RawTree(client, cfg, fetch).run_search(
+                    'current target', [{'link': 'https://example.org/root'}],
+                    question='original target', trace=trace, usage=None)
+            self.assertEqual(fetched, ['https://example.org/root', 'https://example.org/second'])
+            self.assertEqual(len(bodies), 2)
+            self.assertEqual(set(bodies[0]['questions']),
+                             {'direct_answer', 'query_answer', 'link_0', 'link_1'})
+            self.assertEqual(set(bodies[1]['questions']), {'direct_answer', 'query_answer'})
+            page = bodies[0]['state']['page_text']
+            self.assertIn('First context [First](link_0)', page)
+            self.assertIn('Second context [Second](link_1)', page)
+            self.assertNotIn('UNSEEN', page)
+            self.assertNotIn('cutoff', json.dumps(bodies[0]))
+            self.assertNotIn('current target', json.dumps(bodies[0]['state']))
+            self.assertNotIn('original target', json.dumps(bodies[0]['state']))
+            self.assertEqual(stats['jev_requests'], 2)
+            self.assertEqual(stats['links_scored'], 2)
+            links = next(e['links'] for e in trace.events if e['event'] == 'rawtree.links')
+            self.assertEqual([(r['url'], r['score']) for r in links],
+                             [('https://example.org/first', .1), ('https://example.org/second', .9)])
+        finally:
+            await client.aclose()
+
+    async def test_missing_score_does_not_silently_drop_a_link(self):
+        client = LocalDecision(AgentConfig())
+        await client.http.aclose()
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={'answers': {'direct_answer': {'noul': .8}}})))
+        meter = JevUsage()
+        try:
+            q = decision_question('target', query=True)
+            with self.assertRaises(RuntimeError):
+                await client.noul('source', {'direct_answer': q, 'link_0': q},
+                                  NullTrace(), usage=meter, context={})
+            self.assertEqual(meter.attempts, 1)
+            self.assertEqual(meter.calls, 0)
+            self.assertEqual(meter.failures, 1)
         finally:
             await client.aclose()
 
@@ -141,8 +218,8 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             async def noul(self, state, questions, trace, *, usage, context):
                 self_test.assertNotIn('question', state)
                 self_test.assertNotIn('search_query', state)
-                usage.calls += len(questions)
-                usage.attempts += len(questions)
+                usage.calls += 1
+                usage.attempts += 1
                 return {key: .9 if context['phase'] != 'chunk' or 'FINAL_FACT' in state['target_chunk'] else .01
                         for key in questions}
 

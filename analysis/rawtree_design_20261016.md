@@ -10,7 +10,10 @@ User will run the benchmark. Implementation and offline validation only.
 - https://docling-project.github.io/docling/concepts/chunking/ : HybridChunker refines document structure using a token budget, splitting oversized blocks and optionally merging peers.
 - https://github.com/jina-ai/reader/blob/main/src/dto/crawler-options.ts : explicit curl/browser engines and content response format.
 
-Example actual chunk decision layout (two such independent decisions, one for each target):
+Updated 2026-10-17: one HTTP request per source, with all judgments in `questions`.
+For page previews this includes direct/query reading value and all link scores.
+For chunks/bundles this includes both evidence scores. The following shows one
+question entry; its counterpart is included in the same request.
 
 ```json
 {
@@ -36,8 +39,8 @@ Original question is in the direct-answer instructions; current query is in quer
 
 1. Start with up to 10 observed search-result URLs, without a snippet-score gate.
 2. Fetch using local Jina `X-Engine: curl`, `content`, no browser or automatic browser fallback. This means HTML transport converted to readable Markdown, not raw HTML tags in the model input.
-3. Score the first 5,000 d3 tokens separately for original-question and current-query reading value. Only complete URLs in this prefix become link candidates (existing filtering, maximum 300).
-4. Rank links from their URL/anchor and roughly 700 characters of surrounding source on each side, plus page title. This is deliberately compact for local d3, which otherwise reprocesses a 5k body for every link. Both the query and original question are in the link instructions; the query is primary. At most two links are nominated per parent.
+3. Keep the first 5,000 d3 tokens, backing off any partially cut URL. Only complete URLs in this prefix become link candidates (existing filtering, maximum 300). Number the links in place, preserving surrounding content.
+4. Send this shared page content once in `state`, with `direct_answer`, `query_answer`, and `link_0...` together in `questions`. Link instructions contain the destination URL, anchor, current query and original question; the query is primary. Validate and map the complete response by key. At most two links are nominated per parent. At depth 5, request only the two page scores, without unused link judgments.
 5. Pool those nominations at the same depth and fetch the top 10 distinct URLs. Maximum depth 5 and total 50 fast-fetch attempts per search. This is bounded breadth-first expansion, not LDS. Cross-parent link score comparison is an explicit heuristic. Missing links, duplicates and failures can end the tree before depth 5; no fabricated URLs or forced expansions.
 6. Rank fetched pages globally, reserve 2 original-question pages and then 4 distinct query pages. Browser fetch those up to six pages with `X-Engine: browser` and cache bypass so curl snapshots cannot stand in for rendered pages. No page-score floor for this top-k stage. Failed browser fetches do not silently reuse curl text.
 7. Convert the whole returned Markdown body into Docling items: headings as headings and other source blocks as text, retaining Markdown tables/links/code. This is a lightweight Markdown adapter, not Docling PDF/OCR/layout conversion. HybridChunker creates approximately 512-token small chunks using the d3 tokenizer. Model weights are never downloaded on the client.
@@ -45,7 +48,7 @@ Original question is in the direct-answer instructions; current query is in quer
 9. Re-evaluate small chunks inside retained bundles, with one preceding/following chunk as context. This locates the evidence instead of returning arbitrary chunks from a high-scoring bundle. Retain up to 4 direct + 8 query chunks, with duplicate exclusion and a 0.15 floor. Quotas are not transferred when an objective has too few candidates.
 10. Reserve selected core chunks first, then add preceding/following small chunks where they fit. Deduplicate by document and chunk ID. Return source URLs and ungenerated text, at most 16,000 d3 tokens per search (the main model retains its own context-fit guard). The 12-chunk budget counts selected cores; neighbors can increase the returned count.
 
-Local decision concurrency is **4 across all question workers**, one key per HTTP request. Fetch concurrency uses the shared Jina limit (50), with no pacing in this explicit local transport. Model errors fail the tool operation instead of receiving a fake relevance score. The local Reader preflight remains mandatory; the d3 model list and tokenizer are checked before question execution.
+Local request concurrency is **4**, and `conf.yaml` now runs one benchmark question at a time. One HTTP request contains all judgments for its source; this does not specify how many model evaluations the server performs internally. Fetch concurrency uses the shared Jina limit (50), with no pacing in this explicit local transport. Model errors fail the tool operation instead of receiving a fake relevance score. The local Reader preflight remains mandatory; the d3 model list and tokenizer are checked before question execution.
 
 Main model search budget remains 10. No early answer stopping inside the tree. No summary-model calls. Existing search-o1 and RAgent paths retain their fetch behavior.
 
@@ -89,5 +92,8 @@ Tokenizer download/import/initialization took 6.0 s once and is excluded above.
 The long input is synthetic, not a separate real 45k-token page. Timing is not a
 guarantee on the user's execution machine. Keep Docling for the prototype; inspect
 `rawtree.chunk_timing` before replacing it. Model decisions use `jev.request.context.phase`
-(`preview`, `link`, `bundle`, `chunk`) and their corresponding response times.
+(`preview`, `bundle`, `chunk`) and their corresponding response times. Preview
+packets now include links; `question_count`, `context.link_count`, and
+`rawtree.links` distinguish HTTP request count from judgment count and retain
+the link-key/URL/score mapping. Historical version 1 had a separate `link` phase.
 Machine-readable results: `analysis/d3_local_probe_20261016/chunking_latency.json`.
