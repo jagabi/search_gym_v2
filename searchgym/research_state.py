@@ -332,6 +332,9 @@ class ResearchState:
         """Restore reporting metadata from cache; cached runs never resume exploration."""
         if value is None:
             return None
+        if value.get("kind") == "raw_progressive":
+            from .raw_research import RawResearchState
+            return RawResearchState.from_snapshot(value)
         state = cls()
         state.sources = {s["id"]: {**s, "snippets": [], "notes": []} for s in value.get("sources", [])}
         state.by_url = {source_key(s["url"]): s["id"] for s in state.sources.values()}

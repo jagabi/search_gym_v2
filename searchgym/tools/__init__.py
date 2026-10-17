@@ -280,7 +280,9 @@ class WebTools:
             failure = reader_failure(content)
             return Document(url=url, content=content, title=str(data.get("title") or ""),
                             is_error=bool(failure), retrieval=f"jina_{engine}",
-                            retrieval_note=failure or "")
+                            retrieval_note=failure or "",
+                            reader_metadata={k: data[k] for k in
+                                ("url", "title", "status", "statusCode", "httpStatus", "publishedTime") if k in data})
         except (httpx.HTTPError, ValueError, TypeError) as exc:
             return Document(url=url, content=f"Could not read {url}: {exc}",
                             is_error=True, retrieval=f"jina_{engine}")

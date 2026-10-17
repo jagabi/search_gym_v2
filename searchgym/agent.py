@@ -155,7 +155,7 @@ class AgentConfig:
     jev_packet_questions: int = 1     # match measured workload: one judgment per HTTP
     jev_inflight_questions: int = 4   # shared per-wave judgment budget
     jev_frontier_width: int = 10
-    jev_traversal: str = "beam"  # raw: beam baseline | best_first
+    jev_traversal: str = "beam"  # raw: beam | best_first | progressive
     jev_expand_batch: int = 4    # rolling best-first page jobs; independent of HTTP concurrency
     jev_link_floor: float = 0.0  # raw link expansion only; never a page/evidence threshold
     jev_chunk_tokens: int = 512
@@ -358,6 +358,10 @@ class SearchAgent:
             self.jev = Jev(self.config.jev_model) if method == "jevtree" else None
 
     @property
+    def progressive_raw(self) -> bool:
+        return self.method == "jevtree" and self.config.jev_strategy == "raw" and self.config.jev_traversal == "progressive"
+
+    @property
     def uses_explorer(self) -> bool:
         return self.method != "ragent"
 
@@ -400,6 +404,10 @@ class SearchAgent:
         result = RunResult()
         if self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading):
             result.research_state = ResearchState()
+        if self.progressive_raw:
+            from .raw_research import RawResearchState, RAW_PROMPT
+            result.research_state = RawResearchState()
+            system_prompt = (system_prompt or "") + "\n\n" + RAW_PROMPT
         started = time.perf_counter()
 
         system = _system_prompt(system_prompt, self.profile.reasoning_effort)
@@ -446,7 +454,10 @@ class SearchAgent:
                         url_spec = function.get("parameters", {}).get("properties", {}).get("url")
                         if isinstance(url_spec, dict):
                             url_spec["description"] = "An observed source ID (S1, S2, ...) or an absolute HTTP(S) URL."
-        if self.method == "jevtree":
+        if self.progressive_raw:
+            from .raw_research import raw_specs
+            specs = raw_specs(specs)
+        if self.method == "jevtree" and not self.progressive_raw:
             specs = copy.deepcopy(specs)
             for spec in specs:
                 if spec["function"]["name"] == "web_search":
@@ -479,7 +490,11 @@ class SearchAgent:
         ) if self.jev is not None and cfg.jev_strategy != "raw" else None
         if self.jev is not None and cfg.jev_strategy == "raw":
             from .rawtree import RawTree
-            jevtree = RawTree(self.jev, cfg, guarded_fetch)
+            if self.progressive_raw:
+                from .raw_progressive import ProgressiveRawTree
+                jevtree = ProgressiveRawTree(self.jev, cfg, guarded_fetch, result.research_state)
+            else:
+                jevtree = RawTree(self.jev, cfg, guarded_fetch)
         explorer = (
             Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch,
                      enforce_tool_availability=self.method == "depthsearch",
@@ -574,9 +589,14 @@ class SearchAgent:
                     result.answer = step.text = final
                     result.stop_reason = "finalized" if final else "no_answer"
                     break
+                if self.progressive_raw and not active_specs:
+                    result.answer = step.text = await self._salvage(messages, trace, result.usage,
+                        answer_only=True, checkpoint=result.research_state.render())
+                    result.stop_reason = "finalized" if result.answer else "no_answer"
+                    break
                 request_messages = messages
                 choice = {}
-                if self.method == "depthsearch":
+                if self.method == "depthsearch" or self.progressive_raw:
                     request_messages = messages + [{"role": "user", "content":
                         self._action_notice(active_specs, result, budget)
                         + ("\n\n" + result.research_state.render() if result.research_state else "")}]
@@ -636,6 +656,7 @@ class SearchAgent:
                         (s["function"]["name"] == "web_search" and result.searches < cfg.max_searches)
                         or (s["function"]["name"] == "web_fetch" and
                             (not cfg.max_fetches or result.fetches < cfg.max_fetches))
+                        or (self.progressive_raw and s["function"]["name"] in {"read_source", "continue_search"})
                         for s in active_specs
                     )
                     if (can_use_tools and tool_resume_attempts < cfg.max_tool_recoveries and turn < cfg.max_turns
@@ -660,7 +681,7 @@ class SearchAgent:
                     # 4건). 그대로 두면 빈 답이 채점으로 넘어가 0점이 되고, 판정 쪽에는
                     # judge_error(empty_response)로만 보여 원인이 가려진다.
                     # 한 번만 명시적으로 답을 요구한 뒤, 그래도 비면 포기한다.
-                    if cfg.finalize_answer or not step.text.strip() or action_text or reply.truncated:
+                    if self.progressive_raw or cfg.finalize_answer or not step.text.strip() or action_text or reply.truncated:
                         trace.event("run.finalizing", turn=turn, reason=(
                             "truncated" if reply.truncated else "verification" if cfg.finalize_answer else "empty_or_action"
                         ))
@@ -672,8 +693,9 @@ class SearchAgent:
                         if first_route_messages:
                             review.pop("draft", None)
                             review.pop("draft_reasoning", None)
-                        final = await self._salvage(synthesis_messages(), trace, result.usage, **review)
-                        result.answer = final or usable_draft
+                        final = await self._salvage(synthesis_messages(), trace, result.usage,
+                            answer_only=self.progressive_raw, **review)
+                        result.answer = final if self.progressive_raw else final or usable_draft
                         result.stop_reason = "finalized" if final else (
                             "answered" if usable_draft else "truncated" if reply.truncated else "no_answer"
                         )
@@ -695,7 +717,7 @@ class SearchAgent:
                         messages.append({"role": "tool", "tool_call_id": call.id, "content": output})
                         trace.event("tool.unavailable", turn=turn, tool=call.function.name, reason="one_search_per_seed")
                         continue
-                    if self.method == "depthsearch" and call.function.name not in {
+                    if (self.method == "depthsearch" or self.progressive_raw) and call.function.name not in {
                         s["function"]["name"] for s in self._available_specs(specs, result)
                     }:
                         # A stale or batched call must not bypass the current tool list.
@@ -730,8 +752,8 @@ class SearchAgent:
                 trace.event("run.truncated", reason="max_turns", turns=cfg.max_turns)
                 recovery = self._checkpoint_recovery(result)
                 final = await self._salvage(synthesis_messages(), trace, result.usage,
-                    answer_only=(self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading)
-                                 and result.searches >= cfg.max_searches), **recovery)
+                    answer_only=(self.progressive_raw or (self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading)
+                                 and result.searches >= cfg.max_searches)), **recovery)
                 if final:
                     result.answer, result.stop_reason = final, "finalized"
         except Exception as exc:
@@ -764,6 +786,15 @@ class SearchAgent:
         return result
 
     def _available_specs(self, specs: list[dict[str, Any]], result: RunResult) -> list[dict[str, Any]]:
+        if self.progressive_raw:
+            if result.context_exhausted:
+                return []
+            state = result.research_state
+            return [s for s in specs if (
+                s["function"]["name"] == "web_search" and result.searches < self.config.max_searches
+            ) or (s["function"]["name"] == "read_source" and state and state.sources)
+              or (s["function"]["name"] == "continue_search" and state and
+                  any(v["remaining_visits"] > 0 for v in state.sessions.values()))]
         if self.method != "depthsearch":
             return specs
         if result.context_exhausted:
@@ -793,6 +824,13 @@ class SearchAgent:
 
     def _action_notice(self, specs: list[dict[str, Any]], result: RunResult, budget: Budget) -> str:
         names = {s["function"]["name"] for s in specs}
+        if self.progressive_raw and names:
+            return (f"Searches remaining: {max(0, self.config.max_searches-result.searches)}. "
+                    f"Available actions: {', '.join(sorted(names))}. "
+                    "Update research.candidates with source:chunk evidence and a specific next_gap. "
+                    "Read a known source to fill a gap; continue a saved session only if links can help. "
+                    "Answer when the requested fact and identifying evidence are established. "
+                    "A contradiction needs resolution, not repetition; hypotheses remain provisional.")
         if not names:
             return "No research tools are available now. Do not call tools. Answer from the collected evidence."
         parts = ["Current available actions (this overrides earlier tool availability):"]
@@ -862,7 +900,7 @@ class SearchAgent:
                 "unknown. Use the requested format; do not call tools or describe further research."
             )})
             trace.event("run.review_draft", draft=draft, reasoning_chars=len(draft_reasoning))
-        if checkpoint and self.method == "depthsearch":
+        if checkpoint and (self.method == "depthsearch" or self.progressive_raw):
             rebuilt.append({"role": "user", "content": checkpoint + "\n\n"
                 "Write the final answer now. Review the provisional answer against its cited "
                 "evidence and any contradictions. Keep supported items, revise contradicted "
@@ -884,7 +922,7 @@ class SearchAgent:
                 trace.event("run.final_context_compacted", checkpoint_truncated=clipped)
         for attempt in range(2):
             try:
-                choice = {"tool_choice": "none"} if self.method == "depthsearch" else {}
+                choice = {"tool_choice": "none"} if self.method == "depthsearch" or self.progressive_raw else {}
                 if answer_only:
                     trace.event("run.final_request", attempt=attempt, messages=rebuilt, tools=[],
                                 tool_choice="none", phase="answer_only")
@@ -940,6 +978,40 @@ class SearchAgent:
         used = result.searches if name == "web_search" else result.fetches
         record = ToolCall(name=name, arguments=arguments)
         step.tool_calls.append(record)
+        if self.progressive_raw:
+            result.research_state.update(arguments.get("research"))
+            if name in {"read_source", "continue_search"}:
+                action_started = time.perf_counter()
+                trace.event("tool.call", turn=step.turn, tool=name, arguments=arguments)
+                try:
+                    goal = arguments.get("goal")
+                    if not isinstance(goal, str) or not goal.strip():
+                        raise ValueError("goal must describe a non-empty missing fact")
+                    if name == "read_source":
+                        log, text, stats = await jevtree.read_source(arguments.get("source_id"), goal, trace=trace)
+                    else:
+                        parents = arguments.get("source_ids", [])
+                        if not isinstance(parents, list) or not all(isinstance(v, str) for v in parents):
+                            raise ValueError("source_ids must be an array of source IDs")
+                        log, text, stats = await jevtree.continue_search(arguments.get("search_id"), goal, parents, trace=trace)
+                    self._record_jev(log, stats, result, record)
+                    result.research_state.sessions = jevtree.notice()
+                    text, truncated = await self._fit(text, result)
+                    result.context_exhausted |= truncated
+                    record.result = text
+                    record.result_chars = len(text)
+                    record.duration_ms = 1000 * (time.perf_counter()-action_started)
+                    trace.event("tool.result", turn=step.turn, tool=name, arguments=arguments,
+                                result_chars=len(text), truncated=truncated, is_error=False,
+                                duration_ms=record.duration_ms)
+                    return text
+                except (ValueError, TypeError) as exc:
+                    record.is_error = record.refused = True
+                    result.invalid_tool_calls += 1
+                    record.result = f"Invalid {name} action: {exc}"
+                    record.result_chars = len(record.result)
+                    trace.event("tool.invalid_arguments", tool=name, arguments=arguments, error=str(exc))
+                    return record.result
 
         if name == "web_fetch" and (self.method == "jevtree" or (
                 self.method == "depthsearch" and (cfg.depthsearch_control or self.relational_reading)
@@ -1029,7 +1101,7 @@ class SearchAgent:
             result.invalid_tool_calls += 1
 
         suffix = ""
-        if self.method == "jevtree" and name == "web_search":
+        if self.method == "jevtree" and name == "web_search" and not self.progressive_raw:
             suffix = "\n\n" + SEARCH_FOLLOWUP.format(
                 query=json.dumps(str(arguments.get("query") or ""), ensure_ascii=False))
         text, truncated = await self._fit(text, result, suffix=suffix)
@@ -1091,7 +1163,7 @@ class SearchAgent:
             record.leaked = leaked
             trace.event("contamination.filtered", turn=turn, removed=leaked)
 
-        if result.research_state is not None and explorer is not None:
+        if result.research_state is not None and explorer is not None and not self.progressive_raw:
             state = result.research_state
             state.repeated_requests = 0
             focus = []
@@ -1248,6 +1320,12 @@ class SearchAgent:
         log, text, stats = await jevtree.run_search(
             query, parsed.get("organic") or [], question=question,
             trace=trace, usage=result.usage)
+        self._record_jev(log, stats, result, record)
+        if result.research_state is not None and self.progressive_raw:
+            result.research_state.sessions = jevtree.notice()
+        return text
+
+    def _record_jev(self, log, stats, result, record):
         result.explorations.append(log)
         record.explorations.append(log)
         result.auto_fetches += stats["entries"]
@@ -1266,10 +1344,9 @@ class SearchAgent:
             result.reader_stats[key] = result.reader_stats.get(key, 0) + amount
         for key in ("fast_fetches", "browser_fetches", "bundles_scored", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
                     "page_visits", "document_reuses", "page_eval_failures", "bundle_eval_failures",
-                    "chunk_eval_failures", "links_pruned", "duplicate_candidates"):
+                    "chunk_eval_failures", "links_pruned", "duplicate_candidates", "chunk_cache_hits"):
             if key in stats:
                 result.reader_stats[key] = result.reader_stats.get(key, 0) + stats[key]
-        return text
 
     async def _document(
         self, url: str, tools: Any, question: str, trace: Trace,
@@ -1289,7 +1366,8 @@ class SearchAgent:
         document = await tools.fetch(url, engine=engine) if engine else await tools.fetch(url)
         if self.method == "jevtree":
             trace.event("fetch.raw", url=url, content=document.content, is_error=document.is_error,
-                        retrieval=document.retrieval, duration_ms=round((time.perf_counter()-started)*1000, 1))
+                        retrieval=document.retrieval, reader_metadata=document.reader_metadata,
+                        duration_ms=round((time.perf_counter()-started)*1000, 1))
         trace.event("fetch.source", url=url, retrieval=document.retrieval,
                     retrieval_note=document.retrieval_note, is_error=document.is_error)
         if document.is_error:

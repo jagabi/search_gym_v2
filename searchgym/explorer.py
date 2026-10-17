@@ -265,6 +265,7 @@ class Document:
     is_error: bool = False
     retrieval: str = ""
     retrieval_note: str = ""
+    reader_metadata: dict = field(default_factory=dict)
 
     def render(self, index: int) -> str:
         head = f"[{index}] {self.title or '(untitled)'} — {self.url}"

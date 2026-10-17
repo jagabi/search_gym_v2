@@ -408,8 +408,8 @@ def _validate(config: TestConfig) -> None:
             a = config.agent
             from .local_reader import local_reader_url
             local_reader_url(a.jev_base_url)
-            if a.jev_traversal not in ("beam", "best_first"):
-                raise ValueError("RawTree jev_traversal must be beam or best_first")
+            if a.jev_traversal not in ("beam", "best_first", "progressive"):
+                raise ValueError("RawTree jev_traversal must be beam, best_first, or progressive")
             if not 0 <= a.jev_link_floor <= 1 or not 0 <= a.jev_floor <= 1:
                 raise ValueError("RawTree score floors must be between 0 and 1")
             if (type(a.jev_packet_questions) is not int or not 1 <= a.jev_packet_questions <= 64

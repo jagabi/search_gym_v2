@@ -57,7 +57,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--prompt", default=None, help="메인 시스템 프롬프트를 파일에서 읽는다")
     parser.add_argument("--explorer-prompt", default=None, help="explorer 프롬프트 파일")
     parser.add_argument("--no-cache", action="store_true")
-    parser.add_argument("--raw-traversal", choices=("beam", "best_first"), default=None,
+    parser.add_argument("--raw-traversal", choices=("beam", "best_first", "progressive"), default=None,
                         help="RawTree 탐색 정책 비교 (browser 수집·원문 청크 전달은 동일)")
     parser.add_argument("--raw-link-floor", type=float, default=None,
                         help="RawTree 링크 확장 최소 점수 (예: 0 또는 0.01)")

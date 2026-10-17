@@ -185,7 +185,7 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['fetch_failed'], 1)
 
     async def test_partial_packet_keeps_valid_page_scores_and_marks_unknown_links(self):
-        cfg = config(jev_entries=1, jev_depth=2, jev_fetch_budget=1,
+        cfg = config(jev_entries=1, jev_depth=2, jev_fetch_budget=2,
                      jev_direct_reads=1, jev_query_reads=0, jev_page_tokens=10000)
         client = LocalDecision(cfg)
         await client.http.aclose()
