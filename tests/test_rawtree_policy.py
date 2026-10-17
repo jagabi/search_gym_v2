@@ -93,14 +93,79 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
         _, _, fetched, _, _ = await self.run_graph(graph, cfg=config(jev_expand_batch=1, jev_fetch_budget=5))
         self.assertEqual(fetched, ['a', 'b', 'a1', 'deep', 'a2'])
 
-    async def test_selection_is_independent_of_completion_order(self):
-        graph = {'a': [('a1', .9), ('a2', .8), ('a3', .7)],
-                 'b': [('b1', .9), ('b2', .8)]}
-        first = await self.run_graph(graph, delays={'a': .02, 'a1': .02})
-        second = await self.run_graph(graph, delays={'b': .02, 'b1': .02})
-        self.assertEqual(first[2], second[2])
-        select = lambda trace: [e['selected'] for e in trace.events if e['event'] == 'rawtree.frontier']
-        self.assertEqual(select(first[3]), select(second[3]))
+    async def test_refills_http_slot_before_slow_roots_finish(self):
+        cfg = config(jev_entries=4, jev_expand_batch=4, jev_fetch_budget=5)
+        client = LocalDecision(cfg)
+        await client.http.aclose()
+        client.chunker = chunker(64)
+        four_started, child_started = asyncio.Event(), asyncio.Event()
+        active, peak, started, finished = set(), 0, [], []
+
+        async def respond(request):
+            nonlocal peak
+            body = json.loads(request.content)
+            name = body['state']['page_url'].removeprefix(BASE)
+            active.add(name)
+            started.append(name)
+            peak = max(peak, len(active))
+            if len(started) == 4:
+                four_started.set()
+            try:
+                if name == 'fast':
+                    await four_started.wait()
+                elif name == 'child':
+                    self.assertEqual(active, {'slow1', 'slow2', 'slow3', 'child'})
+                    child_started.set()
+                else:
+                    await child_started.wait()
+                return httpx.Response(200, json={'answers': {
+                    k: {'noul': .8} for k in body['questions']}})
+            finally:
+                active.remove(name)
+                finished.append(name)
+
+        async def fetch(url, *, engine):
+            content = f'[Child]({BASE}child)' if url.endswith('/fast') else 'source facts'
+            return Document(url, content)
+
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            _, _, stats = await asyncio.wait_for(RawTree(client, cfg, fetch).run_search(
+                'query', [{'link': BASE + name} for name in ('slow1', 'fast', 'slow2', 'slow3')],
+                question='original', trace=Capture(), usage=None), timeout=3)
+            self.assertTrue(child_started.is_set())
+            self.assertEqual(peak, 4)
+            self.assertEqual(stats['page_visits'], 5)
+            self.assertLess(finished.index('child'), finished.index('slow1'))
+            self.assertFalse(active)
+        finally:
+            await client.aclose()
+
+    async def test_cancellation_cleans_up_rolling_page_jobs(self):
+        cfg = config(jev_expand_batch=2)
+        decision = GraphDecision({})
+        started = asyncio.Event()
+        active = set()
+
+        async def fetch(url, *, engine):
+            active.add(url)
+            if len(active) == 2:
+                started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                active.remove(url)
+
+        job = asyncio.create_task(RawTree(decision, cfg, fetch).run_search(
+            'query', [{'link': BASE + name} for name in ('a', 'b')],
+            question='original', trace=Capture(), usage=None))
+        try:
+            await asyncio.wait_for(started.wait(), timeout=3)
+        finally:
+            job.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await job
+        self.assertFalse(active)
 
     async def test_floor_applies_to_links_only_and_depth_limits_children(self):
         graph = {'a': [('a1', .009), ('a2', .01)], 'b': [('b1', 0)],

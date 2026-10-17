@@ -154,7 +154,7 @@ class AgentConfig:
     jev_concurrency: int = 4
     jev_frontier_width: int = 10
     jev_traversal: str = "beam"  # raw: beam baseline | best_first
-    jev_expand_batch: int = 4    # logical best-first batch; independent of HTTP concurrency
+    jev_expand_batch: int = 4    # rolling best-first page jobs; independent of HTTP concurrency
     jev_link_floor: float = 0.0  # raw link expansion only; never a page/evidence threshold
     jev_chunk_tokens: int = 512
     jev_bundle_tokens: int = 5000

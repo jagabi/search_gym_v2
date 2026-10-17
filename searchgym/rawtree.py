@@ -11,6 +11,7 @@ import heapq
 import json
 import math
 import time
+from collections import deque
 from dataclasses import asdict
 from uuid import uuid4
 
@@ -23,7 +24,7 @@ from .local_reader import local_reader_url
 from .raw_chunks import SourceChunker
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-best-first-docling/5"
+VERSION = "raw-browser-best-first-docling/6"
 # d3-mini /v1/systemone rejects larger packets with HTTP 400.
 D3_MAX_QUESTIONS = 64
 
@@ -297,33 +298,20 @@ class RawTree:
             return [(s, u, a, n) for s, u, a in n.link_scores]
 
         pending, sequence, round_index = [], 0, 0
-        while level:
-            # Commit in batch order, never in network/model completion order.
+        while level and cfg.jev_traversal == "beam":
             groups = await _gather_owned(*(preview(n) for n in level))
-            candidates = [c for group in groups for c in
-                          (group[:cfg.jev_branch] if cfg.jev_traversal == "beam" else group)]
+            candidates = [c for group in groups for c in group[:cfg.jev_branch]]
             eligible = [c for c in candidates if c[0] >= cfg.jev_link_floor]
             stats["links_pruned"] += len(candidates) - len(eligible)
             remaining = cfg.jev_fetch_budget-len(nodes)
-            width = min(cfg.jev_frontier_width if cfg.jev_traversal == "beam"
-                        else cfg.jev_expand_batch, remaining)
+            width = min(cfg.jev_frontier_width, remaining)
             next_level = []
-            if cfg.jev_traversal == "beam":
-                for score, url, anchor, parent in sorted(eligible, key=lambda c: (-c[0], c[1])):
-                    if len(next_level) >= width:
-                        break
-                    node = admit(url, parent, anchor, score)
-                    if node:
-                        next_level.append(node)
-            else:
-                for score, url, anchor, parent in eligible:
-                    heapq.heappush(pending, (-score, parent.depth+1, url, sequence, anchor, parent))
-                    sequence += 1
-                while pending and len(next_level) < width:
-                    neg_score, _, url, _, anchor, parent = heapq.heappop(pending)
-                    node = admit(url, parent, anchor, -neg_score)
-                    if node:
-                        next_level.append(node)
+            for score, url, anchor, parent in sorted(eligible, key=lambda c: (-c[0], c[1])):
+                if len(next_level) >= width:
+                    break
+                node = admit(url, parent, anchor, score)
+                if node:
+                    next_level.append(node)
             trace.event("rawtree.frontier", search_id=search_id, depth=min(n.depth for n in level),
                         depths=sorted({n.depth for n in level}), traversal=cfg.jev_traversal,
                         round=round_index, pending_candidates=len(pending),
@@ -331,6 +319,55 @@ class RawTree:
                         selected=[n.node_id for n in next_level])
             level = next_level
             round_index += 1
+        if cfg.jev_traversal == "best_first":
+            # Keep a rolling window of page jobs. The shared LocalDecision
+            # semaphore independently bounds HTTP requests across all searches.
+            roots, active = deque(level), {}
+
+            def refill():
+                selected = []
+                while len(active) < cfg.jev_expand_batch:
+                    node = roots.popleft() if roots else None
+                    while node is None and pending and len(nodes) < cfg.jev_fetch_budget:
+                        neg_score, _, url, _, anchor, parent = heapq.heappop(pending)
+                        node = admit(url, parent, anchor, -neg_score)
+                    if node is None:
+                        break
+                    active[asyncio.create_task(preview(node))] = node
+                    selected.append(node.node_id)
+                return selected
+
+            try:
+                refill()
+                while active:
+                    done, _ = await asyncio.wait(active, return_when=asyncio.FIRST_COMPLETED)
+                    completed = sorted(done, key=lambda task: int(active[task].node_id[1:]))
+                    candidates = [c for task in completed for c in task.result()]
+                    depths = sorted({active[task].depth for task in completed})
+                    completed_ids = [active[task].node_id for task in completed]
+                    for task in completed:
+                        del active[task]
+                    for score, url, anchor, parent in candidates:
+                        if score < cfg.jev_link_floor:
+                            stats["links_pruned"] += 1
+                            continue
+                        heapq.heappush(pending, (-score, parent.depth+1, url, sequence, anchor, parent))
+                        sequence += 1
+                    selected = refill()
+                    trace.event("rawtree.frontier", search_id=search_id, depth=min(depths),
+                                depths=depths, traversal=cfg.jev_traversal,
+                                round=round_index, pending_candidates=len(pending),
+                                completed=completed_ids, active_pages=len(active),
+                                queued_roots=len(roots),
+                                candidates=[{"url": u, "parent": p.node_id, "score": s}
+                                            for s, u, a, p in candidates], selected=selected)
+                    round_index += 1
+            finally:
+                # Cancellation or unexpected exceptions must not leak page jobs.
+                for task in active:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*active, return_exceptions=True)
         trace.event("rawtree.traversal_end", search_id=search_id, traversal=cfg.jev_traversal,
                     page_visits=len(nodes), pending_candidates=len(pending),
                     reason="page_budget" if len(nodes) >= cfg.jev_fetch_budget else "frontier_exhausted")
