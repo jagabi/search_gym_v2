@@ -1,8 +1,7 @@
 """Bounded browser traversal -> ranked saved pages -> selected raw Docling chunks.
 
-The local decision semaphore is owned by the shared SearchAgent, not a tree or
-question. One request carries shared source content and all judgments for it.
-The semaphore limits HTTP requests, not the server's internal model evaluations.
+The shared SearchAgent owns both HTTP and outstanding judgment limits. Source
+judgments are split into small packets and queued locally before HTTP dispatch.
 """
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ import json
 import math
 import time
 from collections import deque
+from contextlib import asynccontextmanager
 from dataclasses import asdict
 from uuid import uuid4
 
@@ -24,7 +24,7 @@ from .local_reader import local_reader_url
 from .raw_chunks import SourceChunker
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-best-first-docling/6"
+VERSION = "raw-browser-best-first-docling/7"
 # d3-mini /v1/systemone rejects larger packets with HTTP 400.
 D3_MAX_QUESTIONS = 64
 
@@ -81,12 +81,45 @@ def quota_select(rows: list[dict], direct: int, query: int, *, floor: float = 0.
 
 class LocalDecision:
     def __init__(self, config):
+        if (type(config.jev_packet_questions) is not int
+                or not 2 <= config.jev_packet_questions <= D3_MAX_QUESTIONS
+                or type(config.jev_inflight_questions) is not int
+                or config.jev_inflight_questions < config.jev_packet_questions):
+            raise ValueError("Invalid decision packet size or in-flight question budget")
         self.cfg = config
         self.endpoint = local_reader_url(config.jev_base_url) + "/v1/systemone"
         self.http = httpx.AsyncClient(timeout=180, trust_env=False)
         self.slots = asyncio.Semaphore(config.jev_concurrency)
+        self.question_condition = asyncio.Condition()
+        self.question_waiters = deque()
+        self.inflight_questions = 0
         self.chunker = None
         self.prepare_lock = asyncio.Lock()
+
+    @asynccontextmanager
+    async def _question_slots(self, count):
+        # Reserve atomically; acquiring count individual semaphore permits can
+        # deadlock. FIFO admission prevents small packets starving large ones.
+        ticket = object()
+        async with self.question_condition:
+            self.question_waiters.append(ticket)
+            try:
+                await self.question_condition.wait_for(lambda:
+                    self.question_waiters[0] is ticket and
+                    self.inflight_questions + count <= self.cfg.jev_inflight_questions)
+            except BaseException:
+                self.question_waiters.remove(ticket)
+                self.question_condition.notify_all()
+                raise
+            self.question_waiters.popleft()
+            self.inflight_questions += count
+            self.question_condition.notify_all()
+        try:
+            yield
+        finally:
+            async with self.question_condition:
+                self.inflight_questions -= count
+                self.question_condition.notify_all()
 
     async def prepare(self):
         async with self.prepare_lock:
@@ -104,12 +137,13 @@ class LocalDecision:
         if not questions:
             return {}
         items = list(questions.items())
-        packet_count = (len(items) + D3_MAX_QUESTIONS - 1) // D3_MAX_QUESTIONS
+        packet_size = self.cfg.jev_packet_questions
+        packet_count = (len(items) + packet_size - 1) // packet_size
         scores = {}
         # Keep the page scores and first link scores together. Only overflow
         # links need another packet; no candidates or questions are discarded.
-        for index, start in enumerate(range(0, len(items), D3_MAX_QUESTIONS)):
-            packet = dict(items[start:start+D3_MAX_QUESTIONS])
+        for index, start in enumerate(range(0, len(items), packet_size)):
+            packet = dict(items[start:start+packet_size])
             try:
                 scores.update(await self._noul_packet(
                     state, packet, trace, usage=usage,
@@ -128,11 +162,13 @@ class LocalDecision:
         queued = time.perf_counter()
         trace.event("jev.request", request_id=request_id, endpoint=self.endpoint, context=context,
                     question_count=len(questions), body=body)
-        async with self.slots:
+        async with self.slots, self._question_slots(len(questions)):
             started = time.perf_counter()
             usage.attempts += 1
             trace.event("jev.attempt", request_id=request_id, attempt=0,
-                        queue_ms=1000*(started-queued))
+                        queue_ms=1000*(started-queued),
+                        question_count=len(questions), inflight_questions=self.inflight_questions,
+                        question_budget=self.cfg.jev_inflight_questions)
             try:
                 response = await self.http.post(self.endpoint, json=body)
                 trace.event("jev.response", request_id=request_id, attempt=0,

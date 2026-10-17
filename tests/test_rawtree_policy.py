@@ -242,7 +242,7 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
         async def respond(request):
             body = json.loads(request.content)
             keys = body['questions']
-            if 'link_62' in keys:
+            if 'link_6' in keys:
                 return httpx.Response(500, text='overflow unavailable')
             return httpx.Response(200, json={'answers': {k: {'noul': .8} for k in keys},
                                             'usage': {'input_tokens': 10}})
@@ -259,8 +259,8 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn('VALID_FACT', text)
             self.assertEqual(stats['page_eval_failures'], 1)
             links = next(e['links'] for e in trace.events if e['event'] == 'rawtree.links')
-            self.assertEqual(sum(link['evaluated'] for link in links), 62)
-            self.assertTrue(all(link['score'] is None for link in links[62:]))
+            self.assertEqual(sum(link['evaluated'] for link in links), 6)
+            self.assertTrue(all(link['score'] is None for link in links[6:]))
         finally:
             await client.aclose()
 
@@ -280,11 +280,15 @@ class ConfigurationTests(unittest.TestCase):
     def test_policy_parameters_are_validated_and_invalidate_cache(self):
         cfg = load_test(method='jevtree')
         for changes in ({'jev_traversal': 'unknown'}, {'jev_expand_batch': 0},
-                        {'jev_link_floor': -1}, {'jev_link_floor': float('nan')}):
+                        {'jev_link_floor': -1}, {'jev_link_floor': float('nan')},
+                        {'jev_packet_questions': 1}, {'jev_packet_questions': 65},
+                        {'jev_packet_questions': 8.5}, {'jev_inflight_questions': 7},
+                        {'jev_inflight_questions': 32.5}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 _validate(replace(cfg, agent=replace(cfg.agent, **changes)))
         base = _agent_fingerprint(cfg.agent)
-        for changes in ({'jev_traversal': 'beam'}, {'jev_expand_batch': 1}, {'jev_link_floor': .01}):
+        for changes in ({'jev_traversal': 'beam'}, {'jev_expand_batch': 1}, {'jev_link_floor': .01},
+                        {'jev_packet_questions': 16}, {'jev_inflight_questions': 16}):
             self.assertNotEqual(base, _agent_fingerprint(replace(cfg.agent, **changes)))
 
 

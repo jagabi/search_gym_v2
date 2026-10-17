@@ -152,6 +152,8 @@ class AgentConfig:
     # Raw evidence: browser documents, local decisions, selected source chunks.
     jev_base_url: str = "http://100.89.209.104:8101"
     jev_concurrency: int = 4
+    jev_packet_questions: int = 8     # judgments per HTTP packet, not server maximum
+    jev_inflight_questions: int = 32  # shared outstanding judgment budget
     jev_frontier_width: int = 10
     jev_traversal: str = "beam"  # raw: beam baseline | best_first
     jev_expand_batch: int = 4    # rolling best-first page jobs; independent of HTTP concurrency

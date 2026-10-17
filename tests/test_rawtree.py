@@ -217,7 +217,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             await client.aclose()
 
     async def test_server_64_key_limit_preserves_all_scores_and_minimal_packets(self):
-        client = LocalDecision(AgentConfig())
+        client = LocalDecision(AgentConfig(jev_packet_questions=64, jev_inflight_questions=256))
         await client.http.aclose()
         bodies = []
         values = {}
@@ -294,6 +294,8 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(client.slots.acquire(), timeout=.1)
             for _ in range(2):
                 client.slots.release()
+            self.assertEqual(client.inflight_questions, 0)
+            self.assertFalse(client.question_waiters)
         finally:
             await client.aclose()
 
