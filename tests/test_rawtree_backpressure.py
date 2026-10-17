@@ -12,6 +12,93 @@ from test_rawtree import Capture
 
 
 class BackpressureTests(unittest.IsolatedAsyncioTestCase):
+    async def test_four_single_judgments_wait_for_entire_wave_across_sources(self):
+        client = LocalDecision(AgentConfig())
+        await client.http.aclose()
+        four_started, three_finished, release_slow = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        posted, finished = [], []
+
+        async def respond(request):
+            body = json.loads(request.content)
+            self.assertEqual(len(body['questions']), 1)
+            key = next(iter(body['questions']))
+            posted.append(key)
+            if len(posted) == 4:
+                four_started.set()
+            if key == 'a0':
+                await release_slow.wait()
+            elif key in ('a1', 'a2', 'a3'):
+                await four_started.wait()
+            finished.append(key)
+            if set(('a1', 'a2', 'a3')).issubset(finished):
+                three_finished.set()
+            if key not in ('a0', 'a1', 'a2', 'a3'):
+                self.assertTrue(set(('a0', 'a1', 'a2', 'a3')).issubset(finished))
+            await asyncio.sleep(0)
+            return httpx.Response(200, json={'answers': {key: {'noul': .5}}})
+
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        trace = Capture()
+        def call(prefix, size):
+            return client.noul({'page_text': prefix},
+                {f'{prefix}{i}': decision_question('target', query=True) for i in range(size)},
+                trace, usage=JevUsage(), context={'source': prefix})
+
+        tasks = [asyncio.create_task(call('a', 8)), asyncio.create_task(call('b', 5))]
+        try:
+            await asyncio.wait_for(three_finished.wait(), timeout=3)
+            await asyncio.sleep(.02)
+            self.assertEqual(posted, ['a0', 'a1', 'a2', 'a3'])
+            release_slow.set()
+            results = await asyncio.wait_for(asyncio.gather(*tasks), timeout=3)
+            self.assertEqual([len(result) for result in results], [8, 5])
+            self.assertEqual(len(set(posted)), 13)
+            # A batch ID cannot advance while an HTTP request in it is active.
+            active = set()
+            batch_id = None
+            for event in trace.events:
+                if event['event'] == 'jev.attempt':
+                    if event['batch_id'] != batch_id:
+                        self.assertFalse(active)
+                        batch_id = event['batch_id']
+                    active.add(event['request_id'])
+                    self.assertLessEqual(len(active), 4)
+                elif event['event'] in ('jev.result', 'jev.error', 'jev.cancelled'):
+                    active.remove(event['request_id'])
+            self.assertFalse(active)
+            self.assertEqual(client.batch_active, 0)
+        finally:
+            release_slow.set()
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            await client.aclose()
+
+    async def test_failed_key_keeps_successful_siblings_and_stops_after_wave(self):
+        client = LocalDecision(AgentConfig())
+        await client.http.aclose()
+        posted = []
+
+        async def respond(request):
+            key = next(iter(json.loads(request.content)['questions']))
+            posted.append(key)
+            await asyncio.sleep(.01)
+            if key == 'key_0':
+                return httpx.Response(500, text='unavailable')
+            return httpx.Response(200, json={'answers': {key: {'noul': .5}}})
+
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            with self.assertRaises(LocalDecisionError) as caught:
+                await client.noul('source', {f'key_{i}': decision_question('target', query=True)
+                    for i in range(9)}, Capture(), usage=JevUsage(), context={})
+            self.assertEqual(posted, ['key_0', 'key_1', 'key_2', 'key_3'])
+            self.assertEqual(caught.exception.partial_scores, {f'key_{i}': .5 for i in range(1, 4)})
+            self.assertEqual(client.inflight_questions, 0)
+            self.assertEqual(client.batch_active, 0)
+        finally:
+            await client.aclose()
+
     async def test_small_packets_preserve_every_key_under_shared_weighted_limit(self):
         client = LocalDecision(AgentConfig(jev_packet_questions=8, jev_inflight_questions=12))
         await client.http.aclose()
@@ -45,7 +132,7 @@ class BackpressureTests(unittest.IsolatedAsyncioTestCase):
                 {f'key_{k}': decision_question('target', query=True) for k in range(size)},
                 trace, usage=JevUsage(), context={'source': i})
                 for i, size in enumerate(sizes))), timeout=3)
-            self.assertEqual(peak_keys, 12)
+            self.assertLessEqual(peak_keys, 12)
             self.assertLessEqual(peak_http, 4)
             self.assertTrue(all(len(b['questions']) <= 8 for b in bodies))
             for i, size in enumerate(sizes):
@@ -106,7 +193,7 @@ class BackpressureTests(unittest.IsolatedAsyncioTestCase):
             await client.aclose()
 
     async def test_transport_failure_releases_weight_before_next_request(self):
-        client = LocalDecision(AgentConfig(jev_inflight_questions=8))
+        client = LocalDecision(AgentConfig(jev_packet_questions=8, jev_inflight_questions=8))
         await client.http.aclose()
         attempts = 0
 

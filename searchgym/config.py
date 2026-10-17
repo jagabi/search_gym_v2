@@ -412,10 +412,10 @@ def _validate(config: TestConfig) -> None:
                 raise ValueError("RawTree jev_traversal must be beam or best_first")
             if not 0 <= a.jev_link_floor <= 1 or not 0 <= a.jev_floor <= 1:
                 raise ValueError("RawTree score floors must be between 0 and 1")
-            if (type(a.jev_packet_questions) is not int or not 2 <= a.jev_packet_questions <= 64
+            if (type(a.jev_packet_questions) is not int or not 1 <= a.jev_packet_questions <= 64
                     or type(a.jev_inflight_questions) is not int
                     or a.jev_inflight_questions < a.jev_packet_questions):
-                raise ValueError("RawTree packet questions must be 2..64 and fit the integer in-flight question budget")
+                raise ValueError("RawTree packet questions must be 1..64 and fit the integer in-flight question budget")
             if min(a.jev_concurrency, a.jev_frontier_width, a.jev_expand_batch, a.jev_fetch_budget,
                    a.jev_chunk_tokens, a.jev_bundle_tokens, a.jev_output_tokens) < 1:
                 raise ValueError("RawTree concurrency and token/fetch budgets must be positive")

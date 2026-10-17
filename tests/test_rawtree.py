@@ -134,17 +134,17 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             results = await asyncio.gather(*(client.noul({'page_text': 'source'}, {'direct': q, 'query': q},
                                                NullTrace(), usage=meter, context={}) for _ in range(7)))
             self.assertEqual(peak, 4)
-            self.assertEqual(meter.calls, 7)
-            self.assertEqual(meter.attempts, 7)
-            self.assertEqual(meter.input_tokens, 70)
-            self.assertEqual(len(bodies), 7)
+            self.assertEqual(meter.calls, 14)
+            self.assertEqual(meter.attempts, 14)
+            self.assertEqual(meter.input_tokens, 140)
+            self.assertEqual(len(bodies), 14)
             self.assertTrue(all(r == {'direct': .7, 'query': .7} for r in results))
-            self.assertTrue(all(set(b['questions']) == {'direct', 'query'} for b in bodies))
+            self.assertTrue(all(len(b['questions']) == 1 for b in bodies))
             self.assertTrue(all(set(b['state']) == {'page_text'} for b in bodies))
         finally:
             await client.aclose()
 
-    async def test_page_and_links_share_one_request_with_cutoff_and_score_mapping(self):
+    async def test_page_and_link_requests_preserve_shared_source_cutoff_and_score_mapping(self):
         cfg = AgentConfig(jev_strategy='raw', jev_entries=1, jev_branch=1, jev_depth=2,
                           jev_fetch_budget=2, jev_direct_reads=0, jev_query_reads=0)
         client = LocalDecision(cfg)
@@ -180,10 +180,11 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                     'current target', [{'link': 'https://example.org/root'}],
                     question='original target', trace=trace, usage=None)
             self.assertEqual(fetched, ['https://example.org/root', 'https://example.org/second'])
-            self.assertEqual(len(bodies), 2)
-            self.assertEqual(set(bodies[0]['questions']),
-                             {'direct_answer', 'query_answer', 'link_0', 'link_1'})
-            self.assertEqual(set(bodies[1]['questions']), {'direct_answer', 'query_answer'})
+            self.assertEqual(len(bodies), 6)
+            self.assertEqual([k for b in bodies[:4] for k in b['questions']],
+                             ['direct_answer', 'query_answer', 'link_0', 'link_1'])
+            self.assertEqual([k for b in bodies[4:] for k in b['questions']], ['direct_answer', 'query_answer'])
+            self.assertTrue(all(b['state'] == bodies[0]['state'] for b in bodies[:4]))
             page = bodies[0]['state']['page_text']
             self.assertIn('First context [First](link_0)', page)
             self.assertIn('Second context [Second](link_1)', page)
@@ -191,7 +192,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn('cutoff', json.dumps(bodies[0]))
             self.assertNotIn('current target', json.dumps(bodies[0]['state']))
             self.assertNotIn('original target', json.dumps(bodies[0]['state']))
-            self.assertEqual(stats['jev_requests'], 2)
+            self.assertEqual(stats['jev_requests'], 6)
             self.assertEqual(stats['links_scored'], 2)
             links = next(e['links'] for e in trace.events if e['event'] == 'rawtree.links')
             self.assertEqual([(r['url'], r['score']) for r in links],
@@ -210,8 +211,8 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(RuntimeError):
                 await client.noul('source', {'direct_answer': q, 'link_0': q},
                                   NullTrace(), usage=meter, context={})
-            self.assertEqual(meter.attempts, 1)
-            self.assertEqual(meter.calls, 0)
+            self.assertEqual(meter.attempts, 2)
+            self.assertEqual(meter.calls, 1)
             self.assertEqual(meter.failures, 1)
         finally:
             await client.aclose()

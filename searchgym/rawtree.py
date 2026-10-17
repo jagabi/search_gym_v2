@@ -1,7 +1,7 @@
 """Bounded browser traversal -> ranked saved pages -> selected raw Docling chunks.
 
-The shared SearchAgent owns both HTTP and outstanding judgment limits. Source
-judgments are split into small packets and queued locally before HTTP dispatch.
+The shared SearchAgent dispatches waves of single-judgment HTTP requests.
+A wave must finish before the next wave can enter, across all source jobs.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from .local_reader import local_reader_url
 from .raw_chunks import SourceChunker
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-best-first-docling/7"
+VERSION = "raw-browser-best-first-docling/8"
 # d3-mini /v1/systemone rejects larger packets with HTTP 400.
 D3_MAX_QUESTIONS = 64
 
@@ -82,7 +82,7 @@ def quota_select(rows: list[dict], direct: int, query: int, *, floor: float = 0.
 class LocalDecision:
     def __init__(self, config):
         if (type(config.jev_packet_questions) is not int
-                or not 2 <= config.jev_packet_questions <= D3_MAX_QUESTIONS
+                or not 1 <= config.jev_packet_questions <= D3_MAX_QUESTIONS
                 or type(config.jev_inflight_questions) is not int
                 or config.jev_inflight_questions < config.jev_packet_questions):
             raise ValueError("Invalid decision packet size or in-flight question budget")
@@ -93,32 +93,48 @@ class LocalDecision:
         self.question_condition = asyncio.Condition()
         self.question_waiters = deque()
         self.inflight_questions = 0
+        self.batch_id = 0
+        self.batch_admitted = self.batch_active = self.batch_questions = 0
+        self.batch_closed = False
         self.chunker = None
         self.prepare_lock = asyncio.Lock()
 
     @asynccontextmanager
     async def _question_slots(self, count):
-        # Reserve atomically; acquiring count individual semaphore permits can
-        # deadlock. FIFO admission prevents small packets starving large ones.
+        # Reserve an entire request atomically. Capacity released by an early
+        # response cannot be reused until every member of its wave finishes.
         ticket = object()
         async with self.question_condition:
             self.question_waiters.append(ticket)
             try:
                 await self.question_condition.wait_for(lambda:
                     self.question_waiters[0] is ticket and
-                    self.inflight_questions + count <= self.cfg.jev_inflight_questions)
+                    not self.batch_closed and
+                    self.batch_admitted < self.cfg.jev_concurrency and
+                    self.batch_questions + count <= self.cfg.jev_inflight_questions)
             except BaseException:
                 self.question_waiters.remove(ticket)
                 self.question_condition.notify_all()
                 raise
             self.question_waiters.popleft()
+            if self.batch_admitted == 0:
+                self.batch_id += 1
+            batch_id = self.batch_id
+            self.batch_admitted += 1
+            self.batch_active += 1
+            self.batch_questions += count
             self.inflight_questions += count
             self.question_condition.notify_all()
         try:
-            yield
+            yield batch_id
         finally:
             async with self.question_condition:
                 self.inflight_questions -= count
+                self.batch_active -= 1
+                self.batch_closed = True
+                if self.batch_active == 0:
+                    self.batch_admitted = self.batch_questions = 0
+                    self.batch_closed = False
                 self.question_condition.notify_all()
 
     async def prepare(self):
@@ -140,19 +156,31 @@ class LocalDecision:
         packet_size = self.cfg.jev_packet_questions
         packet_count = (len(items) + packet_size - 1) // packet_size
         scores = {}
-        # Keep the page scores and first link scores together. Only overflow
-        # links need another packet; no candidates or questions are discarded.
-        for index, start in enumerate(range(0, len(items), packet_size)):
-            packet = dict(items[start:start+packet_size])
+        async def evaluate_packet(index):
+            start = index * packet_size
             try:
-                scores.update(await self._noul_packet(
-                    state, packet, trace, usage=usage,
+                return await self._noul_packet(
+                    state, dict(items[start:start+packet_size]), trace, usage=usage,
                     context={**context, "packet_index": index, "packet_count": packet_count,
-                             "total_question_count": len(items)}))
+                             "total_question_count": len(items)})
             except LocalDecisionError as exc:
-                # Only validated complete packets survive. Never fabricate a missing key.
-                exc.partial_scores.update(scores)
-                raise
+                # Finish the current wave, retaining its successful judgments.
+                return exc
+
+        # A single page also supplies up to four requests. Scheduling only one
+        # key per page at a time would serialize evaluation when few pages remain.
+        for start in range(0, packet_count, self.cfg.jev_concurrency):
+            results = await _gather_owned(*(evaluate_packet(index) for index in
+                range(start, min(start+self.cfg.jev_concurrency, packet_count))))
+            errors = []
+            for result in results:
+                if isinstance(result, LocalDecisionError):
+                    errors.append(result)
+                else:
+                    scores.update(result)
+            if errors:
+                errors[0].partial_scores.update(scores)
+                raise errors[0]
         return scores
 
     async def _noul_packet(self, state, questions, trace, *, usage, context):
@@ -162,13 +190,13 @@ class LocalDecision:
         queued = time.perf_counter()
         trace.event("jev.request", request_id=request_id, endpoint=self.endpoint, context=context,
                     question_count=len(questions), body=body)
-        async with self.slots, self._question_slots(len(questions)):
+        async with self.slots, self._question_slots(len(questions)) as batch_id:
             started = time.perf_counter()
             usage.attempts += 1
             trace.event("jev.attempt", request_id=request_id, attempt=0,
                         queue_ms=1000*(started-queued),
                         question_count=len(questions), inflight_questions=self.inflight_questions,
-                        question_budget=self.cfg.jev_inflight_questions)
+                        question_budget=self.cfg.jev_inflight_questions, batch_id=batch_id)
             try:
                 response = await self.http.post(self.endpoint, json=body)
                 trace.event("jev.response", request_id=request_id, attempt=0,

@@ -51,9 +51,14 @@ async def main():
         (out / 'metrics_after.txt').write_text(after.text, encoding='utf-8')
         records = [json.loads(line) for line in trace.path.read_text(encoding='utf-8').splitlines()]
         requests = {e['request_id']: e for e in records if e['event'] == 'jev.request'}
-        active, peak_http = set(), 0
+        active, peak_http, batch_id = set(), 0, None
+        batch_sizes, boundaries_valid = {}, True
         for event in records:
             if event['event'] == 'jev.attempt':
+                if event['batch_id'] != batch_id:
+                    boundaries_valid = boundaries_valid and not active
+                    batch_id = event['batch_id']
+                batch_sizes[batch_id] = batch_sizes.get(batch_id, 0) + 1
                 active.add(event['request_id'])
                 peak_http = max(peak_http, len(active))
             elif event['event'] in ('jev.result', 'jev.error', 'jev.cancelled'):
@@ -67,6 +72,7 @@ async def main():
                        peak_http=peak_http,
                        peak_questions=max(e['inflight_questions'] for e in records if e['event'] == 'jev.attempt'),
                        largest_packet=max(e['question_count'] for e in requests.values()),
+                       batch_sizes=list(batch_sizes.values()), batch_boundaries_valid=boundaries_valid,
                        http_calls=meter.calls, failures=meter.failures, input_tokens=meter.input_tokens,
                        wall_s=wall, max_http_s=max(durations, default=0),
                        note='One small replay, not a whole-question runtime or controlled speed comparison. '

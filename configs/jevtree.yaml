@@ -19,9 +19,9 @@ agent:
 
   jev_model: vllm-sr/d3-mini
   jev_base_url: http://100.89.209.104:8101
-  jev_concurrency: 4            # all question workers share this decision limit
-  jev_packet_questions: 8       # split all judgments into small packets; never drop keys
-  jev_inflight_questions: 32    # shared outstanding judgments, in addition to HTTP limit
+  jev_concurrency: 4            # shared HTTP wave size; wait for all responses before next wave
+  jev_packet_questions: 1       # one judgment per HTTP, matching the original measurement
+  jev_inflight_questions: 4     # shared per-wave judgment budget; never drop pending keys
   jev_strategy: raw             # browser traversal -> saved documents -> raw chunks
   jev_traversal: best_first     # beam is the browser-based comparison policy
   jev_expand_batch: 4           # rolling page jobs: refill on completion; separate from HTTP slots

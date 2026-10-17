@@ -93,54 +93,6 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
         _, _, fetched, _, _ = await self.run_graph(graph, cfg=config(jev_expand_batch=1, jev_fetch_budget=5))
         self.assertEqual(fetched, ['a', 'b', 'a1', 'deep', 'a2'])
 
-    async def test_refills_http_slot_before_slow_roots_finish(self):
-        cfg = config(jev_entries=4, jev_expand_batch=4, jev_fetch_budget=5)
-        client = LocalDecision(cfg)
-        await client.http.aclose()
-        client.chunker = chunker(64)
-        four_started, child_started = asyncio.Event(), asyncio.Event()
-        active, peak, started, finished = set(), 0, [], []
-
-        async def respond(request):
-            nonlocal peak
-            body = json.loads(request.content)
-            name = body['state']['page_url'].removeprefix(BASE)
-            active.add(name)
-            started.append(name)
-            peak = max(peak, len(active))
-            if len(started) == 4:
-                four_started.set()
-            try:
-                if name == 'fast':
-                    await four_started.wait()
-                elif name == 'child':
-                    self.assertEqual(active, {'slow1', 'slow2', 'slow3', 'child'})
-                    child_started.set()
-                else:
-                    await child_started.wait()
-                return httpx.Response(200, json={'answers': {
-                    k: {'noul': .8} for k in body['questions']}})
-            finally:
-                active.remove(name)
-                finished.append(name)
-
-        async def fetch(url, *, engine):
-            content = f'[Child]({BASE}child)' if url.endswith('/fast') else 'source facts'
-            return Document(url, content)
-
-        client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
-        try:
-            _, _, stats = await asyncio.wait_for(RawTree(client, cfg, fetch).run_search(
-                'query', [{'link': BASE + name} for name in ('slow1', 'fast', 'slow2', 'slow3')],
-                question='original', trace=Capture(), usage=None), timeout=3)
-            self.assertTrue(child_started.is_set())
-            self.assertEqual(peak, 4)
-            self.assertEqual(stats['page_visits'], 5)
-            self.assertLess(finished.index('child'), finished.index('slow1'))
-            self.assertFalse(active)
-        finally:
-            await client.aclose()
-
     async def test_cancellation_cleans_up_rolling_page_jobs(self):
         cfg = config(jev_expand_batch=2)
         decision = GraphDecision({})
@@ -259,8 +211,10 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn('VALID_FACT', text)
             self.assertEqual(stats['page_eval_failures'], 1)
             links = next(e['links'] for e in trace.events if e['event'] == 'rawtree.links')
-            self.assertEqual(sum(link['evaluated'] for link in links), 6)
-            self.assertTrue(all(link['score'] is None for link in links[6:]))
+            self.assertEqual(sum(link['evaluated'] for link in links), 9)
+            self.assertIsNone(links[6]['score'])
+            self.assertTrue(all(link['evaluated'] for link in links[7:10]))
+            self.assertTrue(all(link['score'] is None for link in links[10:]))
         finally:
             await client.aclose()
 
@@ -281,8 +235,8 @@ class ConfigurationTests(unittest.TestCase):
         cfg = load_test(method='jevtree')
         for changes in ({'jev_traversal': 'unknown'}, {'jev_expand_batch': 0},
                         {'jev_link_floor': -1}, {'jev_link_floor': float('nan')},
-                        {'jev_packet_questions': 1}, {'jev_packet_questions': 65},
-                        {'jev_packet_questions': 8.5}, {'jev_inflight_questions': 7},
+                        {'jev_packet_questions': 0}, {'jev_packet_questions': 65},
+                        {'jev_packet_questions': 8.5}, {'jev_inflight_questions': 0},
                         {'jev_inflight_questions': 32.5}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 _validate(replace(cfg, agent=replace(cfg.agent, **changes)))
