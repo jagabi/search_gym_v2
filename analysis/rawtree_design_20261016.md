@@ -10,7 +10,11 @@ User will run the benchmark. Implementation and offline validation only.
 - https://docling-project.github.io/docling/concepts/chunking/ : HybridChunker refines document structure using a token budget, splitting oversized blocks and optionally merging peers.
 - https://github.com/jina-ai/reader/blob/main/src/dto/crawler-options.ts : explicit curl/browser engines and content response format.
 
-Updated 2026-10-17: one HTTP request per source, with all judgments in `questions`.
+Updated 2026-10-17: one HTTP request per source when it fits the server's
+64-question limit, with all judgments in `questions`. Larger page/link packets
+are split into the minimum number of packets of at most 64 questions, preserving
+all keys and the same source content. Page scores occur only in the first packet;
+overflow packets contain the remaining link scores. No per-link HTTP calls.
 For page previews this includes direct/query reading value and all link scores.
 For chunks/bundles this includes both evidence scores. The following shows one
 question entry; its counterpart is included in the same request.
@@ -40,7 +44,7 @@ Original question is in the direct-answer instructions; current query is in quer
 1. Start with up to 10 observed search-result URLs, without a snippet-score gate.
 2. Fetch using local Jina `X-Engine: curl`, `content`, no browser or automatic browser fallback. This means HTML transport converted to readable Markdown, not raw HTML tags in the model input.
 3. Keep the first 5,000 d3 tokens, backing off any partially cut URL. Only complete URLs in this prefix become link candidates (existing filtering, maximum 300). Number the links in place, preserving surrounding content.
-4. Send this shared page content once in `state`, with `direct_answer`, `query_answer`, and `link_0...` together in `questions`. Link instructions contain the destination URL, anchor, current query and original question; the query is primary. Validate and map the complete response by key. At most two links are nominated per parent. At depth 5, request only the two page scores, without unused link judgments.
+4. Send this shared page content in `state`, with `direct_answer`, `query_answer`, and `link_0...` together in `questions`. Each packet is capped at 64 questions (the observed d3-mini server limit); overflow is sent sequentially for this page and merged by key before ranking. Link instructions contain the destination URL, anchor, current query and original question; the query is primary. At most two links are nominated per parent. At depth 5, request only the two page scores, without unused link judgments.
 5. Pool those nominations at the same depth and fetch the top 10 distinct URLs. Maximum depth 5 and total 50 fast-fetch attempts per search. This is bounded breadth-first expansion, not LDS. Cross-parent link score comparison is an explicit heuristic. Missing links, duplicates and failures can end the tree before depth 5; no fabricated URLs or forced expansions.
 6. Rank fetched pages globally, reserve 2 original-question pages and then 4 distinct query pages. Browser fetch those up to six pages with `X-Engine: browser` and cache bypass so curl snapshots cannot stand in for rendered pages. No page-score floor for this top-k stage. Failed browser fetches do not silently reuse curl text.
 7. Convert the whole returned Markdown body into Docling items: headings as headings and other source blocks as text, retaining Markdown tables/links/code. This is a lightweight Markdown adapter, not Docling PDF/OCR/layout conversion. HybridChunker creates approximately 512-token small chunks using the d3 tokenizer. Model weights are never downloaded on the client.
@@ -48,7 +52,7 @@ Original question is in the direct-answer instructions; current query is in quer
 9. Re-evaluate small chunks inside retained bundles, with one preceding/following chunk as context. This locates the evidence instead of returning arbitrary chunks from a high-scoring bundle. Retain up to 4 direct + 8 query chunks, with duplicate exclusion and a 0.15 floor. Quotas are not transferred when an objective has too few candidates.
 10. Reserve selected core chunks first, then add preceding/following small chunks where they fit. Deduplicate by document and chunk ID. Return source URLs and ungenerated text, at most 16,000 d3 tokens per search (the main model retains its own context-fit guard). The 12-chunk budget counts selected cores; neighbors can increase the returned count.
 
-Local request concurrency is **4**, and `conf.yaml` now runs one benchmark question at a time. One HTTP request contains all judgments for its source; this does not specify how many model evaluations the server performs internally. Fetch concurrency uses the shared Jina limit (50), with no pacing in this explicit local transport. Model errors fail the tool operation instead of receiving a fake relevance score. The local Reader preflight remains mandatory; the d3 model list and tokenizer are checked before question execution.
+Local request concurrency is **4**, and `conf.yaml` now runs one benchmark question at a time. Each HTTP request contains up to 64 judgments sharing source content; this does not specify how many model evaluations the server performs internally. Fetch concurrency uses the shared Jina limit (50), with no pacing in this explicit local transport. Model errors fail the tool operation instead of receiving a fake relevance score. Owned asynchronous workers are cancelled and joined when their group fails, including nested bundle/chunk workers; failed questions no longer leave client-side tasks competing with the next question. This does not guarantee immediate cancellation of already-dispatched GPU work on the remote server. The local Reader preflight remains mandatory; the d3 model list and tokenizer are checked before question execution.
 
 Main model search budget remains 10. No early answer stopping inside the tree. No summary-model calls. Existing search-o1 and RAgent paths retain their fetch behavior.
 
@@ -96,4 +100,7 @@ guarantee on the user's execution machine. Keep Docling for the prototype; inspe
 packets now include links; `question_count`, `context.link_count`, and
 `rawtree.links` distinguish HTTP request count from judgment count and retain
 the link-key/URL/score mapping. Historical version 1 had a separate `link` phase.
+Version 3 adds `context.packet_index`, `packet_count`, and `total_question_count`;
+HTTP errors include the response body in the propagated error, and cancelled
+in-flight requests produce `jev.cancelled` events.
 Machine-readable results: `analysis/d3_local_probe_20261016/chunking_latency.json`.

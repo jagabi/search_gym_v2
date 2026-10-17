@@ -22,7 +22,21 @@ from .local_reader import local_reader_url
 from .raw_chunks import SourceChunker
 from .urls import normalize_fetch_url
 
-VERSION = "raw-curl-browser-docling/2"
+VERSION = "raw-curl-browser-docling/3"
+# d3-mini /v1/systemone rejects larger packets with HTTP 400.
+D3_MAX_QUESTIONS = 64
+
+
+async def _gather_owned(*coroutines):
+    """Do not leave this search's sibling work running after it fails or is cancelled."""
+    tasks = [asyncio.create_task(coro) for coro in coroutines]
+    try:
+        return await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
 
 
 def decision_question(target: str, *, query: bool, preview: bool = False) -> dict:
@@ -79,6 +93,20 @@ class LocalDecision:
     async def noul(self, state, questions, trace, *, usage, context):
         if not questions:
             return {}
+        items = list(questions.items())
+        packet_count = (len(items) + D3_MAX_QUESTIONS - 1) // D3_MAX_QUESTIONS
+        scores = {}
+        # Keep the page scores and first link scores together. Only overflow
+        # links need another packet; no candidates or questions are discarded.
+        for index, start in enumerate(range(0, len(items), D3_MAX_QUESTIONS)):
+            packet = dict(items[start:start+D3_MAX_QUESTIONS])
+            scores.update(await self._noul_packet(
+                state, packet, trace, usage=usage,
+                context={**context, "packet_index": index, "packet_count": packet_count,
+                         "total_question_count": len(items)}))
+        return scores
+
+    async def _noul_packet(self, state, questions, trace, *, usage, context):
         request_id = uuid4().hex
         body = {"model": self.cfg.jev_model, "state": state, "questions": questions,
                 "request_id": request_id}
@@ -109,11 +137,18 @@ class LocalDecision:
                             question_count=len(questions), usage=payload.get("usage"), failed=False,
                             duration_ms=1000*(time.perf_counter()-queued))
                 return scores
+            except asyncio.CancelledError:
+                trace.event("jev.cancelled", request_id=request_id,
+                            duration_ms=1000*(time.perf_counter()-started))
+                raise
             except Exception as exc:
                 usage.failures += 1
-                trace.event("jev.error", request_id=request_id, error=repr(exc), retryable=False)
+                detail = repr(exc)
+                if isinstance(exc, httpx.HTTPStatusError):
+                    detail += f"; response={exc.response.text[:2000]}"
+                trace.event("jev.error", request_id=request_id, error=detail, retryable=False)
                 # Infrastructure failures must not masquerade as low relevance.
-                raise RuntimeError(f"Local decision failed ({context}): {exc}") from exc
+                raise RuntimeError(f"Local decision failed ({context}): {detail}") from exc
 
     async def aclose(self):
         await self.http.aclose()
@@ -214,7 +249,7 @@ class RawTree:
             return [(s, u, a, n) for s, u, a in n.link_scores[:cfg.jev_branch]]
 
         while level:
-            candidates = [c for group in await asyncio.gather(*(preview(n) for n in level)) for c in group]
+            candidates = [c for group in await _gather_owned(*(preview(n) for n in level)) for c in group]
             remaining = cfg.jev_fetch_budget-len(nodes)
             width = min(cfg.jev_frontier_width, remaining)
             next_level = []
@@ -269,7 +304,7 @@ class RawTree:
                                   phase="bundle", node_id=n.node_id, bundle_id=bundle["id"])
                 stats["bundles_scored"] += 1
                 return {**bundle, **sc}
-            judged = await asyncio.gather(*(score_bundle(b) for b in bundles))
+            judged = await _gather_owned(*(score_bundle(b) for b in bundles))
             # Coarse-to-fine: qualifying bundles, plus each objective's best
             # bundle to avoid losing a page solely to an uncalibrated threshold.
             kept = {b["id"] for b in judged if max(b["direct_answer"], b["query_answer"]) >= cfg.jev_floor}
@@ -295,9 +330,9 @@ class RawTree:
                                                 "node_id": n.node_id, "chunk_id": i})
                 stats["chunks_scored"] += 1
                 return {"id": f"{n.node_id}:{i}", "node": n, "chunk_id": i, **sc}
-            chunk_rows.extend(await asyncio.gather(*(score_chunk(i) for i in ids)))
+            chunk_rows.extend(await _gather_owned(*(score_chunk(i) for i in ids)))
 
-        await asyncio.gather(*(read_page(row) for row in selected_pages))
+        await _gather_owned(*(read_page(row) for row in selected_pages))
         picked = quota_select(chunk_rows, cfg.jev_direct_chunks, cfg.jev_query_chunks, floor=cfg.jev_floor)
         # Query evidence is displayed first, but the direct quota is reserved above.
         picked.sort(key=lambda r: (r["objective"] != "query_answer", -r[r["objective"]]))

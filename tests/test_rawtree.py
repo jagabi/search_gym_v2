@@ -14,7 +14,7 @@ from searchgym.agent import AgentConfig
 from searchgym.explorer import Document
 from searchgym.jevtree import JevUsage
 from searchgym.raw_chunks import SourceChunker
-from searchgym.rawtree import LocalDecision, RawTree, decision_question, quota_select
+from searchgym.rawtree import LocalDecision, RawTree, decision_question, quota_select, _gather_owned
 from searchgym.trace import NullTrace
 
 
@@ -203,6 +203,108 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(meter.failures, 1)
         finally:
             await client.aclose()
+
+    async def test_server_64_key_limit_preserves_all_scores_and_minimal_packets(self):
+        client = LocalDecision(AgentConfig())
+        await client.http.aclose()
+        bodies = []
+        values = {}
+
+        async def respond(request):
+            body = json.loads(request.content)
+            bodies.append(body)
+            if len(body['questions']) > 64:
+                return httpx.Response(400, json={'error': {'message': 'questions: at most 64 for this model'}})
+            return httpx.Response(200, json={
+                'answers': {k: {'noul': values[k]} for k in reversed(body['questions'])},
+                'usage': {'input_tokens': 100}})
+
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            # Includes all three observed failures and both sides of packet boundaries.
+            for size in [2, 64, 65, 72, 120, 114, 128, 129, 302]:
+                with self.subTest(size=size):
+                    bodies.clear()
+                    keys = ['direct_answer', 'query_answer'] + [f'link_{i}' for i in range(size-2)]
+                    values = {k: i/(size-1) for i, k in enumerate(keys)}
+                    questions = {k: decision_question(k, query=True) for k in keys}
+                    state = {'page_text': 'Shared prefix with numbered source links'}
+                    meter, trace = JevUsage(), Capture()
+                    result = await client.noul(state, questions, trace, usage=meter, context={'phase': 'preview'})
+                    self.assertEqual(result, values)
+                    self.assertEqual([k for b in bodies for k in b['questions']], keys)
+                    self.assertEqual(len(bodies), (size+63)//64)
+                    self.assertTrue(all(len(b['questions']) <= 64 and b['state'] == state for b in bodies))
+                    self.assertEqual(list(bodies[0]['questions'])[:2], ['direct_answer', 'query_answer'])
+                    self.assertEqual(meter.calls, len(bodies))
+                    self.assertEqual(meter.failures, 0)
+                    self.assertEqual(meter.input_tokens, 100*len(bodies))
+                    contexts = [e['context'] for e in trace.events if e['event'] == 'jev.request']
+                    self.assertEqual([c['packet_index'] for c in contexts], list(range(len(bodies))))
+                    self.assertTrue(all(c['total_question_count'] == size for c in contexts))
+        finally:
+            await client.aclose()
+
+    async def test_failed_search_cancels_active_and_queued_sibling_requests(self):
+        cfg = AgentConfig(jev_strategy='raw', jev_entries=6, jev_depth=1,
+                          jev_concurrency=2, jev_direct_reads=0, jev_query_reads=0)
+        client = LocalDecision(cfg)
+        await client.http.aclose()
+        client.chunker = chunker()
+        started, cancelled = asyncio.Event(), asyncio.Event()
+        posted = []
+
+        async def respond(request):
+            url = json.loads(request.content)['state']['page_url']
+            posted.append(url)
+            if url.endswith('/0'):
+                await started.wait()
+                return httpx.Response(500, json={'error': {'message': 'specific server failure'}})
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+        async def fetch(url, *, engine):
+            return Document(url, 'Source facts')
+
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            with self.assertRaisesRegex(RuntimeError, 'specific server failure'):
+                await asyncio.wait_for(RawTree(client, cfg, fetch).run_search(
+                    'target', [{'link': f'https://example.org/{i}'} for i in range(6)],
+                    question='original', trace=Capture(), usage=None), timeout=3)
+            self.assertTrue(cancelled.is_set())
+            count_at_exit = len(posted)
+            await asyncio.sleep(.01)
+            self.assertEqual(len(posted), count_at_exit)
+            # All active HTTP tasks and slot waiters have been cleaned up.
+            for _ in range(2):
+                await asyncio.wait_for(client.slots.acquire(), timeout=.1)
+            for _ in range(2):
+                client.slots.release()
+        finally:
+            await client.aclose()
+
+    async def test_nested_workers_are_joined_on_parent_cancellation(self):
+        started, cleaned = asyncio.Event(), asyncio.Event()
+
+        async def leaf():
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                # Cleanup must finish before the parent returns to the caller.
+                await asyncio.sleep(.01)
+                cleaned.set()
+
+        task = asyncio.create_task(_gather_owned(_gather_owned(leaf())))
+        await started.wait()
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertTrue(cleaned.is_set())
 
     async def test_depth_budget_and_browser_then_raw_tail(self):
         cfg = AgentConfig(jev_strategy='raw', jev_entries=10, jev_branch=2, jev_depth=5,
