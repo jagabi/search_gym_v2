@@ -59,6 +59,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--raw-traversal", choices=("beam", "best_first", "progressive"), default=None,
                         help="RawTree 탐색 정책 비교 (browser 수집·원문 청크 전달은 동일)")
+    parser.add_argument("--expect-raw-traversal", choices=("beam", "best_first", "progressive"), default=None,
+                        help="Fail before model calls if the resolved policy differs")
     parser.add_argument("--raw-link-floor", type=float, default=None,
                         help="RawTree 링크 확장 최소 점수 (예: 0 또는 0.01)")
     parser.add_argument("--raw-query-pages", type=int, default=None,
@@ -102,7 +104,12 @@ async def main_async(argv: list[str] | None = None) -> int:
         raw_traversal=args.raw_traversal,
         raw_link_floor=args.raw_link_floor,
         raw_query_pages=args.raw_query_pages,
+        expected_raw_traversal=args.expect_raw_traversal,
     )
+    from searchgym.raw_policy import raw_policy
+    policy = raw_policy(config.agent, config.method)
+    if policy:
+        print("Effective raw policy: " + json.dumps(policy, ensure_ascii=False))
     if args.prompt:
         config.system_prompt = resolve(args.prompt).read_text(encoding="utf-8").strip()
     if args.explorer_prompt:
@@ -247,6 +254,7 @@ async def main_async(argv: list[str] | None = None) -> int:
 
 
 def _write_run_config(out, config, profile, dataset, items):
+    from searchgym.raw_policy import raw_policy
     write_json(
         out / "config.json",
         {
@@ -256,6 +264,7 @@ def _write_run_config(out, config, profile, dataset, items):
             "dataset": str(dataset),
             "items": len(items),
             "agent": asdict(config.agent),
+            "effective_raw_policy": raw_policy(config.agent, config.method),
             "explorer": asdict(config.explorer) if config.uses_explorer else None,
             "judge": asdict(config.judge),
             "run": asdict(config.run),

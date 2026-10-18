@@ -265,7 +265,8 @@ class WebTools:
             raise RuntimeError("Reader client is not open")
         headers = {"Accept": "application/json", "X-Engine": engine,
                    "X-Return-Format": "content", "X-Respond-With": "content",
-                   "X-With-Links-Summary": "false", "X-No-Cache": "true"}
+                    "X-With-Links-Summary": "false", "X-No-Cache": "true",
+                    "X-Assert-Status-Code": "200"}
         try:
             async with self._fetch_slots:
                 response = await self._reader_http.get(f"{base}/{url}", headers=headers)

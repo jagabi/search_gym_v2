@@ -160,7 +160,9 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
                      jev_entries=1, max_searches=1)
         update = {'candidates': [{'name': 'Author', 'conditions': [
             {'condition': 'first book', 'status': 'supported', 'evidence': ['S1:0']}]}]}
-        llm = FakeLLM([call('web_search', {'query': 'author first book'}),
+        update['next_gap'] = 'verify publication date'
+        llm = FakeLLM([call('web_search', {'query': 'author first book',
+            'research': {'candidates': [], 'next_gap': 'identify the author'}}),
             call('read_source', {'source_id': 'S1', 'goal': 'verify publication date', 'research': update}),
             Reply(text='Unreviewed answer'), Reply(text='Supported final answer')])
         tools = FakeTools()

@@ -91,6 +91,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(doc.content, 'Exact source text')
         self.assertEqual([r.headers['X-Engine'] for r in seen], ['curl', 'browser'])
         self.assertTrue(all(r.headers['X-No-Cache'] == 'true' for r in seen))
+        self.assertTrue(all(r.headers['X-Assert-Status-Code'] == '200' for r in seen))
         self.assertTrue(all(r.url.host == '127.0.0.1' for r in seen))
 
     async def test_bad_probability_fails_instead_of_scoring_zero(self):

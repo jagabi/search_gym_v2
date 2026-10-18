@@ -221,11 +221,15 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
 
 class ConfigurationTests(unittest.TestCase):
     def test_experiment_overrides_keep_other_budgets_and_are_saved_in_config(self):
-        cfg = load_test(method='jevtree', raw_traversal='beam', raw_link_floor=.01, raw_query_pages=6)
+        cfg = load_test(method='jevtree', raw_traversal='beam', expected_raw_traversal='beam',
+                        raw_link_floor=.01, raw_query_pages=6)
         self.assertEqual(cfg.agent.jev_traversal, 'beam')
         self.assertEqual(cfg.agent.jev_link_floor, .01)
-        self.assertEqual((cfg.agent.jev_reads, cfg.agent.jev_direct_reads, cfg.agent.jev_query_reads), (8, 2, 6))
-        self.assertEqual((cfg.agent.jev_depth, cfg.agent.jev_fetch_budget), (5, 50))
+        base = load_test(method='jevtree')
+        self.assertEqual((cfg.agent.jev_reads, cfg.agent.jev_direct_reads, cfg.agent.jev_query_reads),
+                         (base.agent.jev_direct_reads + 6, base.agent.jev_direct_reads, 6))
+        self.assertEqual((cfg.agent.jev_depth, cfg.agent.jev_fetch_budget),
+                         (base.agent.jev_depth, base.agent.jev_fetch_budget))
         with self.assertRaises(ValueError):
             load_test(method='ragent', raw_traversal='beam')
         with self.assertRaises(ValueError):

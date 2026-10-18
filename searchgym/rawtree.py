@@ -25,7 +25,7 @@ from .local_reader import local_reader_url
 from .raw_chunks import SourceChunker
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-progressive-docling/9"
+VERSION = "raw-browser-progressive-docling/10"
 # d3-mini /v1/systemone rejects larger packets with HTTP 400.
 D3_MAX_QUESTIONS = 64
 

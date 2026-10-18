@@ -237,6 +237,7 @@ def load_test(
     raw_traversal: str | None = None,
     raw_link_floor: float | None = None,
     raw_query_pages: int | None = None,
+    expected_raw_traversal: str | None = None,
 ) -> TestConfig:
     raw = _read(conf_path)
     outer = _build(_Outer, raw, "conf")
@@ -290,7 +291,15 @@ def load_test(
                 raise ValueError("RawTree requires an explicit direct page quota")
             config.agent.jev_query_reads = raw_query_pages
             config.agent.jev_reads = config.agent.jev_direct_reads + raw_query_pages
+    if expected_raw_traversal is not None:
+        config.agent.jev_expected_traversal = expected_raw_traversal
     _validate(config)
+    expected = config.agent.jev_expected_traversal
+    if expected and (
+            config.method != "jevtree" or config.agent.jev_strategy != "raw"
+            or config.agent.jev_traversal != expected):
+        raise ValueError(f"Expected raw traversal {expected!r}, got "
+                         f"{config.method}/{config.agent.jev_strategy}/{config.agent.jev_traversal}")
     return config
 
 
@@ -419,6 +428,9 @@ def _validate(config: TestConfig) -> None:
             if min(a.jev_concurrency, a.jev_frontier_width, a.jev_expand_batch, a.jev_fetch_budget,
                    a.jev_chunk_tokens, a.jev_bundle_tokens, a.jev_output_tokens) < 1:
                 raise ValueError("RawTree concurrency and token/fetch budgets must be positive")
+            if any(type(v) is not int or v < 1 for v in (
+                    a.jev_parent_limit, a.jev_target_visits, a.jev_target_reads, a.jev_target_expansions)):
+                raise ValueError("RawTree parent limit and planning targets must be positive integers")
             if a.jev_chunk_tokens > a.jev_bundle_tokens or min(a.jev_overlap_chunks, a.jev_neighbor_chunks,
                                                               a.jev_direct_chunks, a.jev_query_chunks) < 0:
                 raise ValueError("Invalid RawTree chunk sizes or quotas")

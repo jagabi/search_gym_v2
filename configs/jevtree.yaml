@@ -1,11 +1,12 @@
-# RawTree v9: read roots first, then explicitly reread or resume a saved frontier.
+# RawTree v10: read roots first, then explicitly reread or resume a saved frontier.
 # Browser documents -> Docling bundles/chunks -> source excerpts; no summary model.
 # Legacy level/LDS implementations remain available; this config selects raw.
 
 agent:
   base_url: http://127.0.0.1:8000/v1
   max_tokens: 8192
-  max_turns: 40
+  max_turns: 24
+  finalize_answer: true
   timeout_s: 600
 
   # 검색 예산은 세 방법과 같다.
@@ -23,16 +24,21 @@ agent:
   jev_inflight_questions: 4     # shared per-wave judgment budget; never drop pending keys
   jev_strategy: raw             # browser traversal -> saved documents -> raw chunks
   jev_traversal: progressive    # beam/best_first remain comparison policies
+  jev_expected_traversal: progressive  # legacy experiments must explicitly override this expectation
   jev_expand_batch: 4           # visits per continuation; separate from HTTP wave size
+  jev_parent_limit: 1           # independent limit for parents whose links are evaluated
+  jev_target_visits: 64         # planning targets, never forced termination limits
+  jev_target_reads: 40
+  jev_target_expansions: 6
   jev_link_floor: 0.0           # first compare policies without a cutoff; then test 0.01
-  jev_entries: 10               # fetch all search roots; no snippet gate
+  jev_entries: 4                # other search hits remain available to read_source
   jev_branch: 2                 # beam only: each parent nominates up to 2 links
   jev_depth: 5
   jev_frontier_width: 10        # beam only: global top 10 nominations at each depth
-  jev_fetch_budget: 50          # logical page visits per search, including cached/failing pages
-  jev_reads: 6                  # saved pages to chunk; no second fetch or summary calls
-  jev_direct_reads: 2           # 원질문 정답 순위에서 먼저 확보
-  jev_query_reads: 4            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음
+  jev_fetch_budget: 16          # logical visits PER SEARCH, including cached/failing pages
+  jev_reads: 2                  # read another observed source explicitly when needed
+  jev_direct_reads: 1           # 원질문 정답 순위에서 먼저 확보
+  jev_query_reads: 1            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음
   jev_floor: 0.15               # bundle/atomic-chunk threshold; browser top-k has no floor
   jev_page_tokens: 5000         # JEV 본문 토큰 상한. 절단 범위 안의 완전한 URL만 평가
   jev_chunk_tokens: 512         # Docling HybridChunker, d3 tokenizer

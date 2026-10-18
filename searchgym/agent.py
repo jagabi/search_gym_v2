@@ -157,6 +157,12 @@ class AgentConfig:
     jev_frontier_width: int = 10
     jev_traversal: str = "beam"  # raw: beam | best_first | progressive
     jev_expand_batch: int = 4    # rolling best-first page jobs; independent of HTTP concurrency
+    jev_parent_limit: int = 1    # progressive: separately limit evaluated parent pages
+    jev_expected_traversal: str = ""  # explicit experiment contract, checked after CLI overrides
+    jev_expected_traversal: str = ""  # explicit experiment contract, checked after CLI overrides
+    jev_target_visits: int = 64  # soft planning targets across a question
+    jev_target_reads: int = 40
+    jev_target_expansions: int = 6
     jev_link_floor: float = 0.0  # raw link expansion only; never a page/evidence threshold
     jev_chunk_tokens: int = 512
     jev_bundle_tokens: int = 5000
@@ -456,7 +462,7 @@ class SearchAgent:
                             url_spec["description"] = "An observed source ID (S1, S2, ...) or an absolute HTTP(S) URL."
         if self.progressive_raw:
             from .raw_research import raw_specs
-            specs = raw_specs(specs)
+            specs = raw_specs(specs, cfg.jev_parent_limit)
         if self.method == "jevtree" and not self.progressive_raw:
             specs = copy.deepcopy(specs)
             for spec in specs:
@@ -504,8 +510,10 @@ class SearchAgent:
             else None
         )
 
+        from .raw_policy import raw_policy
         trace.event(
             "run.start",
+            effective_raw_policy=raw_policy(cfg, self.method),
             reader_status=getattr(tools, "reader_status", {}),
             method=self.method,
             model=self.llm.model_name,
@@ -794,7 +802,7 @@ class SearchAgent:
                 s["function"]["name"] == "web_search" and result.searches < self.config.max_searches
             ) or (s["function"]["name"] == "read_source" and state and state.sources)
               or (s["function"]["name"] == "continue_search" and state and
-                  any(v["remaining_visits"] > 0 for v in state.sessions.values()))]
+                  any(v.get("can_continue") or v.get("can_retarget") for v in state.sessions.values()))]
         if self.method != "depthsearch":
             return specs
         if result.context_exhausted:
@@ -868,6 +876,15 @@ class SearchAgent:
             # Keep the original question and every returned source, but remove
             # navigation instructions, tool-recovery requests and tool-call history.
             kept = [{"role": "system", "content": _system_prompt(FINAL_SYSTEM, self.profile.reasoning_effort)}]
+            if self.progressive_raw:
+                kept[0]["content"] += (
+                    " Verify the requested fact and its identifying relations against original source excerpts. "
+                    "Check chronology, units, strict numerical bounds, and observation versus publication years. "
+                    "Do not repair a candidate by inventing supporting details or ignoring a decisive contradiction. "
+                    "Distinguish impossible from merely unlikely; absence from retrieved sources does not establish "
+                    "that no other candidate exists. Do not make exhaustive or absolute claims without evidence. "
+                    "Give a concise final answer with source URLs; omit unsupported explanatory claims. "
+                    "Keep deliberation in the reasoning channel. Output no scratchpad or candidate brainstorming.")
             if question:
                 kept.append(question)
             kept.extend(m for m in messages if m.get("role") == "tool")
@@ -937,7 +954,7 @@ class SearchAgent:
                         finish_reason=reply.finish_reason,
                         tool_calls=[c.function.name for c in reply.tool_calls])
             action = _looks_like_action(text) or (
-                self.method == "depthsearch" and _looks_like_unfinished_research(text))
+                (self.method == "depthsearch" or self.progressive_raw) and _looks_like_unfinished_research(text))
             if text and not (reply.truncated or reply.tool_calls or action):
                 return text
             # Retry an unusable output once without reinserting its reasoning or
@@ -979,6 +996,15 @@ class SearchAgent:
         record = ToolCall(name=name, arguments=arguments)
         step.tool_calls.append(record)
         if self.progressive_raw:
+            try:
+                result.research_state.validate_action_update(arguments.get("research"))
+            except ValueError as exc:
+                record.is_error = record.refused = True
+                result.invalid_tool_calls += 1
+                record.result = f"Invalid {name} action: {exc}. No search or fetch was performed."
+                record.result_chars = len(record.result)
+                trace.event("tool.invalid_arguments", tool=name, error=str(exc))
+                return record.result
             result.research_state.update(arguments.get("research"))
             if name in {"read_source", "continue_search"}:
                 action_started = time.perf_counter()
@@ -988,7 +1014,8 @@ class SearchAgent:
                     if not isinstance(goal, str) or not goal.strip():
                         raise ValueError("goal must describe a non-empty missing fact")
                     if name == "read_source":
-                        log, text, stats = await jevtree.read_source(arguments.get("source_id"), goal, trace=trace)
+                        log, text, stats = await jevtree.read_source(arguments.get("source_id"), goal, trace=trace,
+                                                                   refresh=arguments.get("refresh", False))
                     else:
                         parents = arguments.get("source_ids", [])
                         if not isinstance(parents, list) or not all(isinstance(v, str) for v in parents):
@@ -1344,7 +1371,8 @@ class SearchAgent:
             result.reader_stats[key] = result.reader_stats.get(key, 0) + amount
         for key in ("fast_fetches", "browser_fetches", "bundles_scored", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
                     "page_visits", "document_reuses", "page_eval_failures", "bundle_eval_failures",
-                    "chunk_eval_failures", "links_pruned", "duplicate_candidates", "chunk_cache_hits"):
+                    "chunk_eval_failures", "links_pruned", "duplicate_candidates", "chunk_cache_hits",
+                    "parent_expansions", "refreshes"):
             if key in stats:
                 result.reader_stats[key] = result.reader_stats.get(key, 0) + stats[key]
 
