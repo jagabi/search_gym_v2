@@ -28,11 +28,15 @@ agent:
   jev_expand_batch: 4           # best_first only; beam uses frontier_width, HTTP waves remain 4
   jev_link_floor: 0.10          # below-threshold links never expand; empty frontier ends traversal
   jev_entries: 6                # initial search roots, evaluated before narrowing the frontier
+  jev_rank_entries: true        # d3 compares all 10 search leads before admitting 6 roots
+  jev_entry_candidates: 10
   jev_branch: 2                 # each parent nominates at most 2 links, not 2 mandatory visits
   jev_depth: 3                  # search roots are depth 1; at most two subsequent link hops
   jev_frontier_width: 2         # at most 2 pages TOTAL at each subsequent depth
   jev_fetch_budget: 10          # at most 6 + 2 + 2 visits PER SEARCH, including failed/cached pages
   jev_reads: 2                  # only 2 pages across ALL depths enter full-body chunking
+  jev_diverse_reads: true       # d3 selects the next page for complementary evidence
+  jev_read_dedup: true          # identical bodies share a read slot; exact judgments are reused
   jev_direct_reads: 1           # 원질문 정답 순위에서 먼저 확보
   jev_query_reads: 1            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음
   jev_floor: 0.15               # bundle/atomic-chunk threshold; browser top-k has no floor
@@ -44,6 +48,13 @@ agent:
   jev_direct_chunks: 4
   jev_query_chunks: 8
   jev_output_tokens: 16000      # includes adjacent chunks; whole chunks only
+  jev_notice_tokens: 2000       # included in output budget; navigation leads, never evidence
+  jev_document_tree: true       # d3 navigates headings + original excerpts, no lexical ranking
+  jev_tree_min_bundles: 16      # short documents retain exhaustive bundle evaluation
+  jev_region_branch: 4          # partition each retained region into up to 4 contiguous regions
+  jev_region_beam: 2            # keep at most 2 regions TOTAL per level across both objectives
+  jev_region_tokens: 600
+  jev_leaf_bundles: 4           # long documents: fully evaluate at most 4 reached bundles
 
 explorer:
   # Legacy schema fields only; the raw strategy never calls the reader model.
@@ -57,15 +68,22 @@ system_prompt: |
   Your research action is web_search. Choose search queries for missing facts.
   The retrieval pipeline automatically evaluates pages, follows links, and selects
   source excerpts using d3. Use the returned evidence to choose the next query or answer.
-  Search for a missing relation using the question's actual constraints.
-  Distinguish source facts, unverified hypotheses, and explicit contradictions.
-  Keep named candidates pending until investigated or rejected by source evidence.
-  Do not narrow dates, places or identities based on guesses.
-  Start with distinctive given names, works or relations before adding a guessed identity.
-  When evidence contradicts a guess, revise the next query instead of repeating that guess.
-  Preserve ranges and distinguish observation years, publication years, units and measures.
-  If a likely source is inaccessible, search for another original source using its title,
-  author or publication details. Search snippets are leads, not proof that the source was read.
+  Start with two or three distinctive GIVEN clues or relations. Combine independent rare
+  clues before adding a hypothesized person, place or year. Never turn a residence into
+  a birthplace or a publication date into an observation date without source evidence.
+  After each search, distinguish verified facts, unresolved candidates and contradictions.
+  Choose the next query for the missing relation, rather than repeating an already known
+  entity's general biography. For a role, seek cast/role records; for a measurement, seek
+  the requested year, units and definition, then connect the identified entity to the next clue.
+  Preserve candidates named in evidence or discovery leads until investigated or contradicted.
+  Source-access notices are unverified navigation information. If a promising document is
+  access_failed or read_no_selected_evidence, use its exact title, author or identifier plus
+  the missing section/fact in web_search to locate an accessible original or alternate copy.
+  Do not discard that lead and restart a broad guess merely because retrieval failed.
+  A search snippet is a lead, not proof that the source was read. Verify it in source excerpts.
+  When a guess is contradicted, remove the unsupported constraint from the next query.
+  When queries keep returning the same known facts, change the missing relation or combine
+  other given clues; do not invent narrower years, identities or numerical values.
   Answer only with supported facts; do not invent details to repair a conflicting candidate.
   Keep working plans and deliberation out of the final answer.
   Use source URLs in the final answer and never invent citations.

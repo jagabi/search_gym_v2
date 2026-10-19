@@ -159,7 +159,6 @@ class AgentConfig:
     jev_expand_batch: int = 4    # rolling best-first page jobs; independent of HTTP concurrency
     jev_parent_limit: int = 1    # progressive: separately limit evaluated parent pages
     jev_expected_traversal: str = ""  # explicit experiment contract, checked after CLI overrides
-    jev_expected_traversal: str = ""  # explicit experiment contract, checked after CLI overrides
     jev_target_visits: int = 64  # soft planning targets across a question
     jev_target_reads: int = 40
     jev_target_expansions: int = 6
@@ -171,6 +170,17 @@ class AgentConfig:
     jev_direct_chunks: int = 4
     jev_query_chunks: int = 8
     jev_output_tokens: int = 16000
+    jev_rank_entries: bool = False   # d3 ranks search leads before browser admission
+    jev_entry_candidates: int = 10
+    jev_diverse_reads: bool = False  # d3 estimates marginal evidence against selected pages
+    jev_notice_tokens: int = 0       # URL-specific navigation/access state, never evidence
+    jev_document_tree: bool = False
+    jev_tree_min_bundles: int = 16   # shorter documents retain exhaustive coarse scoring
+    jev_region_branch: int = 4
+    jev_region_beam: int = 2         # global per level, not per parent
+    jev_region_tokens: int = 600
+    jev_leaf_bundles: int = 4
+    jev_read_dedup: bool = False     # same body is read once per search
 
 
 @dataclass(slots=True)

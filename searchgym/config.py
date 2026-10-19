@@ -436,6 +436,14 @@ def _validate(config: TestConfig) -> None:
                 raise ValueError("Invalid RawTree chunk sizes or quotas")
             if a.jev_direct_reads is None or a.jev_query_reads is None:
                 raise ValueError("RawTree requires explicit direct/query page quotas")
+            if any(type(v) is not int or v < 1 for v in (
+                    a.jev_entry_candidates, a.jev_tree_min_bundles,
+                    a.jev_region_beam, a.jev_region_tokens, a.jev_leaf_bundles)):
+                raise ValueError("RawTree entry and document navigation budgets must be positive integers")
+            if type(a.jev_region_branch) is not int or a.jev_region_branch < 2:
+                raise ValueError("RawTree document branching must be at least two")
+            if type(a.jev_notice_tokens) is not int or a.jev_notice_tokens < 0:
+                raise ValueError("RawTree notice token budget must be nonnegative")
         if not config.agent.jev_model:
             raise ValueError("jevtree 는 agent.jev_model 이 필요합니다.")
         if min(config.agent.jev_entries, config.agent.jev_branch, config.agent.jev_depth) < 1 or config.agent.jev_reads < 0:
