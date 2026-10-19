@@ -109,17 +109,21 @@ class RevisionTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ContractTests(unittest.TestCase):
-    def test_policy_mismatch_fails_before_calls_and_default_is_progressive(self):
-        cfg = load_test('conf.yaml', method='jevtree', expected_raw_traversal='progressive')
+    def test_policy_mismatch_fails_before_calls_and_default_is_automatic(self):
+        cfg = load_test('conf.yaml', method='jevtree', expected_raw_traversal='beam')
         policy = raw_policy(cfg.agent, cfg.method)
         self.assertEqual(policy['max_searches'], 10)
-        self.assertEqual(policy['initial_pages'], 4)
-        self.assertTrue(policy['final_evidence_review'])
-        self.assertEqual(policy['parents_per_action_limit'], 1)
+        self.assertEqual(policy['initial_pages'], 6)
+        self.assertEqual(policy['traversal'], 'beam')
+        self.assertFalse(policy['final_evidence_review'])
+        self.assertEqual(policy['tools'], ['web_search'])
+        self.assertFalse(policy['research_state'])
+        self.assertIsNone(policy['parents_per_action_limit'])
+        self.assertIsNone(policy['question_targets_not_limits'])
         with self.assertRaisesRegex(ValueError, 'Expected raw traversal'):
             load_test('conf.yaml', method='jevtree', raw_traversal='best_first', expected_raw_traversal='progressive')
         with self.assertRaisesRegex(ValueError, 'Expected raw traversal'):
-            load_test('conf.yaml', method='jevtree', raw_traversal='best_first')
+            load_test('conf.yaml', method='jevtree', raw_traversal='progressive')
         legacy = load_test('conf.yaml', method='jevtree', raw_traversal='best_first', expected_raw_traversal='best_first')
         self.assertEqual(legacy.agent.jev_traversal, 'best_first')
 

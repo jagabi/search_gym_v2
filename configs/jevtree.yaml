@@ -1,4 +1,4 @@
-# RawTree v10: read roots first, then explicitly reread or resume a saved frontier.
+# RawTree: thresholded beam traversal by d3, then two-page coarse-to-fine reading.
 # Browser documents -> Docling bundles/chunks -> source excerpts; no summary model.
 # Legacy level/LDS implementations remain available; this config selects raw.
 
@@ -6,7 +6,7 @@ agent:
   base_url: http://127.0.0.1:8000/v1
   max_tokens: 8192
   max_turns: 24
-  finalize_answer: true
+  finalize_answer: false       # preserve the main answer; no unconditional second synthesis
   timeout_s: 600
 
   # 검색 예산은 세 방법과 같다.
@@ -23,20 +23,16 @@ agent:
   jev_packet_questions: 1       # one judgment per HTTP, matching the original measurement
   jev_inflight_questions: 4     # shared per-wave judgment budget; never drop pending keys
   jev_strategy: raw             # browser traversal -> saved documents -> raw chunks
-  jev_traversal: progressive    # beam/best_first remain comparison policies
-  jev_expected_traversal: progressive  # legacy experiments must explicitly override this expectation
-  jev_expand_batch: 4           # visits per continuation; separate from HTTP wave size
-  jev_parent_limit: 1           # independent limit for parents whose links are evaluated
-  jev_target_visits: 64         # planning targets, never forced termination limits
-  jev_target_reads: 40
-  jev_target_expansions: 6
-  jev_link_floor: 0.0           # first compare policies without a cutoff; then test 0.01
-  jev_entries: 4                # other search hits remain available to read_source
-  jev_branch: 2                 # beam only: each parent nominates up to 2 links
-  jev_depth: 5
-  jev_frontier_width: 10        # beam only: global top 10 nominations at each depth
-  jev_fetch_budget: 16          # logical visits PER SEARCH, including cached/failing pages
-  jev_reads: 2                  # read another observed source explicitly when needed
+  jev_traversal: beam           # d3 alone selects and expands links inside each search
+  jev_expected_traversal: beam  # reject accidental overrides to another traversal policy
+  jev_expand_batch: 4           # best_first only; beam uses frontier_width, HTTP waves remain 4
+  jev_link_floor: 0.10          # below-threshold links never expand; empty frontier ends traversal
+  jev_entries: 6                # initial search roots, evaluated before narrowing the frontier
+  jev_branch: 2                 # each parent nominates at most 2 links, not 2 mandatory visits
+  jev_depth: 3                  # search roots are depth 1; at most two subsequent link hops
+  jev_frontier_width: 2         # at most 2 pages TOTAL at each subsequent depth
+  jev_fetch_budget: 10          # at most 6 + 2 + 2 visits PER SEARCH, including failed/cached pages
+  jev_reads: 2                  # only 2 pages across ALL depths enter full-body chunking
   jev_direct_reads: 1           # 원질문 정답 순위에서 먼저 확보
   jev_query_reads: 1            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음
   jev_floor: 0.15               # bundle/atomic-chunk threshold; browser top-k has no floor
@@ -58,10 +54,20 @@ explorer:
 
 system_prompt: |
   You are a research assistant. Answer using original source evidence.
+  Your research action is web_search. Choose search queries for missing facts.
+  The retrieval pipeline automatically evaluates pages, follows links, and selects
+  source excerpts using d3. Use the returned evidence to choose the next query or answer.
   Search for a missing relation using the question's actual constraints.
   Distinguish source facts, unverified hypotheses, and explicit contradictions.
   Keep named candidates pending until investigated or rejected by source evidence.
   Do not narrow dates, places or identities based on guesses.
+  Start with distinctive given names, works or relations before adding a guessed identity.
+  When evidence contradicts a guess, revise the next query instead of repeating that guess.
+  Preserve ranges and distinguish observation years, publication years, units and measures.
+  If a likely source is inaccessible, search for another original source using its title,
+  author or publication details. Search snippets are leads, not proof that the source was read.
+  Answer only with supported facts; do not invent details to repair a conflicting candidate.
+  Keep working plans and deliberation out of the final answer.
   Use source URLs in the final answer and never invent citations.
 
 
