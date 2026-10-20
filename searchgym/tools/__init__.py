@@ -26,6 +26,7 @@ import httpx
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import get_default_environment, stdio_client
@@ -43,6 +44,30 @@ from ..local_reader import local_reader_url
 __all__ = ["ToolResult", "ToolSpec", "WebTools"]
 
 _EMPTY: dict[str, Any] = {"type": "object", "properties": {}}
+
+
+def _reader_diagnostics(response: httpx.Response, metadata: dict) -> Any:
+    """Record the Reader's response, without confusing it with the source HTTP status."""
+    metadata.update(reader_http_status=response.status_code,
+                    reader_response_headers={k: response.headers[k] for k in
+                        ("content-type", "content-length", "server", "retry-after", "x-request-id")
+                        if k in response.headers})
+    try:
+        payload = response.json()
+    except (ValueError, UnicodeError):
+        return None
+    if isinstance(payload, dict):
+        for key in ("code", "name", "message", "status", "statusCode"):
+            if key in payload:
+                metadata[f"reader_{key}"] = str(payload[key])[:1000]
+        data = payload.get("data")
+        if isinstance(data, dict):
+            metadata["source_reported"] = {
+                k: data[k] if isinstance(data[k], (int, float, bool)) else str(data[k])[:1000]
+                for k in ("url", "title", "status", "statusCode", "httpStatus", "publishedTime",
+                          "contentType", "content_type", "mimeType", "message", "error", "reason")
+                if k in data}
+    return payload
 
 
 def _field(obj: Any, *names: str) -> Any:
@@ -267,26 +292,55 @@ class WebTools:
                    "X-Return-Format": "content", "X-Respond-With": "content",
                     "X-With-Links-Summary": "false", "X-No-Cache": "true",
                     "X-Assert-Status-Code": "200"}
+        # A .pdf path is a hint, not a detected MIME type. The response here is
+        # from Jina, so its HTTP 422 / application/json is NOT the source's
+        # status / MIME type. No source probe, retry or alternate transport.
+        path = urlsplit(url).path.lower()
+        metadata = {"engine": engine, "reader_base_url": base,
+                    "url_type_hint": "pdf" if path.endswith(".pdf") else "unknown",
+                    "asserted_source_status": 200}
+        response = None
+        stage = "reader_transport"
+        started = time.perf_counter()
         try:
             async with self._fetch_slots:
+                metadata["queue_ms"] = round(1000*(time.perf_counter()-started), 1)
+                http_started = time.perf_counter()
                 response = await self._reader_http.get(f"{base}/{url}", headers=headers)
+                metadata["http_ms"] = round(1000*(time.perf_counter()-http_started), 1)
+            payload = _reader_diagnostics(response, metadata)
+            stage = "reader_http"
             response.raise_for_status()
-            payload = response.json()
+            stage = "reader_json"
+            if payload is None:
+                payload = response.json()  # Preserve the actual JSON decoding error.
+            stage = "reader_payload"
+            if not isinstance(payload, dict):
+                raise ValueError("Reader response is not an object")
             if payload.get("code") != 200 or not isinstance(payload.get("data"), dict):
-                raise ValueError(f"Reader error: {payload}")
+                raise ValueError("Reader did not return code=200 and data")
             data = payload["data"]
             content = data.get("content")
             if not isinstance(content, str):
                 raise ValueError("Reader did not return data.content")
             failure = reader_failure(content)
+            if failure:
+                metadata.update(failure_stage="reader_content", error_message=failure[:1000])
             return Document(url=url, content=content, title=str(data.get("title") or ""),
                             is_error=bool(failure), retrieval=f"jina_{engine}",
                             retrieval_note=failure or "",
-                            reader_metadata={k: data[k] for k in
-                                ("url", "title", "status", "statusCode", "httpStatus", "publishedTime") if k in data})
+                            reader_metadata=metadata)
         except (httpx.HTTPError, ValueError, TypeError) as exc:
+            metadata.update(failure_stage=stage, exception_type=type(exc).__name__,
+                            error_message=str(exc)[:2000],
+                            elapsed_ms=round(1000*(time.perf_counter()-started), 1))
+            if response is not None:
+                # Kept in trace metadata, not fed to the reasoning model as
+                # source evidence. This often contains the actual PDF/browser
+                # navigation, origin HTTP or conversion error behind HTTP 422.
+                metadata["reader_response_excerpt"] = response.text[:4096]
             return Document(url=url, content=f"Could not read {url}: {exc}",
-                            is_error=True, retrieval=f"jina_{engine}")
+                            is_error=True, retrieval=f"jina_{engine}", reader_metadata=metadata)
 
     async def fetch_many(self, entries: list[dict[str, str]]) -> list[Document]:
         """여러 URL 을 동시에 연다. 실패한 것도 자리를 지킨다.

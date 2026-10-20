@@ -109,6 +109,59 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await client.aclose()
 
+    async def test_reader_failure_logs_pdf_and_origin_status_without_retry(self):
+        from searchgym.tools import WebTools
+        seen = []
+
+        def respond(request):
+            seen.append(request)
+            return httpx.Response(422, json={'code': 422, 'name': 'NavigationError',
+                'message': 'Browser navigation is a download',
+                'data': {'statusCode': 200, 'contentType': 'application/pdf'}})
+
+        tools = WebTools()
+        tools.reader_status = {'jina_base_url': 'http://127.0.0.1:3001'}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            tools._reader_http = client
+            doc = await tools.fetch('https://example.org/article.pdf', engine='browser')
+        self.assertEqual(len(seen), 1)
+        self.assertTrue(doc.is_error)
+        info = doc.reader_metadata
+        self.assertEqual(info['url_type_hint'], 'pdf')
+        self.assertEqual(info['failure_stage'], 'reader_http')
+        self.assertEqual(info['reader_http_status'], 422)
+        self.assertEqual(info['source_reported']['statusCode'], 200)
+        self.assertEqual(info['source_reported']['contentType'], 'application/pdf')
+        self.assertIn('download', info['reader_response_excerpt'])
+        self.assertNotIn('download', doc.content)  # Diagnostic body is not source evidence.
+
+    async def test_reader_non_json_and_transport_failures_remain_distinguishable(self):
+        from searchgym.tools import WebTools
+        for transport_error in (False, True):
+            with self.subTest(transport_error=transport_error):
+                seen = []
+
+                def respond(request):
+                    seen.append(request)
+                    if transport_error:
+                        raise httpx.ConnectError('Reader unavailable', request=request)
+                    return httpx.Response(200, text='<html>Reader gateway error</html>',
+                                          headers={'Content-Type': 'text/html'})
+
+                tools = WebTools()
+                tools.reader_status = {'jina_base_url': 'http://127.0.0.1:3001'}
+                async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+                    tools._reader_http = client
+                    doc = await tools.fetch('https://example.org/article', engine='browser')
+                self.assertTrue(doc.is_error)
+                self.assertEqual(len(seen), 1)
+                self.assertEqual(doc.reader_metadata['failure_stage'],
+                                 'reader_transport' if transport_error else 'reader_json')
+                if transport_error:
+                    self.assertNotIn('reader_http_status', doc.reader_metadata)
+                else:
+                    self.assertIn('gateway error', doc.reader_metadata['reader_response_excerpt'])
+
     async def test_global_four_slots_and_shared_question_packets(self):
         cfg = AgentConfig(jev_model='vllm-sr/d3-mini', jev_concurrency=4)
         client = LocalDecision(cfg)
@@ -161,7 +214,8 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         async def respond(request):
             body = json.loads(request.content)
             bodies.append(body)
-            values = {'direct_answer': .3, 'query_answer': .8, 'link_0': .1, 'link_1': .9}
+            values = {'direct_answer': .3, 'query_answer': .8, 'follow_links': .9,
+                      'link_0': .1, 'link_1': .9}
             return httpx.Response(200, json={
                 'answers': {k: {'noul': values[k]} for k in reversed(body['questions'])},
                 'usage': {'input_tokens': 20}})
@@ -181,11 +235,11 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                     'current target', [{'link': 'https://example.org/root'}],
                     question='original target', trace=trace, usage=None)
             self.assertEqual(fetched, ['https://example.org/root', 'https://example.org/second'])
-            self.assertEqual(len(bodies), 6)
-            self.assertEqual([k for b in bodies[:4] for k in b['questions']],
-                             ['direct_answer', 'query_answer', 'link_0', 'link_1'])
-            self.assertEqual([k for b in bodies[4:] for k in b['questions']], ['direct_answer', 'query_answer'])
-            self.assertTrue(all(b['state'] == bodies[0]['state'] for b in bodies[:4]))
+            self.assertEqual(len(bodies), 7)
+            self.assertEqual([k for b in bodies[:5] for k in b['questions']],
+                             ['direct_answer', 'query_answer', 'follow_links', 'link_0', 'link_1'])
+            self.assertEqual([k for b in bodies[5:] for k in b['questions']], ['direct_answer', 'query_answer'])
+            self.assertTrue(all(b['state'] == bodies[0]['state'] for b in bodies[:5]))
             page = bodies[0]['state']['page_text']
             self.assertIn('First context [First](link_0)', page)
             self.assertIn('Second context [Second](link_1)', page)
@@ -193,7 +247,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn('cutoff', json.dumps(bodies[0]))
             self.assertNotIn('current target', json.dumps(bodies[0]['state']))
             self.assertNotIn('original target', json.dumps(bodies[0]['state']))
-            self.assertEqual(stats['jev_requests'], 6)
+            self.assertEqual(stats['jev_requests'], 7)
             self.assertEqual(stats['links_scored'], 2)
             links = next(e['links'] for e in trace.events if e['event'] == 'rawtree.links')
             self.assertEqual([(r['url'], r['score']) for r in links],

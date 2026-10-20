@@ -26,7 +26,7 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/13"
+VERSION = "raw-browser-d3-navigation-docling/14"
 # d3-mini /v1/systemone rejects larger packets with HTTP 400.
 D3_MAX_QUESTIONS = 64
 
@@ -310,8 +310,9 @@ class RawTree:
                      page_visits=0, document_reuses=0, page_eval_failures=0,
                      bundle_eval_failures=0, chunk_eval_failures=0,
                      links_pruned=0, duplicate_candidates=0, entry_eval_failures=0,
-                     region_evaluations=0, duplicate_reads_avoided=0)
-        leads, page_cards = {}, {}
+                     region_evaluations=0, duplicate_reads_avoided=0,
+                     link_parent_skips=0, read_selection_candidates=0)
+        leads, page_cards, link_inputs = {}, {}, {}
         trace.event("rawtree.start", search_id=search_id, query=query, version=VERSION,
                     config={k: v for k, v in asdict(cfg).items() if k.startswith("jev_")})
 
@@ -430,7 +431,8 @@ class RawTree:
                 n.error = doc.content
                 stats["fetch_failed"] += 1
                 trace.event("rawtree.fetch_failed", search_id=search_id, node_id=n.node_id,
-                            url=n.url, engine="browser", error=doc.content)
+                            url=n.url, engine="browser", error=doc.content,
+                            reader_metadata=doc.reader_metadata)
                 return []
             prefix = complete_prefix(doc.content, chunker.prefix(doc.content, cfg.jev_page_tokens))
             lead = leads.get(key, {"url": n.url, "title": n.anchor, "snippet": ""})
@@ -447,12 +449,20 @@ class RawTree:
                 "direct_answer": decision_question(question, query=False, preview=True),
                 "query_answer": decision_question(query, query=True, preview=True),
             }
-            for i, (url, anchor) in enumerate(links):
-                marker = f"link_{i}"
-                questions[marker] = link_question(question, query, marker, url, anchor)
+            if links:
+                questions["follow_links"] = {"type": "noul", "instructions": (
+                    "Does the source leave a relation needed for the current search target "
+                    "unresolved AND offer a concrete outgoing route to establish or refute it? "
+                    "Follow-up is unnecessary when this source already supplies that relation. "
+                    "An index leading to the needed record is a useful route. Generic site menus "
+                    "or more introductions to an already described entity are not sufficient. "
+                    "The original question gives context, but do not reopen every original clue "
+                    "inside this branch. Unknown facts alone do not establish a useful route.\n"
+                    f"Current target: {query}\nOriginal question: {question}\n" + RELATION_SCOPE)}
+            state = {"page_url": n.url, "page_text": numbered_page(prefix, links),
+                     "search_lead": lead}
             sc = await evaluate(self.jev.noul(
-                {"page_url": n.url, "page_text": numbered_page(prefix, links),
-                 "search_lead": lead}, questions,
+                state, questions,
                 trace, usage=meter, context={"search_id": search_id, "phase": "preview",
                                              "node_id": n.node_id, "link_count": len(links)}), "page", n)
             if not all(key in sc for key in ("direct_answer", "query_answer")):
@@ -464,6 +474,27 @@ class RawTree:
             trace.event("rawtree.preview", search_id=search_id, node_id=n.node_id,
                         url=n.url, depth=n.depth, scores=page_scores, prefix_tokens=chunker.count(prefix),
                         full_chars=len(doc.content), prefix_chars=len(prefix), empty_prefix=not prefix.strip())
+            if links:
+                link_inputs[n.node_id] = (state, links, sc.get('follow_links'))
+            return []
+
+        async def expand_links(n):
+            if n.node_id not in link_inputs:
+                return []
+            state, links, follow = link_inputs[n.node_id]
+            # Unknown transport judgments are not negative relevance. A known
+            # false judgment, however, should not launch hundreds of link calls.
+            if follow is not None and follow < .5:
+                stats['link_parent_skips'] += 1
+                trace.event('rawtree.expansion_skipped', search_id=search_id,
+                            node_id=n.node_id, reason='no_missing_relation_route', score=follow,
+                            unevaluated_links=len(links))
+                return []
+            questions = {f'link_{i}': link_question(question, query, f'link_{i}', url, anchor)
+                         for i, (url, anchor) in enumerate(links)}
+            sc = await evaluate(self._noul(state, questions, trace, usage=meter,
+                context={'search_id': search_id, 'phase': 'links', 'node_id': n.node_id,
+                         'link_count': len(links)}), 'page', n)
             ranked = [(sc[f"link_{i}"], url, anchor) for i, (url, anchor) in enumerate(links)
                       if f"link_{i}" in sc]
             stats["links_scored"] += len(ranked)
@@ -474,9 +505,34 @@ class RawTree:
                                for i, (url, anchor) in enumerate(links)])
             return [(s, u, a, n) for s, u, a in n.link_scores]
 
+        async def preview_and_expand(n):
+            await preview(n)
+            return await expand_links(n)
+
         pending, sequence, round_index = [], 0, 0
         while level and cfg.jev_traversal == "beam":
-            groups = await _gather_owned(*(preview(n) for n in level))
+            await _gather_owned(*(preview(n) for n in level))
+            # Narrow parents BEFORE per-link evaluation, using the existing
+            # global beam width. All entry pages still receive a page judgment.
+            level_ids = {n.node_id for n in level}
+            parents = [r for r in rows if r['id'] in level_ids and r['id'] in link_inputs
+                       and (link_inputs[r['id']][2] is None or link_inputs[r['id']][2] >= .5)]
+            parent_width = min(cfg.jev_frontier_width, len(parents))
+            parent_rows = quota_select(parents, (parent_width+1)//2, parent_width//2)
+            selected_ids = {r['id'] for r in parent_rows}
+            stats['link_parent_skips'] += sum(n.node_id in link_inputs and n.node_id not in selected_ids
+                                               for n in level)
+            trace.event('rawtree.expansion_selection', search_id=search_id,
+                        candidates=[r['id'] for r in parents], selected=sorted(selected_ids),
+                        parent_width=cfg.jev_frontier_width,
+                        decisions=[{'node_id': n.node_id,
+                                    'follow_links': link_inputs[n.node_id][2],
+                                    'reason': ('selected' if n.node_id in selected_ids else
+                                               'no_missing_relation_route' if link_inputs[n.node_id][2] is not None
+                                               and link_inputs[n.node_id][2] < .5 else 'outside_parent_beam'),
+                                    'links_in_prefix': len(link_inputs[n.node_id][1])}
+                                   for n in level if n.node_id in link_inputs])
+            groups = await _gather_owned(*(expand_links(r['node']) for r in parent_rows))
             candidates = [c for group in groups for c in group[:cfg.jev_branch]]
             eligible = [c for c in candidates if c[0] >= cfg.jev_link_floor]
             stats["links_pruned"] += len(candidates) - len(eligible)
@@ -510,7 +566,7 @@ class RawTree:
                         node = admit(url, parent, anchor, -neg_score)
                     if node is None:
                         break
-                    active[asyncio.create_task(preview(node))] = node
+                    active[asyncio.create_task(preview_and_expand(node))] = node
                     selected.append(node.node_id)
                 return selected
 
@@ -558,15 +614,56 @@ class RawTree:
                     continue
                 unique[digest] = row
             rows = list(unique.values())
+        notice_budget = min(cfg.jev_notice_tokens, cfg.jev_output_tokens//3)
+        scored_pages = {}
+
+        async def read_selected(row):
+            # Read the first source before choosing its complement. Reuse all
+            # page/chunk scores in the final render; this does not add read slots.
+            read_started = time.perf_counter()
+            _, cores, _, _ = await self._read_rows(
+                [row], question=question, query=query, search_id=search_id,
+                trace=trace, meter=meter, stats=stats, failures=failures, scores=scores,
+                evaluate=evaluate, output_budget=cfg.jev_output_tokens-notice_budget,
+                scored_pages=scored_pages, record_notes=False)
+            chunks, _ = scored_pages[row['id']]
+            budget = max(2*cfg.jev_chunk_tokens, 2*cfg.jev_region_tokens)
+            passages, used = [], set()
+            # Reserve a core for each objective before filling the small
+            # comparison budget with more evidence for only the first one.
+            prioritized = []
+            for objective in ('direct_answer', 'query_answer'):
+                first = next((c for c in cores if c['objective'] == objective), None)
+                if first is not None:
+                    prioritized.append(first)
+            prioritized_ids = {c['id'] for c in prioritized}
+            prioritized.extend(c for c in cores if c['id'] not in prioritized_ids)
+            for core in prioritized:
+                i = core['chunk_id']
+                if i in used:
+                    continue
+                text = f"Original {core['objective']} chunk {i}:\n" + chunks[i].text
+                if chunker.count('\n\n'.join(passages+[text])) <= budget:
+                    passages.append(text)
+                    used.add(i)
+            card = {'url': row['node'].url, 'source_preview': '\n\n'.join(passages),
+                    'coverage': 'Selected original evidence chunks; incomplete, not a summary.',
+                    'evidence_available': bool(passages)}
+            trace.event('rawtree.read_context', search_id=search_id, node_id=row['id'],
+                        chunk_ids=sorted(used), tokens=chunker.count(card['source_preview']),
+                        read_duration_s=time.perf_counter()-read_started)
+            return card
+
         selected_pages = await self._select_pages(rows, page_cards, question, query, search_id,
-                                                 trace, meter, evaluate)
+                                                 trace, meter, evaluate,
+                                                 read_selected=read_selected if cfg.jev_diverse_reads else None,
+                                                 stats=stats)
         trace.event("rawtree.pages_selected", search_id=search_id,
                     pages=[{k: v for k, v in r.items() if k != "node"} for r in selected_pages])
-        notice_budget = min(cfg.jev_notice_tokens, cfg.jev_output_tokens//3)
         text, picked, returned, seen = await self._read_rows(
             selected_pages, question=question, query=query, search_id=search_id,
             trace=trace, meter=meter, stats=stats, failures=failures, scores=scores, evaluate=evaluate,
-            output_budget=cfg.jev_output_tokens-notice_budget)
+            output_budget=cfg.jev_output_tokens-notice_budget, scored_pages=scored_pages)
         if notice_budget:
             notice = self._navigation_notice(ordered, nodes, returned, chunker, notice_budget)
             text = notice + '\n\n' + text if notice else text
@@ -604,7 +701,8 @@ class RawTree:
             self.score_cache[key] = dict(scores)
         return scores
 
-    async def _select_pages(self, rows, cards, question, query, search_id, trace, meter, evaluate):
+    async def _select_pages(self, rows, cards, question, query, search_id, trace, meter, evaluate,
+                            *, read_selected=None, stats=None):
         if not self.cfg.jev_diverse_reads:
             return quota_select(rows, self.cfg.jev_direct_reads, self.cfg.jev_query_reads)
         selected, remaining = [], list(rows)
@@ -616,6 +714,10 @@ class RawTree:
                 if not selected:
                     best = max(remaining, key=lambda r: r[objective])
                 else:
+                    # Relevance first: use the existing page beam to retain
+                    # candidates for each objective, before judging novelty.
+                    width = min(self.cfg.jev_frontier_width, len(remaining))
+                    shortlist = quota_select(remaining, (width+1)//2, width//2)
                     async def marginal(row):
                         sc = await evaluate(self._noul(
                             {"page_url": row['node'].url, "candidate": cards[row['id']],
@@ -623,8 +725,11 @@ class RawTree:
                             {objective: {"type": "noul", "instructions": (
                                 "Would reading the candidate establish a missing TARGET RELATION, "
                                 "preserve another qualified answer candidate, or test a concrete "
-                                "assumption beyond the selected sources? Compare their original "
-                                "source_preview text, not just titles or snippets. A different page "
+                                "assumption beyond the selected sources? Compare original "
+                                "source_preview text, not just titles or snippets. The selected "
+                                "sources contain already-read evidence chunks; the candidate contains "
+                                "a bounded page prefix. Empty selected evidence is unknown, not a "
+                                "claim that the question has been resolved. A different page "
                                 "or person is not automatically complementary: it must connect to "
                                 "the requested condition. Prefer a list of qualified alternatives or "
                                 "a missing role/record over repeated introductions to one candidate. "
@@ -636,22 +741,28 @@ class RawTree:
                                 + RELATION_SCOPE)}}, trace, usage=meter,
                             context={"search_id": search_id, "phase": "read_selection", "node_id": row['id']}),
                             'page', row['node'])
-                        # This judgment already conditions on the target AND
-                        # selected pages. Multiplying by the earlier standalone
-                        # score suppresses useful alternative candidates twice.
-                        # A failed evaluation remains unknown, not zero.
-                        return sc.get(objective, row[objective])
-                    values = await _gather_owned(*(marginal(r) for r in remaining))
-                    best_index = max(range(len(remaining)),
-                                     key=lambda i: (values[i], remaining[i][objective]))
-                    best = remaining[best_index]
+                        complement = sc.get(objective)
+                        # Novelty cannot by itself promote a weakly related
+                        # page. A failed judgment falls back to relevance only.
+                        return {'score': row[objective] * complement if complement is not None else row[objective],
+                                'complement': complement}
+                    values = await _gather_owned(*(marginal(r) for r in shortlist))
+                    if stats is not None:
+                        stats['read_selection_candidates'] = stats.get('read_selection_candidates', 0) + len(shortlist)
+                    best_index = max(range(len(shortlist)),
+                                     key=lambda i: (values[i]['score'], shortlist[i][objective]))
+                    best = shortlist[best_index]
                     trace.event('rawtree.read_selection', search_id=search_id, objective=objective,
+                                pool=[r['id'] for r in remaining],
                                 candidates=[{'id': r['id'], 'standalone_score': r[objective],
-                                             'selection_score': value}
-                                            for r, value in zip(remaining, values)],
+                                             'complement_score': value['complement'],
+                                             'selection_score': value['score']}
+                                            for r, value in zip(shortlist, values)],
                                 selected=best['id'])
                 selected.append({**best, 'objective': objective})
                 remaining = [r for r in remaining if r['id'] != best['id']]
+                if read_selected is not None:
+                    cards[best['id']] = await read_selected(selected[-1])
         return selected
 
     @staticmethod
@@ -743,13 +854,20 @@ class RawTree:
 
     async def _read_rows(self, selected_pages, *, question, query, search_id, trace,
                          meter, stats, failures, scores, evaluate, output_budget=None,
-                         already_returned=None):
+                         already_returned=None, scored_pages=None, record_notes=True):
         cfg, chunker = self.cfg, self.jev.chunker
         output_budget = cfg.jev_output_tokens if output_budget is None else max(0, output_budget)
         chunk_rows, page_chunks = [], {}
+        if scored_pages is None:
+            scored_pages = {}
 
         async def read_page(row):
             n = row["node"]
+            if n.node_id in scored_pages:
+                chunks, judged = scored_pages[n.node_id]
+                page_chunks[n.node_id] = chunks
+                chunk_rows.extend(judged)
+                return
             n.reader_objective = row["objective"]
             doc = n.document
             n.read = True
@@ -810,7 +928,9 @@ class RawTree:
                     return None
                 stats["chunks_scored"] += 1
                 return {"id": f"{n.node_id}:{i}", "node": n, "chunk_id": i, **sc}
-            chunk_rows.extend(r for r in await _gather_owned(*(score_chunk(i) for i in ids)) if r is not None)
+            judged_chunks = [r for r in await _gather_owned(*(score_chunk(i) for i in ids)) if r is not None]
+            scored_pages[n.node_id] = (chunks, judged_chunks)
+            chunk_rows.extend(judged_chunks)
 
         await _gather_owned(*(read_page(row) for row in selected_pages))
         def identity(n, i):
@@ -878,7 +998,8 @@ class RawTree:
                              "source_id": self.source_ids.get(n.url, ""),
                              "content_hash": hashlib.sha256(n.document.content.encode()).hexdigest(),
                              "texts": {str(j): page_chunks[n.node_id][j].text for j in ids}})
-            n.notes += block + "\n\n"
+            if record_notes:
+                n.notes += block + "\n\n"
         text = render(groups) if groups else incomplete + (
             "No new source excerpts in this step. Previously returned evidence remains available; "
             "read_source can expose it again for verification." if already_returned is not None else

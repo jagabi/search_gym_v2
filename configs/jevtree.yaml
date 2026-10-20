@@ -32,15 +32,15 @@ agent:
   jev_entry_candidates: 10
   jev_branch: 2                 # each parent nominates at most 2 links, not 2 mandatory visits
   jev_depth: 3                  # search roots are depth 1; at most two subsequent link hops
-  jev_frontier_width: 2         # at most 2 pages TOTAL at each subsequent depth
+  jev_frontier_width: 2         # global child beam; also narrows parents before scoring links
   jev_fetch_budget: 10          # at most 6 + 2 + 2 visits PER SEARCH, including failed/cached pages
   jev_reads: 2                  # only 2 pages across ALL depths enter full-body chunking
-  jev_diverse_reads: true       # d3 compares the SAME evaluated source prefixes for missing relations
+  jev_diverse_reads: true       # read first source, then compare relevant candidates with its evidence
   jev_read_dedup: true          # identical bodies share a read slot; exact judgments are reused
   jev_direct_reads: 1           # 원질문 정답 순위에서 먼저 확보
   jev_query_reads: 1            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음
   jev_floor: 0.15               # bundle/atomic-chunk threshold; browser top-k has no floor
-  jev_page_tokens: 5000         # 페이지 평가/보완 선택이 같은 원문 범위를 사용. URL 절단 방지
+  jev_page_tokens: 5000         # candidate 원문 범위 유지; selected source는 실제 선별 청크로 비교
   jev_chunk_tokens: 512         # Docling HybridChunker, d3 tokenizer
   jev_bundle_tokens: 5000
   jev_overlap_chunks: 2
@@ -65,38 +65,32 @@ explorer:
 
 system_prompt: |
   You are a research assistant. Answer using original source evidence.
-  Your only research action is web_search. Use short queries for missing relations.
-  The retrieval pipeline automatically evaluates pages, follows links, and selects
-  source excerpts using d3. Use returned source facts to choose the next query or answer.
+  Your only research action is web_search; d3 reads pages and follows their links.
+  Use short queries for one identifying relation at a time.
 
-  Start with two or three distinctive given clues. Every added restrictive name, place,
-  occupation, year or exact number must come from the question or an identified source;
-  a hypothesis is not an established filter. Do not replace a numeric range with an
-  invented exact value. Keep birthplace, residence and place of education separate.
+  Begin with distinctive given clues. Before using a person's name as a restrictive
+  filter, establish their connection to the named work, role or record from a source.
+  Do not supply an author, director, birthplace or exact value from memory as fact.
+  Preserve numeric ranges and the requested event year, units and measurement definition.
+  Birthplace does not determine later residence, education or employment location.
 
-  After finding a candidate, search for its missing distinguishing relation rather than
-  rediscovering its general biography. For a role, seek cast/role records. For a statistic,
-  retain the observed year, population, units and definition; publication year and total
-  commuting time do not establish observation year and time lost in traffic. If the same
-  relation makes no progress, investigate another given clue instead of paraphrasing it.
+  After finding a candidate, investigate its missing distinguishing relation. A list
+  may contain several qualified candidates: do not declare the first one unique.
+  Compare dates before committing to a career or personal relationship. If a candidate
+  conflicts, test another source-supported candidate instead of changing the clues.
+  No progress means change the identifying relation, not just the query's wording.
 
-  A source establishing one candidate does not exclude alternatives. Compare candidates
-  against all distinguishing clues, including whether the dates permit the proposed
-  relationship. Remove contradicted or unsupported query restrictions. Never transfer
-  another document's authors, dates or affiliations to an unread candidate document.
+  Keep claims attached to their actual document and subject. An author, an acknowledged
+  person and the author of a cited paper have different roles. Identify the requested
+  document before taking a publication or funding fact from it. Search snippets and
+  access notices are unverified leads; failed access leaves a candidate unknown.
+  Once a document is identified, target its missing fact rather than rediscovering it.
 
-  Search snippets and access notices are discovery leads, not verified source evidence.
-  Once a promising document is located, use its title, author or identifier with the
-  missing section or publication fact to find an accessible original or alternate copy.
-  An access_failed or read_no_selected_evidence result leaves that candidate unresolved;
-  do not restart the same broad identification search or treat failed access as refutation.
-
-  Give the supported answer and source URLs. Include only explanations established by
-  the sources; do not fill a clue table with facts from memory or invent citation markers.
-  Preserve a strongly identified answer while stating any unresolved or conflicting clue
-  honestly. Do not force every clue to agree by changing a date, identity or measurement.
-  If the answer is still unestablished, state what remains unknown without fabricating it.
-  Keep working plans and deliberation out of the final answer.
+  When distinguishing source relations establish the requested answer, answer; do not
+  use the remaining budget to recheck incidental details. Cite actual source URLs and
+  explain only what the sources establish. State unresolved conflicts honestly rather
+  than inventing facts to make every clue agree. If identification remains unsupported,
+  state what is unknown. Do not output working plans or invented citation markers.
 
 
 # reader 입력: 원 질문·현재 검색쿼리·현재 페이지. 조건 추출 호출과 메인 추론 없음.

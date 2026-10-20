@@ -153,6 +153,9 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
                 return .95 if '| Rowan | Northport |' in preview else .05
             if ctx['phase'] == 'preview':
                 return {'known': .99, 'registry': .4, 'other': .8}[name]
+            if ctx['phase'] == 'chunk':
+                return .99 if any(t in state['target_chunk'] for t in
+                                  ('Aster held the office', '| Rowan | Northport |')) else .01
             return .9
 
         tree, decision, trace, _, (_, _, stats) = await self.run_search(
@@ -164,12 +167,16 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         pages = next(e['pages'] for e in trace.events if e['event'] == 'rawtree.pages_selected')
         self.assertEqual([r['id'] for r in pages], ['n0', 'n1'])
         self.assertEqual(stats['reads'], 2)
+        self.assertEqual(len([e for e in trace.events if e['event'] == 'rawtree.chunks']), 2)
+        self.assertTrue(all(c['coverage'].startswith('Selected original')
+                            for s, _, ctx in decision.calls if ctx['phase'] == 'read_selection'
+                            for c in s['selected_sources']))
         cards = [s['candidate'] for s, _, ctx in decision.calls if ctx['phase'] == 'read_selection']
         self.assertTrue(all(tree.jev.chunker.count(c['source_preview']) <= 2000 for c in cards))
         self.assertTrue(all('reasoning' not in s and 'main_reasoning' not in s
                             for s, _, _ in decision.calls))
 
-    async def test_conditional_relation_score_is_not_discounted_by_standalone_score(self):
+    async def test_weak_relevance_is_not_overridden_by_novelty_alone(self):
         def score(state, key, ctx):
             name = state['page_url'].removeprefix(BASE)
             if ctx['phase'] == 'read_selection':
@@ -186,7 +193,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
             jev_entries=3, jev_reads=2, jev_direct_reads=1, jev_query_reads=1,
             jev_diverse_reads=True)
         pages = next(e['pages'] for e in trace.events if e['event'] == 'rawtree.pages_selected')
-        self.assertEqual([r['id'] for r in pages], ['n0', 'n1'])
+        self.assertEqual([r['id'] for r in pages], ['n0', 'n2'])
         self.assertEqual(stats['reads'], 2)
 
     async def test_identical_body_dedup_backfills_distinct_source(self):
@@ -201,6 +208,39 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['duplicate_reads_avoided'], 1)
         self.assertEqual(stats['reads'], 2)
         self.assertIn('Additional original record.', text)
+
+    async def test_satisfied_page_does_not_launch_link_judgments(self):
+        def score(state, key, ctx):
+            if key == 'follow_links':
+                return .05
+            return .9
+
+        _, decision, trace, fetched, (_, _, stats) = await self.run_search(
+            [{'link': BASE+'record'}],
+            {BASE+'record': 'The requested relation is stated here. [Menu](https://example.org/menu)'},
+            score=score, jev_entries=1, jev_depth=2)
+        self.assertEqual(fetched, [BASE+'record'])
+        self.assertFalse(any(ctx['phase'] == 'links' for _, _, ctx in decision.calls))
+        self.assertEqual(stats['links_scored'], 0)
+        self.assertEqual(stats['link_parent_skips'], 1)
+
+    async def test_parent_beam_narrows_before_per_link_work(self):
+        roots = ['a', 'b', 'c', 'd', 'e', 'f']
+
+        def score(state, key, ctx):
+            if key == 'follow_links' or ctx['phase'] == 'links':
+                return .9
+            return {'a': .99, 'b': .9}.get(state['page_url'].removeprefix(BASE), .1)
+
+        _, decision, _, fetched, (_, _, stats) = await self.run_search(
+            [{'link': BASE+x} for x in roots],
+            {BASE+x: f'Record {x}. [Detail]({BASE}{x}1)' for x in roots},
+            score=score, jev_entries=6, jev_fetch_budget=8, jev_frontier_width=2, jev_depth=2)
+        self.assertEqual(fetched[:6], [BASE+x for x in roots])
+        self.assertEqual(set(fetched[6:]), {BASE+'a1', BASE+'b1'})
+        self.assertEqual(len([ctx for _, _, ctx in decision.calls if ctx['phase'] == 'links']), 2)
+        self.assertEqual(stats['links_scored'], 2)
+        self.assertEqual(stats['link_parent_skips'], 4)
 
     async def test_failed_source_keeps_exact_title_and_url_as_unverified_lead(self):
         tree, _, _, _, (_, text, stats) = await self.run_search(
