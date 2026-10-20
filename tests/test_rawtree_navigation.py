@@ -65,7 +65,10 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result.research_state)
 
     async def run_search(self, results, bodies, *, score=None, **options):
-        cfg = config(jev_traversal='beam', **options)
+        # These source/chunk-selection regressions also cover the retained
+        # traversal-then-read mode. Node action scheduling has its own tests.
+        options.setdefault('jev_traversal', 'best_first')
+        cfg = config(**options)
         decision, trace, fetched = Decision(score), Capture(), []
 
         async def fetch(url, *, engine):
@@ -211,14 +214,16 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_satisfied_page_does_not_launch_link_judgments(self):
         def score(state, key, ctx):
-            if key == 'follow_links':
+            if key == 'return_now':
+                return .99
+            if key == 'expand_now':
                 return .05
             return .9
 
         _, decision, trace, fetched, (_, _, stats) = await self.run_search(
             [{'link': BASE+'record'}],
             {BASE+'record': 'The requested relation is stated here. [Menu](https://example.org/menu)'},
-            score=score, jev_entries=1, jev_depth=2)
+            score=score, jev_entries=1, jev_depth=2, jev_traversal='beam')
         self.assertEqual(fetched, [BASE+'record'])
         self.assertFalse(any(ctx['phase'] == 'links' for _, _, ctx in decision.calls))
         self.assertEqual(stats['links_scored'], 0)
@@ -228,14 +233,19 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         roots = ['a', 'b', 'c', 'd', 'e', 'f']
 
         def score(state, key, ctx):
-            if key == 'follow_links' or ctx['phase'] == 'links':
+            if key in ('return_now', 'read_now'):
+                return .01
+            if key == 'expand_now':
+                return {'a': .99, 'b': .9}.get(state['page_url'].removeprefix(BASE), .1)
+            if ctx['phase'] == 'links':
                 return .9
             return {'a': .99, 'b': .9}.get(state['page_url'].removeprefix(BASE), .1)
 
         _, decision, _, fetched, (_, _, stats) = await self.run_search(
             [{'link': BASE+x} for x in roots],
             {BASE+x: f'Record {x}. [Detail]({BASE}{x}1)' for x in roots},
-            score=score, jev_entries=6, jev_fetch_budget=8, jev_frontier_width=2, jev_depth=2)
+            score=score, jev_entries=6, jev_fetch_budget=8, jev_frontier_width=2, jev_depth=2,
+            jev_traversal='beam')
         self.assertEqual(fetched[:6], [BASE+x for x in roots])
         self.assertEqual(set(fetched[6:]), {BASE+'a1', BASE+'b1'})
         self.assertEqual(len([ctx for _, _, ctx in decision.calls if ctx['phase'] == 'links']), 2)

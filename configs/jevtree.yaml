@@ -1,4 +1,4 @@
-# RawTree: thresholded beam traversal by d3, then two-page coarse-to-fine reading.
+# RawTree: d3 compares read/expand/return per node, then advances the surviving beam.
 # Browser documents -> Docling bundles/chunks -> source excerpts; no summary model.
 # Legacy level/LDS implementations remain available; this config selects raw.
 
@@ -32,10 +32,10 @@ agent:
   jev_entry_candidates: 10
   jev_branch: 2                 # each parent nominates at most 2 links, not 2 mandatory visits
   jev_depth: 3                  # search roots are depth 1; at most two subsequent link hops
-  jev_frontier_width: 2         # global child beam; also narrows parents before scoring links
+  jev_frontier_width: 2         # global child beam; only d3 EXPAND parents enter link scoring
   jev_fetch_budget: 10          # at most 6 + 2 + 2 visits PER SEARCH, including failed/cached pages
-  jev_reads: 2                  # only 2 pages across ALL depths enter full-body chunking
-  jev_diverse_reads: true       # read first source, then compare relevant candidates with its evidence
+  jev_reads: 2                  # up to 2 pages across ALL depths; reads happen before deeper expansion
+  jev_diverse_reads: true       # beam actions compare against actual selected original chunks
   jev_read_dedup: true          # identical bodies share a read slot; exact judgments are reused
   jev_direct_reads: 1           # 원질문 정답 순위에서 먼저 확보
   jev_query_reads: 1            # 나머지 문서의 쿼리 답 순위; 부족한 슬롯은 이월하지 않음

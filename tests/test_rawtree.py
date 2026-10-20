@@ -199,7 +199,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             await client.aclose()
 
     async def test_page_and_link_requests_preserve_shared_source_cutoff_and_score_mapping(self):
-        cfg = AgentConfig(jev_strategy='raw', jev_entries=1, jev_branch=1, jev_depth=2,
+        cfg = AgentConfig(jev_strategy='raw', jev_traversal='best_first', jev_entries=1, jev_branch=1, jev_depth=2,
                           jev_fetch_budget=2, jev_direct_reads=0, jev_query_reads=0)
         client = LocalDecision(cfg)
         await client.http.aclose()
@@ -375,7 +375,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(cleaned.is_set())
 
     async def test_depth_budget_and_browser_body_reuse_including_tail(self):
-        cfg = AgentConfig(jev_strategy='raw', jev_entries=10, jev_branch=2, jev_depth=5,
+        cfg = AgentConfig(jev_strategy='raw', jev_traversal='beam', jev_entries=10, jev_branch=2, jev_depth=5,
                           jev_fetch_budget=50, jev_frontier_width=10, jev_direct_reads=2, jev_query_reads=4,
                           jev_chunk_tokens=32, jev_bundle_tokens=120, jev_direct_chunks=4, jev_query_chunks=8)
 
@@ -390,8 +390,18 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                 self_test.assertNotIn('search_query', state)
                 usage.calls += 1
                 usage.attempts += 1
-                return {key: .9 if context['phase'] != 'chunk' or 'FINAL_FACT' in state['target_chunk'] else .01
-                        for key in questions}
+                values = {}
+                for key in questions:
+                    if key == 'return_now':
+                        values[key] = .001
+                    elif key == 'read_now':
+                        values[key] = .9 if state['page_url'].count('/') >= 7 else .01
+                    elif key == 'expand_now':
+                        values[key] = .99
+                    else:
+                        values[key] = (.9 if context['phase'] != 'chunk' or
+                                       'FINAL_FACT' in state['target_chunk'] else .01)
+                return values
 
         self_test = self
         fetched = []

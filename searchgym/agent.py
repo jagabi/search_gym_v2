@@ -1386,7 +1386,7 @@ class SearchAgent:
         for key in ("fast_fetches", "browser_fetches", "bundles_scored", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
                     "page_visits", "document_reuses", "page_eval_failures", "bundle_eval_failures",
                     "chunk_eval_failures", "links_pruned", "duplicate_candidates", "chunk_cache_hits",
-                    "parent_expansions", "refreshes", "link_parent_skips", "read_selection_candidates"):
+                    "parent_expansions", "refreshes", "link_parent_skips", "read_selection_candidates", "branch_returns"):
             if key in stats:
                 result.reader_stats[key] = result.reader_stats.get(key, 0) + stats[key]
 

@@ -40,7 +40,11 @@ class GraphDecision:
         scores = {}
         edges = dict(self.graph.get(name, []))
         for key, question in questions.items():
-            if key.startswith('link_'):
+            if key in ('return_now', 'read_now', 'expand_now'):
+                defaults = {'return_now': .000001, 'read_now': .0000001 if edges else .9,
+                            'expand_now': max(edges.values(), default=0)}
+                scores[key] = self.page_scores.get(name, {}).get(key, defaults[key])
+            elif key.startswith('link_'):
                 url = question['instructions'].split('Destination: ', 1)[1].split('\n', 1)[0]
                 scores[key] = edges[url.removeprefix(BASE)]
             else:
@@ -147,8 +151,8 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
                  'b11': [('too_deep', .99)]}
         _, decision, fetched, _, (tree, _, stats) = await self.run_graph(
             graph, roots=('a', 'b', 'c', 'd', 'e', 'f'), cfg=cfg,
-            page_scores={'a': {'direct_answer': .99, 'query_answer': .2},
-                         'b11': {'direct_answer': .1, 'query_answer': .99}})
+            page_scores={'a': {'direct_answer': .99, 'query_answer': .2, 'read_now': .99},
+                         'b11': {'direct_answer': .1, 'query_answer': .99, 'read_now': .99}})
         self.assertEqual(fetched[:6], ['a', 'b', 'c', 'd', 'e', 'f'])
         self.assertEqual(set(fetched[6:8]), {'a1', 'b1'})
         self.assertEqual(set(fetched[8:]), {'a11', 'b11'})
