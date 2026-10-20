@@ -133,6 +133,62 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('Performer Mira played the archivist.', text)
         self.assertEqual(stats['reads'], 2)
 
+    async def test_read_selection_retains_relation_after_navigation_heavy_opening(self):
+        # Both the candidate list and selected source carry identifying facts
+        # beyond 600 tokens. Titles/snippets deliberately provide no shortcut.
+        opening = 'Site navigation entry. ' * 300
+        bodies = {
+            BASE+'known': opening + '\n\nAster held the office in 1910.',
+            BASE+'registry': opening + '\n\n| Candidate | Birthplace |\n|---|---|\n'
+                             '| Aster | Northport |\n| Rowan | Northport |\n',
+            BASE+'other': 'Beryl held an unrelated office in Southport.',
+        }
+
+        def score(state, key, ctx):
+            name = state['page_url'].removeprefix(BASE)
+            if ctx['phase'] == 'read_selection':
+                self.assertIn('Aster held the office in 1910.',
+                              state['selected_sources'][0]['source_preview'])
+                preview = state['candidate']['source_preview']
+                return .95 if '| Rowan | Northport |' in preview else .05
+            if ctx['phase'] == 'preview':
+                return {'known': .99, 'registry': .4, 'other': .8}[name]
+            return .9
+
+        tree, decision, trace, _, (_, _, stats) = await self.run_search(
+            [{'link': BASE+x, 'title': 'Source record', 'snippet': ''}
+             for x in ('known', 'registry', 'other')], bodies, score=score,
+            jev_entries=3, jev_reads=2, jev_direct_reads=1, jev_query_reads=1,
+            jev_page_tokens=2000, jev_diverse_reads=True)
+        self.assertNotIn('Rowan', tree.jev.chunker.prefix(bodies[BASE+'registry'], 600))
+        pages = next(e['pages'] for e in trace.events if e['event'] == 'rawtree.pages_selected')
+        self.assertEqual([r['id'] for r in pages], ['n0', 'n1'])
+        self.assertEqual(stats['reads'], 2)
+        cards = [s['candidate'] for s, _, ctx in decision.calls if ctx['phase'] == 'read_selection']
+        self.assertTrue(all(tree.jev.chunker.count(c['source_preview']) <= 2000 for c in cards))
+        self.assertTrue(all('reasoning' not in s and 'main_reasoning' not in s
+                            for s, _, _ in decision.calls))
+
+    async def test_conditional_relation_score_is_not_discounted_by_standalone_score(self):
+        def score(state, key, ctx):
+            name = state['page_url'].removeprefix(BASE)
+            if ctx['phase'] == 'read_selection':
+                return {'alternative': .9, 'introduction': .4}[name]
+            if ctx['phase'] == 'preview':
+                return {'known': .99, 'alternative': .25, 'introduction': .9}[name]
+            return .9
+
+        _, _, trace, _, (_, _, stats) = await self.run_search(
+            [{'link': BASE+x} for x in ('known', 'alternative', 'introduction')],
+            {BASE+'known': 'Aster is one candidate.',
+             BASE+'alternative': 'Rowan satisfies the missing birthplace relation.',
+             BASE+'introduction': 'Another introduction to Aster.'}, score=score,
+            jev_entries=3, jev_reads=2, jev_direct_reads=1, jev_query_reads=1,
+            jev_diverse_reads=True)
+        pages = next(e['pages'] for e in trace.events if e['event'] == 'rawtree.pages_selected')
+        self.assertEqual([r['id'] for r in pages], ['n0', 'n1'])
+        self.assertEqual(stats['reads'], 2)
+
     async def test_identical_body_dedup_backfills_distinct_source(self):
         _, _, trace, _, (_, text, stats) = await self.run_search(
             [{'link': BASE+x} for x in 'abc'],
