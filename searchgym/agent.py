@@ -152,8 +152,8 @@ class AgentConfig:
     # Raw evidence: browser documents, local decisions, selected source chunks.
     jev_base_url: str = "http://100.89.209.104:8101"
     jev_concurrency: int = 4
-    jev_packet_questions: int = 1     # match measured workload: one judgment per HTTP
-    jev_inflight_questions: int = 4   # shared per-wave judgment budget
+    jev_packet_questions: int = 64    # batch independent keys in one shared source input
+    jev_inflight_questions: int = 256 # four HTTP requests, each with at most 64 keys
     jev_frontier_width: int = 10
     jev_traversal: str = "beam"  # raw: beam | best_first | progressive
     jev_expand_batch: int = 4    # rolling best-first page jobs; independent of HTTP concurrency
@@ -596,6 +596,17 @@ class SearchAgent:
                 result.steps.append(step)
 
                 active_specs = self._available_specs(specs, result)
+                if (self.method == 'jevtree' and cfg.jev_strategy == 'raw'
+                        and not self.progressive_raw and not active_specs
+                        and result.searches >= cfg.max_searches):
+                    # The last search has completed: replace research instructions
+                    # with answer-only synthesis immediately, without an empty turn.
+                    trace.event('run.finalizing', turn=turn, reason='search_exhausted')
+                    final = await self._salvage(synthesis_messages(), trace, result.usage,
+                                               answer_only=True)
+                    result.answer = step.text = final
+                    result.stop_reason = 'finalized' if final else 'no_answer'
+                    break
                 if (self.method == "depthsearch" and (cfg.depthsearch_control or self.independent_clues or self.relational_reading)
                         and result.searches >= cfg.max_searches and not active_specs):
                     # All results of the last search have returned. Independent
@@ -795,6 +806,18 @@ class SearchAgent:
                 result.stop_reason = "salvaged"
                 trace.event("run.salvaged", answer_chars=len(salvaged))
 
+        if (self.method == 'jevtree' and cfg.jev_strategy == 'raw'
+                and not result.answer.strip()):
+            # Keep model-output failure distinct from successful synthesis. This
+            # is an explicit failure response, never a guessed research answer.
+            result.answer = 'No final answer could be produced from the collected evidence.'
+            if not result.error:
+                result.error = 'FinalOutputError: model produced no usable final answer'
+                result.stop_reason = 'final_output_failed'
+            trace.event('run.final_output_failed', answer=result.answer,
+                        origin='system_failure_notice', searches=result.searches,
+                        error=result.error)
+
         if first_route_stats and result.research_state:
             for key, value in first_route_stats.items():
                 result.research_state.metrics[key] = result.research_state.metrics.get(key, 0) + value
@@ -885,6 +908,7 @@ class SearchAgent:
         오류 복구와 기존 baseline 경로는 질문·도구 결과로 답변을 재구성한다.
         복구 오류가 원래 오류를 덮지 않도록 여기서는 예외를 반환하지 않는다.
         """
+        answer_only = answer_only or (self.method == 'jevtree' and self.config.jev_strategy == 'raw')
         if answer_only:
             question = next((m for m in messages if m.get("role") == "user"), None)
             # Keep the original question and every returned source, but remove
@@ -953,7 +977,7 @@ class SearchAgent:
                 trace.event("run.final_context_compacted", checkpoint_truncated=clipped)
         for attempt in range(2):
             try:
-                choice = {"tool_choice": "none"} if self.method == "depthsearch" or self.progressive_raw else {}
+                choice = {"tool_choice": "none"} if self.method == "depthsearch" or answer_only else {}
                 if answer_only:
                     trace.event("run.final_request", attempt=attempt, messages=rebuilt, tools=[],
                                 tool_choice="none", phase="answer_only")
@@ -968,7 +992,7 @@ class SearchAgent:
                         finish_reason=reply.finish_reason,
                         tool_calls=[c.function.name for c in reply.tool_calls])
             action = _looks_like_action(text) or (
-                (self.method == "depthsearch" or self.progressive_raw) and _looks_like_unfinished_research(text))
+                (self.method == "depthsearch" or answer_only) and _looks_like_unfinished_research(text))
             if text and not (reply.truncated or reply.tool_calls or action):
                 return text
             # Retry an unusable output once without reinserting its reasoning or
@@ -2022,7 +2046,7 @@ def _looks_like_action(text: str) -> bool:
 
 
 def _looks_like_unfinished_research(text: str) -> bool:
-    """DS-only final-output guard; a short factual answer is still valid."""
+    """Final-output guard for research/synthesis; short factual answers remain valid."""
     return _looks_like_action(text) or bool(re.search(
         r"(?:^|\n)\s*(?:Need (?:a )?(?:source|evidence|to (?:search|fetch|open|verify))\b|"
         r"(?:Next (?:step|action)|To[- ]do)\s*:)|(?:^|[.!?]\s+)Open\.\s*$",

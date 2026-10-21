@@ -226,7 +226,8 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_partial_packet_keeps_valid_page_scores_and_marks_unknown_links(self):
         cfg = config(jev_entries=1, jev_depth=2, jev_fetch_budget=2,
-                     jev_direct_reads=1, jev_query_reads=0, jev_page_tokens=10000)
+                     jev_direct_reads=1, jev_query_reads=0, jev_page_tokens=10000,
+                     jev_packet_questions=1, jev_inflight_questions=4)
         client = LocalDecision(cfg)
         await client.http.aclose()
         client.chunker = chunker(64)

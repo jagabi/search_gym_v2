@@ -20,8 +20,8 @@ agent:
   jev_model: vllm-sr/d3-mini
   jev_base_url: http://172.16.3.192:8101
   jev_concurrency: 4            # shared HTTP wave size; wait for all responses before next wave
-  jev_packet_questions: 1       # one judgment per HTTP, matching the original measurement
-  jev_inflight_questions: 4     # shared per-wave judgment budget; never drop pending keys
+  jev_packet_questions: 64      # combine independent keys, preserving each item's source context
+  jev_inflight_questions: 256   # four HTTP requests x at most 64 keys; concurrency remains 4
   jev_strategy: raw             # browser traversal -> saved documents -> raw chunks
   jev_traversal: beam           # d3 alone selects and expands links inside each search
   jev_expected_traversal: beam  # reject accidental overrides to another traversal policy
