@@ -68,6 +68,11 @@ class SourceChunker:
         with self._lock:
             return self._chunks(text)
 
+    def sections(self, text: str) -> list[dict]:
+        from .raw_navigation import source_sections
+        with self._lock:
+            return source_sections(text, self.markdown)
+
     def _chunks(self, text: str) -> list[Chunk]:
         from docling_core.types.doc import DoclingDocument, DocItemLabel
         doc = DoclingDocument(name="source")

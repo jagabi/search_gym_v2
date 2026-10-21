@@ -30,13 +30,13 @@ def complete_prefix(source: str, prefix: str) -> str:
     return source[:boundary]
 
 
-def numbered_page(page: str, links: list[tuple[str, str]]) -> str:
+def numbered_page(page: str, links: list[tuple[str, str]], *, key_offset: int = 0) -> str:
     """Keep each link's location and label. URL mapping stays in the caller.
 
     Markdown destinations become link IDs; bare URLs keep their visible text
     because they have no label that could describe the destination.
     """
-    ids = {_norm(url): f'link_{i}' for i, (url, _anchor) in enumerate(links)}
+    ids = {_norm(url): f'link_{key_offset+i}' for i, (url, _anchor) in enumerate(links)}
     edits, markdown_spans = [], []
     for start, end, label, url in _balanced_markdown_links(page):
         markdown_spans.append((start, end))

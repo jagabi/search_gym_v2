@@ -68,7 +68,7 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
     async def test_multiple_local_returns_do_not_stop_expanding_sibling(self):
         def score(state, key, ctx):
             name = state['page_url'].removeprefix(BASE)
-            if ctx['phase'] in ('bundle', 'chunk', 'links'):
+            if ctx['phase'] in ('bundle', 'chunk', 'links', 'link_region'):
                 return .9
             if key in ('direct_answer', 'query_answer'):
                 return .9 if name == 'b1' else .05
@@ -91,7 +91,7 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
     async def test_first_read_leaves_second_slot_for_depth_three(self):
         def score(state, key, ctx):
             name = state['page_url'].removeprefix(BASE)
-            if ctx['phase'] in ('bundle', 'chunk', 'links'):
+            if ctx['phase'] in ('bundle', 'chunk', 'links', 'link_region'):
                 return .9
             if key in ('direct_answer', 'query_answer'):
                 return .1 if name in ('b', 'b1') else .9
@@ -209,7 +209,7 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
     async def test_query_read_preserves_original_goal_slot_at_closed_leaf(self):
         def score(state, key, ctx):
             name = state['page_url'].removeprefix(BASE)
-            if ctx['phase'] in ('bundle', 'chunk', 'links'):
+            if ctx['phase'] in ('bundle', 'chunk', 'links', 'link_region'):
                 return .9
             if key in ('direct_answer', 'query_answer'):
                 return {'a': (.23, .93), 'bridge': (.35, .37),
@@ -288,7 +288,7 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
     async def test_stronger_expansion_is_not_starved_by_sibling_read(self):
         def score(state, key, ctx):
             name = state['page_url'].removeprefix(BASE)
-            if ctx['phase'] in ('bundle', 'chunk', 'links'):
+            if ctx['phase'] in ('bundle', 'chunk', 'links', 'link_region'):
                 return .9
             if key in ('direct_answer', 'query_answer'):
                 return {'a': .65, 'b': .1, 'b1': .99}[name]
@@ -304,7 +304,7 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_minimum_read_reveals_route_after_prefix(self):
         def score(state, key, ctx):
-            if ctx['phase'] in ('bundle', 'chunk', 'links'):
+            if ctx['phase'] in ('bundle', 'chunk', 'links', 'link_region'):
                 return .9
             child = state['page_url'] == BASE+'child'
             if key in ('direct_answer', 'query_answer'):

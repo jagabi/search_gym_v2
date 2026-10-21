@@ -26,7 +26,7 @@ agent:
   jev_traversal: beam           # d3 alone selects and expands links inside each search
   jev_expected_traversal: beam  # reject accidental overrides to another traversal policy
   jev_expand_batch: 4           # best_first only; beam uses frontier_width, HTTP waves remain 4
-  jev_link_floor: 0.10          # below-threshold links never expand; empty frontier ends traversal
+  jev_link_floor: 0.10          # link-region and link minimum gain; empty frontier ends traversal
   jev_entries: 6                # initial search roots, evaluated before narrowing the frontier
   jev_rank_entries: true        # d3 ranks 10 leads; final 2 of 6 slots compare added navigation value
   jev_entry_candidates: 10
@@ -51,10 +51,10 @@ agent:
   jev_notice_tokens: 2000       # included in output budget; navigation leads, never evidence
   jev_document_tree: true       # d3 navigates headings + original excerpts, no lexical ranking
   jev_tree_min_bundles: 16      # short documents retain exhaustive bundle evaluation
-  jev_region_branch: 4          # partition each retained region into up to 4 contiguous regions
-  jev_region_beam: 2            # keep at most 2 regions TOTAL per level across both objectives
+  jev_region_branch: 4          # reading/link routing: split regions into up to 4 contiguous children
+  jev_region_beam: 2            # global region beam; links score at most 2 final source sections
   jev_region_tokens: 600
-  jev_leaf_bundles: 4           # long documents: fully evaluate at most 4 reached bundles
+  jev_leaf_bundles: 4           # reading leaves; link routing narrows to <=4 sections before leaf scoring
 
 explorer:
   # Legacy schema fields only; the raw strategy never calls the reader model.
