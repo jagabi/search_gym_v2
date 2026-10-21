@@ -3,7 +3,7 @@ import asyncio
 import unittest
 
 from searchgym.explorer import Document
-from searchgym.rawtree import RawTree
+from searchgym.rawtree import RawTree, link_state
 from test_rawtree import Capture
 from test_rawtree_navigation import Decision
 from test_rawtree_policy import BASE, config
@@ -40,7 +40,7 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
     async def test_read_then_return_stops_before_links_without_filling_second_slot(self):
         def score(state, key, ctx):
             if key in ('direct_answer', 'query_answer') or ctx['phase'] in ('bundle', 'chunk'):
-                return .9
+                return .05 if state.get('selected_sources') else .9
             observed = bool(state.get('selected_sources'))
             return {'return_now': .99 if observed else .01,
                     'read_now': .95 if state['page_url'] == BASE+'a' else .2,
@@ -187,6 +187,8 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
                 return .9
             name = state['page_url'].removeprefix(BASE)
             if key in ('direct_answer', 'query_answer'):
+                if state.get('selected_sources'):
+                    return .05
                 return .9 if name == 'a' else .7
             if state.get('selected_sources') or name == 'a':
                 return .99 if key == 'return_now' else .01
@@ -203,6 +205,45 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selected['node_id'], 'n0')
         self.assertEqual(selected['requested_by'], ['n1'])
         self.assertTrue(any(e['action'] == 'return_now' and e['node_id'] == 'n0' for e in actions))
+
+    async def test_query_read_preserves_original_goal_slot_at_closed_leaf(self):
+        def score(state, key, ctx):
+            name = state['page_url'].removeprefix(BASE)
+            if ctx['phase'] in ('bundle', 'chunk', 'links'):
+                return .9
+            if key in ('direct_answer', 'query_answer'):
+                return {'a': (.23, .93), 'bridge': (.35, .37),
+                        'b': (.27, .44), 'c': (.21, .47)}[name][
+                    key == 'query_answer']
+            if name in ('a', 'bridge'):
+                return {'return_now': .1, 'expand_now': .8}[key]
+            return .66 if key == 'return_now' else .01
+
+        _, trace, fetched, (_, text, stats) = await self.run_graph(
+            {'a': ['bridge'], 'bridge': ['b', 'c']}, ['a'], score,
+            jev_depth=3, jev_branch=2)
+        self.assertEqual(fetched[:2], ['a', 'bridge'])
+        self.assertEqual(set(fetched[2:]), {'b', 'c'})
+        selections = [e for e in trace.events if e['event'] == 'rawtree.read_selection']
+        selected_urls = {e['node_id']: e['url'] for e in trace.events
+                         if e['event'] == 'rawtree.preview'}
+        self.assertEqual([(selected_urls[e['selected']], e['objective']) for e in selections],
+                         [(BASE+'a', 'query_answer'), (BASE+'b', 'direct_answer')])
+        self.assertEqual(selections[-1]['reason'], 'frontier_read')
+        self.assertEqual(stats['reads'], 2)
+        self.assertIn('VERIFIED_b', text)
+        self.assertNotIn('VERIFIED_c', text)
+        self.assertNotIn('VERIFIED_bridge', text)
+
+    def test_link_context_keeps_all_occurrences_without_neighbor_links(self):
+        state = {'page_text': 'heading\n\n[One](link_1)\n\n[Ten](link_10)\n\nAgain [link_1]',
+                 'outgoing_links': {'link_1': 'one', 'link_10': 'ten'},
+                 'selected_sources': [{'source_preview': 'known original source'}]}
+        focused = link_state(state, 'link_1')
+        self.assertEqual(focused['page_text'], '[One](link_1)\n\nAgain [link_1]')
+        self.assertEqual(focused['outgoing_links'], {'link_1': 'one'})
+        self.assertEqual(focused['selected_sources'], state['selected_sources'])
+        self.assertIn('link_10', state['outgoing_links'])
 
     async def test_closed_source_marginal_score_refreshes_after_new_evidence(self):
         def score(state, key, ctx):

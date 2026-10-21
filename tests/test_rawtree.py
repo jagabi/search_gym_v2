@@ -239,7 +239,12 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([k for b in bodies[:5] for k in b['questions']],
                              ['direct_answer', 'query_answer', 'follow_links', 'link_0', 'link_1'])
             self.assertEqual([k for b in bodies[5:] for k in b['questions']], ['direct_answer', 'query_answer'])
-            self.assertTrue(all(b['state'] == bodies[0]['state'] for b in bodies[:5]))
+            self.assertTrue(all(b['state'] == bodies[0]['state'] for b in bodies[:3]))
+            for body in bodies[3:5]:
+                key = next(iter(body['questions']))
+                self.assertEqual(body['state']['outgoing_links'],
+                                 {key: bodies[0]['state']['outgoing_links'][key]})
+                self.assertEqual(body['state']['page_text'], bodies[0]['state']['page_text'])
             page = bodies[0]['state']['page_text']
             self.assertIn('First context [First](link_0)', page)
             self.assertIn('Second context [Second](link_1)', page)
