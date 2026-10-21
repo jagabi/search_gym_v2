@@ -27,7 +27,7 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/19"
+VERSION = "raw-browser-d3-navigation-docling/20"
 # d3-mini /v1/systemone rejects larger packets with HTTP 400.
 D3_MAX_QUESTIONS = 64
 
@@ -587,11 +587,13 @@ class RawTree:
                 doc, source_search_id = self.documents[key]
                 stats["document_reuses"] += 1
                 trace.event("rawtree.fetch_reused", search_id=search_id, node_id=n.node_id,
-                            url=n.url, source_search_id=source_search_id, engine="browser")
+                            url=n.url, source_search_id=source_search_id,
+                            engine='native' if doc.retrieval == 'native' else 'browser')
             else:
                 stats["fetched"] += 1
-                stats["browser_fetches"] += 1
                 doc = await self.fetch(n.url, engine="browser")
+                counter = 'native_fetches' if doc.retrieval == 'native' else 'browser_fetches'
+                stats[counter] = stats.get(counter, 0) + 1
                 if not doc.is_error:
                     self.documents[key] = (doc, search_id)
             n.document = doc
@@ -599,7 +601,8 @@ class RawTree:
                 n.error = doc.content
                 stats["fetch_failed"] += 1
                 trace.event("rawtree.fetch_failed", search_id=search_id, node_id=n.node_id,
-                            url=n.url, engine="browser", error=doc.content,
+                            url=n.url, engine='native' if doc.retrieval == 'native' else 'browser',
+                            error=doc.content,
                             reader_metadata=doc.reader_metadata)
                 return []
             prefix = complete_prefix(doc.content, chunker.prefix(doc.content, cfg.jev_page_tokens))

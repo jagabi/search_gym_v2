@@ -123,11 +123,11 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         tools.reader_status = {'jina_base_url': 'http://127.0.0.1:3001'}
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             tools._reader_http = client
-            doc = await tools.fetch('https://example.org/article.pdf', engine='browser')
+            doc = await tools.fetch('https://example.org/article?id=42', engine='browser')
         self.assertEqual(len(seen), 1)
         self.assertTrue(doc.is_error)
         info = doc.reader_metadata
-        self.assertEqual(info['url_type_hint'], 'pdf')
+        self.assertEqual(info['url_type_hint'], 'unknown')
         self.assertEqual(info['failure_stage'], 'reader_http')
         self.assertEqual(info['reader_http_status'], 422)
         self.assertEqual(info['source_reported']['statusCode'], 200)

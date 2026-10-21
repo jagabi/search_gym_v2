@@ -262,24 +262,33 @@ class WebTools:
         blocked_terms = os.getenv("BLOCKED_TERMS", "deepsearchqa,browsecomp,evobrowsecomp,kbrowsecomp,dsqa-full").split(",")
         if any(t.strip().lower() in url.lower() for t in blocked_terms if t.strip()) or "/fb-answers/" in url.lower():
             return Document(url=url, content="BLOCKED: evaluation material or answer-reposting page; find primary facts.", is_error=True)
+        from .native import file_kind, fetch_native
+        kind = file_kind(url)
+        if kind:
+            metadata = {'engine': 'native', 'format': kind}
+            started = time.perf_counter()
+            try:
+                async with self._fetch_slots:
+                    metadata['queue_ms'] = round(1000*(time.perf_counter()-started), 1)
+                    content = await fetch_native(url, metadata=metadata)
+                return Document(url=url, content=content, title=f'{kind.upper()} document',
+                                retrieval="native", reader_metadata=metadata)
+            except Exception as exc:
+                error = f"Native document read failed: {type(exc).__name__}: {exc}"
+                metadata.update(exception_type=type(exc).__name__, error_message=str(exc)[:2000],
+                                elapsed_ms=round(1000*(time.perf_counter()-started), 1))
+                return Document(url=url, content=f'Could not read {url}: {error}',
+                                is_error=True, retrieval='native', retrieval_note=error,
+                                reader_metadata=metadata)
         if engine is not None:
             return await self._fetch_engine(url, engine)
-        from .native import file_kind, fetch_native
-        native_error = ""
-        if file_kind(url):
-            try:
-                content = await fetch_native(url)
-                return Document(url=url, content=content, retrieval="native")
-            except Exception as exc:
-                native_error = f"Native document read failed: {type(exc).__name__}: {exc}"
         result = await self.call("web_fetch", {"url": url})
         failure = reader_failure(result.text)
         title = re.search(r"^Title:\s*(.*?)$", result.text, re.MULTILINE)
         return Document(url=url, content=(f"Could not read {url}: {failure}" if failure else result.text),
                         title=title.group(1).strip() if title else "",
                         is_error=result.is_error or bool(failure),
-                        retrieval="jina_fallback" if native_error else "jina",
-                        retrieval_note=native_error)
+                        retrieval="jina")
 
     async def _fetch_engine(self, url: str, engine: str) -> Document:
         """Explicit local transport for RawTree; never switch curl to browser silently."""

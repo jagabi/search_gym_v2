@@ -5,7 +5,7 @@ File parsing is shared by every method. No search service or model is invoked.
 import csv
 import io
 import re
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 MAX_BYTES = 24 * 1024 * 1024
 
@@ -53,8 +53,19 @@ def decode_document(payload: bytes, kind: str, url: str) -> str:
                  for i, page in enumerate(book.pages)]
         if not any(text.strip() for _, text in pages):
             raise ValueError("PDF has no extractable text; scanned/image evidence needs OCR or vision")
-        return f"Title: PDF document\nURL Source: {url}\nMarkdown Content:\n" + "\n\n".join(
-            f"[PDF page {i}]\n{text}" for i, text in pages)
+        sections = []
+        for (i, text), page in zip(pages, book.pages):
+            links = []
+            for annotation in page.annotations or []:
+                action = annotation.get_object().get('/A')
+                if action is not None:
+                    action = action.get_object()
+                    target = urljoin(url, str(action.get('/URI') or ''))
+                    if action.get('/URI') and urlsplit(target).scheme in ('http', 'https'):
+                        links.append(f'[PDF link]({target})')
+            sections.append(f"## [PDF page {i}]\n\n{text}" +
+                            ('\n\n' + '\n'.join(dict.fromkeys(links)) if links else ''))
+        return f"Title: PDF document\nURL Source: {url}\nMarkdown Content:\n" + "\n\n".join(sections)
     else:
         raise ValueError("Unsupported native format")
 
@@ -65,14 +76,19 @@ def compact_pdf_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
-async def fetch_native(url: str) -> str:
+async def fetch_native(url: str, *, metadata: dict | None = None) -> str:
     import httpx
     kind = file_kind(url)
     if not kind:
         raise ValueError("Not a supported file URL")
+    metadata = metadata if metadata is not None else {}
+    metadata['failure_stage'] = 'native_transport'
     async with httpx.AsyncClient(timeout=30, follow_redirects=True, max_redirects=5) as client:
         async with client.stream("GET", url, headers={"User-Agent": "SearchGym source reader"}) as reply:
+            metadata.update(failure_stage='native_http', source_http_status=reply.status_code,
+                            source_content_type=reply.headers.get('content-type', ''), final_url=str(reply.url))
             reply.raise_for_status()
+            metadata['failure_stage'] = 'native_download'
             chunks, size = [], 0
             async for chunk in reply.aiter_bytes():
                 size += len(chunk)
@@ -80,4 +96,7 @@ async def fetch_native(url: str) -> str:
                     raise ValueError("Source exceeds the 24 MiB download limit")
                 chunks.append(chunk)
     import asyncio
-    return await asyncio.to_thread(decode_document, b"".join(chunks), kind, url)
+    metadata.update(failure_stage='native_parse', source_bytes=size)
+    content = await asyncio.to_thread(decode_document, b"".join(chunks), kind, url)
+    metadata.pop('failure_stage', None)
+    return content

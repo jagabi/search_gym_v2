@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+import csv
+import io
 import threading
 
 
@@ -71,7 +73,26 @@ class SourceChunker:
         doc = DoclingDocument(name="source")
         lines = text.splitlines(keepends=True)
         cursor = 0
-        for token in self.markdown.parse(text):
+        # Native CSV is kept losslessly as CSV, not guessed into Markdown.
+        # Give HybridChunker the first row as structural column context so it
+        # repeats that context when a long table is split into later chunks.
+        native_csv = text.startswith('Title: CSV document\n') and 'Markdown Content:\n' in text
+        if native_csv:
+            header, body = text.split('Markdown Content:\n', 1)
+            doc.add_text(label=DocItemLabel.TEXT, text=header.strip())
+            rows = csv.reader(io.StringIO(body))
+            for i, row in enumerate(rows):
+                out = io.StringIO(newline='')
+                csv.writer(out, lineterminator='\n').writerow(row)
+                value = out.getvalue().rstrip('\n')
+                if i == 0:
+                    doc.add_heading(text='CSV columns (first row): ' + value, level=1)
+                else:
+                    # Literal CSV records: Markdown must not reinterpret a
+                    # quoted newline, URL, pipe, or punctuation inside a cell.
+                    doc.add_code(text=value)
+            cursor = len(lines)
+        for token in ([] if native_csv else self.markdown.parse(text)):
             if token.level != 0 or token.map is None or token.map[0] < cursor:
                 continue
             start, end = token.map

@@ -230,13 +230,14 @@ class FlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.answer, "Norway")
 
 
-    async def test_native_read_failure_falls_back_once_and_reports_empty_body(self):
+    async def test_native_read_failure_is_explicit_without_jina_fallback(self):
         client = WebTools()
         client.call = AsyncMock(return_value=SimpleNamespace(text="Title: PDF\nMarkdown Content:\n", is_error=False))
         with patch("searchgym.tools.native.fetch_native", AsyncMock(side_effect=ValueError("image PDF"))):
             doc = await client.fetch("https://a.example/p.pdf")
         self.assertTrue(doc.is_error)
-        self.assertEqual(doc.retrieval, "jina_fallback")
-        client.call.assert_awaited_once()
+        self.assertEqual(doc.retrieval, "native")
+        self.assertIn('image PDF', doc.retrieval_note)
+        client.call.assert_not_awaited()
 
 
