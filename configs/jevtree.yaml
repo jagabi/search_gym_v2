@@ -1,4 +1,4 @@
-# RawTree: d3 compares marginal reading, concrete routes and branch exhaustion.
+# RawTree: d3 scores full-document reading gain and concrete routes; close if neither qualifies.
 # Browser documents -> Docling bundles/chunks -> source excerpts; no summary model.
 # Legacy level/LDS implementations remain available; this config selects raw.
 
@@ -26,7 +26,7 @@ agent:
   jev_traversal: beam           # d3 alone selects and expands links inside each search
   jev_expected_traversal: beam  # reject accidental overrides to another traversal policy
   jev_expand_batch: 4           # best_first only; beam uses frontier_width, HTTP waves remain 4
-  jev_link_floor: 0.10          # link-region and link minimum gain; empty frontier ends traversal
+  jev_link_floor: 0.10          # expand opportunity, link-region and link minimum gain
   jev_entries: 6                # initial search roots, evaluated before narrowing the frontier
   jev_rank_entries: true        # d3 ranks 10 leads; final 2 of 6 slots compare added navigation value
   jev_entry_candidates: 10
@@ -39,7 +39,7 @@ agent:
   jev_read_dedup: true          # identical bodies share a read slot; exact judgments are reused
   jev_direct_reads: 1           # 원질문 근거 몫; 실제 선택한 목표에 읽기 슬롯을 차감
   jev_query_reads: 1            # 현재 검색어 근거 몫; 소진 후에는 원질문 목표로 선별
-  jev_floor: 0.15               # bundle/atomic-chunk threshold; browser top-k has no floor
+  jev_floor: 0.15               # full-document reading opportunity and bundle/atomic-chunk minimum
   jev_page_tokens: 5000         # candidate 원문 범위 유지; selected source는 실제 선별 청크로 비교
   jev_chunk_tokens: 512         # Docling HybridChunker, d3 tokenizer
   jev_bundle_tokens: 5000

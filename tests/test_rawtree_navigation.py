@@ -262,7 +262,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         _, decision, trace, fetched, (_, _, stats) = await self.run_search(
             [{'link': BASE+'record'}],
             {BASE+'record': 'The requested relation is stated here. [Menu](https://example.org/menu)'},
-            score=score, jev_entries=1, jev_depth=2, jev_traversal='beam')
+            score=score, jev_entries=1, jev_depth=2, jev_traversal='beam', jev_link_floor=.1)
         self.assertEqual(fetched, [BASE+'record'])
         self.assertFalse(any(ctx['phase'] == 'links' for _, _, ctx in decision.calls))
         self.assertEqual(stats['links_scored'], 0)
