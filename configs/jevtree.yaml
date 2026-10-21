@@ -1,4 +1,4 @@
-# RawTree: d3 compares read/expand/return per node, then advances the surviving beam.
+# RawTree: d3 compares marginal reading, concrete routes and branch exhaustion.
 # Browser documents -> Docling bundles/chunks -> source excerpts; no summary model.
 # Legacy level/LDS implementations remain available; this config selects raw.
 
@@ -28,13 +28,13 @@ agent:
   jev_expand_batch: 4           # best_first only; beam uses frontier_width, HTTP waves remain 4
   jev_link_floor: 0.10          # below-threshold links never expand; empty frontier ends traversal
   jev_entries: 6                # initial search roots, evaluated before narrowing the frontier
-  jev_rank_entries: true        # d3 compares all 10 search leads before admitting 6 roots
+  jev_rank_entries: true        # d3 ranks 10 leads; final 2 of 6 slots compare added navigation value
   jev_entry_candidates: 10
   jev_branch: 2                 # each parent nominates at most 2 links, not 2 mandatory visits
   jev_depth: 3                  # search roots are depth 1; at most two subsequent link hops
   jev_frontier_width: 2         # global child beam; only d3 EXPAND parents enter link scoring
   jev_fetch_budget: 10          # at most 6 + 2 + 2 visits PER SEARCH, including failed/cached pages
-  jev_reads: 2                  # up to 2 pages across ALL depths; reads happen before deeper expansion
+  jev_reads: 2                  # up to 2 pages; zero-read searches select one scored source before return
   jev_diverse_reads: true       # beam actions compare against actual selected original chunks
   jev_read_dedup: true          # identical bodies share a read slot; exact judgments are reused
   jev_direct_reads: 1           # 원질문 정답 순위에서 먼저 확보

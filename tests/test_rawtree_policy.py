@@ -44,6 +44,9 @@ class GraphDecision:
                 defaults = {'return_now': .000001, 'read_now': .0000001 if edges else .9,
                             'expand_now': max(edges.values(), default=0)}
                 scores[key] = self.page_scores.get(name, {}).get(key, defaults[key])
+            elif (key in ('direct_answer', 'query_answer') and 'selected_sources' in state):
+                default = .0000001 if edges else .9
+                scores[key] = self.page_scores.get(name, {}).get(key, default)
             elif key.startswith('link_'):
                 url = question['instructions'].split('Destination: ', 1)[1].split('\n', 1)[0]
                 scores[key] = edges[url.removeprefix(BASE)]

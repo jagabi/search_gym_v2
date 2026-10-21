@@ -116,6 +116,45 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['entry_eval_failures'], 1)
         self.assertTrue(next(e for e in trace.events if e['event'] == 'rawtree.entries')['fallback'])
 
+    async def test_entry_complement_retains_alternative_outside_standalone_top_six(self):
+        def score(state, key, ctx):
+            name = state['page_url'].removeprefix(BASE)
+            if ctx['phase'] == 'entry':
+                return .9 if int(name) <= 6 else .4
+            if ctx['phase'] == 'entry_diversity':
+                self.assertEqual(len(state['selected_leads']), 4)
+                self.assertNotIn('selected_sources', state)
+                return .99 if name == '7' else .1
+            return .99 if key == 'return_now' else .01
+
+        _, decision, trace, fetched, (_, _, stats) = await self.run_search(
+            [{'link': BASE+str(i), 'title': 'Candidate record'} for i in range(1, 11)], {},
+            score=score, jev_traversal='beam', jev_entries=6, jev_rank_entries=True,
+            jev_frontier_width=2)
+        self.assertEqual(len(fetched), 6)
+        self.assertIn(BASE+'7', fetched)
+        self.assertEqual(stats['entries'], 6)
+        self.assertEqual(len([c for _, _, c in decision.calls if c['phase'] == 'entry_diversity']), 6)
+        self.assertFalse(next(e for e in trace.events if e['event'] == 'rawtree.entry_diversity')['fallback'])
+
+    async def test_failed_entry_comparison_keeps_original_admission(self):
+        def score(state, key, ctx):
+            name = state['page_url'].removeprefix(BASE)
+            if ctx['phase'] == 'entry':
+                return .9 if int(name) <= 6 else .4
+            if ctx['phase'] == 'entry_diversity':
+                if name == '7':
+                    raise LocalDecisionError('comparison unavailable')
+                return .99
+            return .99 if key == 'return_now' else .01
+
+        _, _, trace, fetched, (_, _, stats) = await self.run_search(
+            [{'link': BASE+str(i)} for i in range(1, 11)], {}, score=score,
+            jev_traversal='beam', jev_entries=6, jev_rank_entries=True, jev_frontier_width=2)
+        self.assertEqual(fetched, [BASE+str(i) for i in range(1, 7)])
+        self.assertEqual(stats['entry_eval_failures'], 1)
+        self.assertTrue(next(e for e in trace.events if e['event'] == 'rawtree.entry_diversity')['fallback'])
+
     async def test_complementary_read_beats_second_copy_of_known_entity(self):
         def score(state, key, ctx):
             name = state['page_url'].removeprefix(BASE)
@@ -239,7 +278,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
                 return {'a': .99, 'b': .9}.get(state['page_url'].removeprefix(BASE), .1)
             if ctx['phase'] == 'links':
                 return .9
-            return {'a': .99, 'b': .9}.get(state['page_url'].removeprefix(BASE), .1)
+            return .001
 
         _, decision, _, fetched, (_, _, stats) = await self.run_search(
             [{'link': BASE+x} for x in roots],

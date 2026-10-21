@@ -26,7 +26,7 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/15"
+VERSION = "raw-browser-d3-navigation-docling/17"
 # d3-mini /v1/systemone rejects larger packets with HTTP 400.
 D3_MAX_QUESTIONS = 64
 
@@ -34,8 +34,10 @@ D3_MAX_QUESTIONS = 64
 # mistaken hypothesis; they never supply facts missing from the source.
 RELATION_SCOPE = (
     "Keep the subject, relationship, event date, location, units and measurement definition "
-    "attached to each source fact. A publication date is not the date of the reported event; "
-    "residence, birthplace, constituency and place of education are different relations. "
+    "attached to each source fact. A publication date is not the date of the reported event. "
+    "Strict numeric bounds exclude their endpoints; preserve the exact value and year "
+    "even when they refute a guessed candidate. "
+    "Residence, birthplace, constituency and place of education are different relations. "
     "For identification, preserve all source-supported alternatives that fit the requested "
     "relation; a candidate list can be more useful than another biography of one candidate. "
     "A different entity merely sharing a topic does not satisfy an identifying condition. "
@@ -131,9 +133,7 @@ def quota_select(rows: list[dict], direct: int, query: int, *, floor: float = 0.
 def node_action_questions(question, query, *, can_read, can_expand):
     """Comparable local actions, rather than a relevance threshold for stopping."""
     common = (
-        "Compare the available actions for THIS node on the same scale: which is the "
-        "best next use of the remaining search effort, considering expected additional "
-        "source evidence and reading/traversal cost? selected_sources contains bounded "
+        "Judge the evidence opportunity at THIS node. selected_sources contains bounded "
         "original chunks already read, not complete documents. page_text is only a prefix; "
         "absence from it does not establish absence from the document. Search leads are "
         "unverified. Prefer useful missing relations, qualified alternatives and concrete "
@@ -141,12 +141,15 @@ def node_action_questions(question, query, *, can_read, can_expand):
         "This is branch control, not a final answer or a decision to stop sibling branches.\n"
         f"Current search target: {query}\nOriginal question: {question}\n" + RELATION_SCOPE)
     actions = {'return_now': (
-        "Close this branch with the evidence collected so far, leaving sibling branches "
-        "to continue. Prefer this when the available reading or outgoing routes are less "
-        "worthwhile than returning. High topical relevance alone is not a reason to return. "
-        "Closing an unread node does not turn its prefix into returned evidence: choose "
-        "read_now when its useful source facts should be preserved as original excerpts. "
-        "When evidence is missing and a concrete promising route remains, prefer that route.")}
+        "Is this branch exhausted: its useful target relations have already been extracted "
+        "into selected_sources, or neither this document nor its outgoing routes plausibly "
+        "offer a new relevant source fact? An unread explicit answer, partial relation, "
+        "candidate list or concrete contradiction is NOT exhausted. RETURN closes outgoing "
+        "expansion only; this document remains eligible for independent reading selection. "
+        "Its prefix is not automatically returned as evidence. Do not close because the "
+        "answer seems obvious, reading has a cost, "
+        "or this source alone cannot satisfy every clue. Failure to see a fact in a "
+        "prefix is not evidence that the rest of the document lacks it.")}
     if can_read:
         actions['read_now'] = (
             "Use one remaining document-read slot to select original chunks from this "
@@ -154,14 +157,39 @@ def node_action_questions(question, query, *, can_read, can_expand):
             "evidence, not whether the answer already appears in the prefix.")
     if can_expand:
         actions['expand_now'] = (
-            "Follow outgoing links from this node to another depth. Prefer this when "
-            "concrete destinations could supply useful missing evidence more efficiently "
-            "than reading this document or closing the branch. Generic menus alone do not count.")
+            "Do the visible outgoing routes plausibly lead to at least one new fact "
+            "answering the current query, an alternative candidate or a connecting relation "
+            "for the original question, beyond selected_sources? Judge the destinations, "
+            "not whether this page already has facts. Generic menus alone do not count.")
     common += ('\nAvailable actions: ' + ', '.join(actions) + '. '
                'return_now closes this branch; read_now selects chunks from this document; '
                'expand_now opens linked documents. Unavailable actions cannot be chosen.\n')
     return {key: {'type': 'noul', 'instructions': common + '\nAction: ' + task}
             for key, task in actions.items()}
+
+
+def node_read_question(target, *, query):
+    """Positive marginal reading value; no separate abstract action/cost judgment."""
+    q = decision_question(target, query=query, preview=True)
+    q['instructions'] += (
+        '\nReading criterion: could selecting original passages from this document supply '
+        'AT LEAST ONE useful source fact not yet in selected_sources? Explicit facts already '
+        'visible in this prefix still need to be read to be returned. A dated source record, '
+        'a role attached to a person, a candidate list, a measurement with its place/year, '
+        'or a contradiction can be sufficient; do not require a complete solution. '
+        'selected_sources contains only previously selected original excerpts. Repeated '
+        'introductions without a new target relation have little marginal value. '
+        'If selected_sources is empty, no source facts have yet been delivered. '
+        'Judge evidence availability, not the generic cost of reading.')
+    return q
+
+
+def reading_action_scores(scores):
+    """Retain both objectives; a useful query fact need not solve the original puzzle."""
+    result = dict(scores)
+    if all(k in scores for k in ('direct_answer', 'query_answer')):
+        result['read_now'] = max(scores['direct_answer'], scores['query_answer'])
+    return result
 
 
 class LocalDecision:
@@ -436,6 +464,55 @@ class RawTree:
                 ranked_order = quota_select(ranked, (cfg.jev_entries+1)//2, cfg.jev_entries//2)
                 chosen = {r['id'] for r in ranked_order}
                 ranked_order += [r for r in ranked if r['id'] not in chosen]
+                width = min(cfg.jev_entries, cfg.jev_fetch_budget, len(ranked_order))
+                if cfg.jev_traversal == 'beam' and width >= 3 and len(ranked_order) > width:
+                    # Reserve existing beam-width entry slots for incremental navigation
+                    # value. No entity extraction or URL/domain diversity heuristic.
+                    reserve = min(cfg.jev_frontier_width, width-1)
+                    seed_width = width-reserve
+                    seed = quota_select(ranked, (seed_width+1)//2, seed_width//2)
+                    seed_ids = {r['id'] for r in seed}
+                    rest = [r for r in ranked_order if r['id'] not in seed_ids]
+
+                    async def entry_gain(row):
+                        try:
+                            sc = await self._noul(
+                                {'page_url': row['lead']['url'], 'candidate': row['lead'],
+                                 'selected_leads': [r['lead'] for r in seed]},
+                                {'entry_gain': {'type': 'noul', 'instructions': (
+                                    'Would opening candidate add a useful discovery route beyond '
+                                    'selected_leads for the target? Prefer another plausible entity, '
+                                    'a list of qualified alternatives, an original record, or a '
+                                    'missing relationship over another biography repeating the same '
+                                    'candidate. A different domain alone is not new evidence. '
+                                    'The current query can contain a mistaken name, year or place: '
+                                    'a source that tests that assumption is useful. Do not demand '
+                                    'that one lead satisfy the whole original question. Titles and '
+                                    'snippets are unverified navigation leads, not established facts.\n'
+                                    f'Current target: {query}\nOriginal question: {question}\n'
+                                    + RELATION_SCOPE)}}, trace, usage=meter,
+                                context={'search_id': search_id, 'phase': 'entry_diversity',
+                                         'node_id': row['id']})
+                            if 'entry_gain' not in sc:
+                                raise LocalDecisionError('Incomplete entry gain score')
+                            return sc['entry_gain']
+                        except LocalDecisionError as exc:
+                            stats['entry_eval_failures'] += 1
+                            failures.append({'phase': 'entry', 'url': row['lead']['url'],
+                                             'error': str(exc)})
+                            return None
+
+                    gains = await _gather_owned(*(entry_gain(r) for r in rest))
+                    if all(value is not None for value in gains):
+                        extras = sorted(range(len(rest)), key=lambda i: (-gains[i], i))[:reserve]
+                        extra_ids = {rest[i]['id'] for i in extras}
+                        ranked_order = seed + [rest[i] for i in extras] + [
+                            r for r in rest if r['id'] not in extra_ids]
+                    trace.event('rawtree.entry_diversity', search_id=search_id,
+                                seed=[r['id'] for r in seed],
+                                candidates=[{'id': r['id'], 'score': value} for r, value in zip(rest, gains)],
+                                selected=[r['id'] for r in ranked_order[:width]],
+                                fallback=any(value is None for value in gains))
                 ordered = [r['lead'] for r in ranked_order]
             trace.event('rawtree.entries', search_id=search_id, candidates=[r for r in ranked if r],
                         selected=[x['url'] for x in ordered[:cfg.jev_entries]],
@@ -468,6 +545,13 @@ class RawTree:
         def action_questions(n):
             return node_action_questions(question, query, can_read=read_available(n),
                                          can_expand=n.node_id in link_inputs and not read_budget_exhausted())
+
+        def action_request_questions(n):
+            questions = action_questions(n)
+            if questions.pop('read_now', None) is not None:
+                questions['direct_answer'] = node_read_question(question, query=False)
+                questions['query_answer'] = node_read_question(query, query=True)
+            return questions
 
         async def preview(n):
             key = _norm(n.url)
@@ -522,7 +606,7 @@ class RawTree:
                     link_inputs[n.node_id] = (state, links, None)
                 action_inputs[n.node_id] = state
                 state = {**state, 'selected_sources': list(evidence_cards.values())}
-                questions.update(action_questions(n))
+                questions.update(action_request_questions(n))
             sc = await evaluate(self.jev.noul(
                 state, questions,
                 trace, usage=meter, context={"search_id": search_id, "phase": "preview",
@@ -530,7 +614,8 @@ class RawTree:
             if not all(key in sc for key in ("direct_answer", "query_answer")):
                 return []
             if cfg.jev_traversal == 'beam':
-                action_scores[n.node_id] = {k: sc[k] for k in action_questions(n) if k in sc}
+                action_scores[n.node_id] = reading_action_scores(sc)
+                reading_versions[n.node_id] = len(beam_selected)
             page_scores = {key: sc[key] for key in ("direct_answer", "query_answer")}
             n.identification, n.query_answer = sc["direct_answer"], sc["query_answer"]
             n.evidence = (n.identification + 2*n.query_answer)/3
@@ -620,7 +705,7 @@ class RawTree:
                         read_duration_s=time.perf_counter()-read_started)
             return card
 
-        beam_selected, evidence_cards, action_scores = [], {}, {}
+        beam_selected, evidence_cards, action_scores, reading_versions = [], {}, {}, {}
         unavailable_nodes = set()
         read_hashes, duplicate_read_ids = set(), set()
 
@@ -629,14 +714,56 @@ class RawTree:
 
         async def refresh_actions(row):
             n = row['node']
-            questions = action_questions(n)
+            questions = action_request_questions(n)
             state = {**action_inputs[n.node_id],
                      'selected_sources': list(evidence_cards.values()),
                      'document_already_read': n.node_id in scored_pages}
             sc = await evaluate(self._noul(state, questions, trace, usage=meter,
                 context={'search_id': search_id, 'phase': 'node_action', 'node_id': n.node_id}),
                 'page', n)
-            action_scores[n.node_id] = sc
+            action_scores[n.node_id] = reading_action_scores(sc)
+            if all(k in sc for k in ('direct_answer', 'query_answer')):
+                row.update({k: sc[k] for k in ('direct_answer', 'query_answer')})
+                reading_versions[n.node_id] = len(beam_selected)
+
+        async def choose_read(reason):
+            # Reading is selected from ALL observed, scored documents. A local
+            # RETURN only removes outgoing expansion, never this source candidate.
+            pool = [r for r in rows if read_available(r['node'])]
+            if not pool:
+                return None
+
+            async def refresh_reading(row):
+                n = row['node']
+                if reading_versions.get(n.node_id) == len(beam_selected):
+                    return
+                sc = await evaluate(self._noul(
+                    {**action_inputs[n.node_id], 'selected_sources': list(evidence_cards.values())},
+                    {'direct_answer': node_read_question(question, query=False),
+                     'query_answer': node_read_question(query, query=True)}, trace, usage=meter,
+                    context={'search_id': search_id, 'phase': 'read_selection', 'node_id': n.node_id}),
+                    'page', n)
+                if all(k in sc for k in ('direct_answer', 'query_answer')):
+                    row.update({k: sc[k] for k in ('direct_answer', 'query_answer')})
+                    reading_versions[n.node_id] = len(beam_selected)
+                # Keep an earlier valid source score if a marginal judgment
+                # fails; the failure is recorded, never converted to zero.
+
+            await _gather_owned(*(refresh_reading(r) for r in pool))
+            direct_used = sum(r['objective'] == 'direct_answer' for r in beam_selected)
+            objective = ('direct_answer' if direct_used < cfg.jev_direct_reads else 'query_answer')
+            best = max(pool, key=lambda r: (max(r['direct_answer'], r['query_answer']), r[objective]))
+            selected = {**best, 'objective': objective}
+            stats['read_selection_candidates'] += len(pool)
+            trace.event('rawtree.read_selection', search_id=search_id, reason=reason,
+                        objective=objective, selected=best['id'],
+                        candidates=[{'id': r['id'], 'direct_answer': r['direct_answer'],
+                                     'query_answer': r['query_answer'],
+                                     'evidence_revision': reading_versions.get(r['id'])} for r in pool])
+            evidence_cards[best['id']] = await read_selected(selected)
+            beam_selected.append(selected)
+            read_hashes.add(hashlib.sha256(best['node'].document.content.encode()).hexdigest())
+            return selected
 
         while level and cfg.jev_traversal == "beam":
             # Complete this depth before reading or opening any child. A local
@@ -680,18 +807,15 @@ class RawTree:
                 remaining_rows = survivors
                 if not reads:
                     break
-                # Keep the original direct/query read reservations, but do not
-                # force either quota to fill when RETURN wins.
-                direct_used = sum(r['objective'] == 'direct_answer' for r in beam_selected)
-                objective = ('direct_answer' if direct_used < cfg.jev_direct_reads else 'query_answer')
-                best = max(reads, key=lambda r: (action_scores[r['id']]['read_now'], r[objective]))
-                selected = {**best, 'objective': objective}
-                trace.event('rawtree.node_action', search_id=search_id, node_id=best['id'],
-                            depth=best['node'].depth, action='read_now',
-                            scores=action_scores[best['id']], objective=objective)
-                evidence_cards[best['id']] = await read_selected(selected)
-                beam_selected.append(selected)
-                read_hashes.add(hashlib.sha256(best['node'].document.content.encode()).hexdigest())
+                # READ proposals request a reading step, not exclusion of
+                # sources whose independent branch decision was RETURN.
+                selected = await choose_read('node_read_request')
+                if selected is None:
+                    break
+                trace.event('rawtree.node_action', search_id=search_id, node_id=selected['id'],
+                            depth=selected['node'].depth, action='read_now',
+                            scores=action_scores.get(selected['id'], {}), objective=selected['objective'],
+                            requested_by=[r['id'] for r in reads], reason='node_read_request')
                 # A new observation requires a new judgment. Closed branches
                 # stay closed; waiting read/expand proposals see the new chunks.
                 await _gather_owned(*(refresh_actions(r) for r in remaining_rows))
@@ -787,6 +911,17 @@ class RawTree:
                     if not task.done():
                         task.cancel()
                 await asyncio.gather(*active, return_exceptions=True)
+        if cfg.jev_traversal == 'beam' and not beam_selected:
+            # A completed branch decision must not discard every observed
+            # source. One existing read slot is used, never an extra slot or
+            # a new visit; no closed branch is reopened by this selection.
+            selected = await choose_read('zero_read_search')
+            if selected is not None:
+                stats['zero_read_selections'] = 1
+                trace.event('rawtree.node_action', search_id=search_id, node_id=selected['id'],
+                            depth=selected['node'].depth, action='read_now',
+                            scores=action_scores.get(selected['id'], {}), objective=selected['objective'],
+                            requested_by=[], reason='zero_read_search')
         trace.event("rawtree.traversal_end", search_id=search_id, traversal=cfg.jev_traversal,
                     page_visits=len(nodes), pending_candidates=len(pending),
                     reason="page_budget" if len(nodes) >= cfg.jev_fetch_budget else traversal_reason)
@@ -811,7 +946,9 @@ class RawTree:
             output_budget=cfg.jev_output_tokens-notice_budget, scored_pages=scored_pages)
         if notice_budget:
             notice = self._navigation_notice(ordered, nodes, returned, chunker, notice_budget)
-            text = notice + '\n\n' + text if notice else text
+            if notice:
+                text = (text + '\n\n' + notice if cfg.jev_traversal == 'beam'
+                        else notice + '\n\n' + text)
         stats.update(nodes=len(nodes), page_visits=len(nodes), max_depth=max((n.depth for n in nodes), default=0),
                      jev_requests=meter.calls, jev_attempts=meter.attempts,
                      jev_input_tokens=meter.input_tokens, jev_failures=meter.failures,

@@ -1288,8 +1288,12 @@ class SearchAgent:
         if not self.config.search_top_k or explorer is None:
             text = json.dumps(parsed, ensure_ascii=False)
             if jevtree is not None:
-                text += "\n\n" + await self._jev_reading(jevtree, query, parsed, result, record,
-                                                         trace, question, main_reasoning)
+                notes = await self._jev_reading(jevtree, query, parsed, result, record,
+                                               trace, question, main_reasoning)
+                if self.config.jev_strategy == 'raw' and self.config.jev_traversal == 'beam':
+                    text = notes + "\n\nUnverified search results for further navigation:\n" + text
+                else:
+                    text += "\n\n" + notes
             return text, len(outcome.text)
 
         # search-o1 — 상위 k개를 자동으로 열어 explorer 에게 한 번에 넘긴다.
@@ -1386,7 +1390,8 @@ class SearchAgent:
         for key in ("fast_fetches", "browser_fetches", "bundles_scored", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
                     "page_visits", "document_reuses", "page_eval_failures", "bundle_eval_failures",
                     "chunk_eval_failures", "links_pruned", "duplicate_candidates", "chunk_cache_hits",
-                    "parent_expansions", "refreshes", "link_parent_skips", "read_selection_candidates", "branch_returns"):
+                    "parent_expansions", "refreshes", "link_parent_skips", "read_selection_candidates", "branch_returns",
+                    "zero_read_selections"):
             if key in stats:
                 result.reader_stats[key] = result.reader_stats.get(key, 0) + stats[key]
 
