@@ -169,7 +169,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
             [{'link': BASE+x} for x in ('known', 'similar', 'roles')],
             {BASE+'roles': 'Performer Mira played the archivist.'}, score=score,
             jev_entries=3, jev_reads=2, jev_direct_reads=1, jev_query_reads=1,
-            jev_diverse_reads=True)
+            jev_diverse_reads=True, jev_frontier_width=2)
         pages = next(e['pages'] for e in trace.events if e['event'] == 'rawtree.pages_selected')
         self.assertEqual([p['id'] for p in pages], ['n0', 'n2'])
         self.assertIn('Performer Mira played the archivist.', text)
@@ -204,7 +204,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
             [{'link': BASE+x, 'title': 'Source record', 'snippet': ''}
              for x in ('known', 'registry', 'other')], bodies, score=score,
             jev_entries=3, jev_reads=2, jev_direct_reads=1, jev_query_reads=1,
-            jev_page_tokens=2000, jev_diverse_reads=True)
+            jev_page_tokens=2000, jev_diverse_reads=True, jev_frontier_width=2)
         self.assertNotIn('Rowan', tree.jev.chunker.prefix(bodies[BASE+'registry'], 600))
         pages = next(e['pages'] for e in trace.events if e['event'] == 'rawtree.pages_selected')
         self.assertEqual([r['id'] for r in pages], ['n0', 'n1'])

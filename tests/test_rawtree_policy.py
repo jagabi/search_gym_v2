@@ -251,10 +251,12 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn('VALID_FACT', text)
             self.assertEqual(stats['page_eval_failures'], 1)
             links = next(e['links'] for e in trace.events if e['event'] == 'rawtree.links')
-            self.assertEqual(sum(link['evaluated'] for link in links), 9)
+            # One question per request, four requests per wave: failure at
+            # index 6 retains 0..5 and 7, then prevents the next wave (8+).
+            self.assertEqual(sum(link['evaluated'] for link in links), 7)
             self.assertIsNone(links[6]['score'])
-            self.assertTrue(all(link['evaluated'] for link in links[7:10]))
-            self.assertTrue(all(link['score'] is None for link in links[10:]))
+            self.assertTrue(links[7]['evaluated'])
+            self.assertTrue(all(link['score'] is None for link in links[8:]))
         finally:
             await client.aclose()
 

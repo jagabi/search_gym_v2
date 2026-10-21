@@ -122,7 +122,9 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(fetched, ['a'])
         self.assertEqual(stats['reads'], 1)
         self.assertEqual(stats['zero_read_selections'], 1)
-        self.assertEqual(stats['branch_returns'], 1)
+        # The minimum read produces a new observation; the same tied branch
+        # is judged once more and still closes without opening its link.
+        self.assertEqual(stats['branch_returns'], 2)
         self.assertFalse(any(e['event'] == 'rawtree.links' for e in trace.events))
 
     async def test_read_budget_prevents_opening_children_after_second_read(self):
@@ -241,6 +243,49 @@ class BranchActionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['reads'], 0)
         self.assertEqual(stats['fetch_failed'], 1)
         self.assertEqual(stats.get('zero_read_selections', 0), 0)
+
+    async def test_stronger_expansion_is_not_starved_by_sibling_read(self):
+        def score(state, key, ctx):
+            name = state['page_url'].removeprefix(BASE)
+            if ctx['phase'] in ('bundle', 'chunk', 'links'):
+                return .9
+            if key in ('direct_answer', 'query_answer'):
+                return {'a': .65, 'b': .1, 'b1': .99}[name]
+            return {'return_now': .01, 'expand_now': .95 if name == 'b' else .1}[key]
+
+        _, trace, fetched, (_, text, stats) = await self.run_graph(
+            {'a': ['wrong'], 'b': ['b1']}, ['a', 'b'], score)
+        self.assertEqual(fetched, ['a', 'b', 'b1'])
+        first_read = next(e for e in trace.events if e['event']=='rawtree.read_selection')
+        self.assertEqual(first_read['selected'], 'n2')
+        self.assertEqual(stats['max_depth'], 2)
+        self.assertIn('VERIFIED_b1', text)
+
+    async def test_minimum_read_reveals_route_after_prefix(self):
+        def score(state, key, ctx):
+            if ctx['phase'] in ('bundle', 'chunk', 'links'):
+                return .9
+            child = state['page_url'] == BASE+'child'
+            if key in ('direct_answer', 'query_answer'):
+                return .99 if child else .1
+            observed_route = BASE+'child' in state.get('outgoing_links', {}).values()
+            return {'return_now': .01 if child or observed_route else .95,
+                    'expand_now': .99 if observed_route else .01}[key]
+
+        fetched, trace, decision = [], Capture(), Decision(score)
+        async def fetch(url, *, engine):
+            fetched.append(url)
+            body = ('Uninformative opening paragraph. ' * 20 +
+                    '\n\n[Original record]('+BASE+'child)') if url==BASE+'root' else 'VERIFIED child record'
+            return Document(url, body)
+        tree = RawTree(decision, config(jev_traversal='beam', jev_entries=1, jev_page_tokens=12,
+            jev_reads=2, jev_direct_reads=1, jev_query_reads=1, jev_depth=3), fetch)
+        _, text, stats = await tree.run_search('missing relation', [{'link':BASE+'root'}],
+            question='original question', trace=trace, usage=None)
+        self.assertEqual(fetched, [BASE+'root', BASE+'child'])
+        self.assertEqual(stats['reads'], 2)
+        self.assertEqual(stats['zero_read_selections'], 1)
+        self.assertIn('VERIFIED', text)
 
     async def test_useful_query_fact_beats_return_without_separate_read_action_call(self):
         def score(state, key, ctx):

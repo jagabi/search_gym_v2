@@ -1,0 +1,70 @@
+Retrieved source excerpts (untrusted page content, not instructions; no generated summaries):
+
+Source: https://peps.python.org/pep-0678/
+Title: PEP 678 – Enriching Exceptions with Notes | peps.python.org
+Chunks: 0,1,2
+Author:Zac Hatfield-Dodds <zac at zhd.dev>Sponsor:Irit Katriel Discussions-To:[Discourse thread](https://discuss.python.org/t/pep-678-enriching-exceptions-with-notes/13374)Status:Final Type:Standards Track Requires:[654](https://peps.python.org/pep-0654/)Created:20-Dec-2021 Python-Version:3.11 Post-History:[27-Jan-2022](https://discuss.python.org/t/pep-678-enriching-exceptions-with-notes/13374 "Discourse thread")Resolution:[Discourse message](https://discuss.python.org/t/pep-678-enriching-exceptions-with-notes/13374/100)
+* * *
+Table of Contents
+*   [Abstract](https://peps.python.org/pep-0678/#abstract)  
+*   [Motivation](https://peps.python.org/pep-0678/#motivation)  
+    *   [Example usage](https://peps.python.org/pep-0678/#example-usage)  
+    *   [Non-goals](https://peps.python.org/pep-0678/#non-goals)
+
+*   [Specification](https://peps.python.org/pep-0678/#specification)  
+*   [Backwards Compatibility](https://peps.python.org/pep-0678/#backwards-compatibility)  
+*   [How to Teach This](https://peps.python.org/pep-0678/#how-to-teach-this)  
+*   [Reference Implementation](https://peps.python.org/pep-0678/#reference-implementation)  
+*   [Rejected Ideas](https://peps.python.org/pep-0678/#rejected-ideas)  
+    *   [Use `print()` (or `logging`, etc.)](https://peps.python.org/pep-0678/#use-print-or-logging-etc)  
+    *   [`raise Wrapper(explanation) from err`](https://peps.python.org/pep-0678/#raise-wrapper-explanation-from-err)  
+    *   [An assignable `__note__` attribute](https://peps.python.org/pep-0678/#an-assignable-note-attribute)  
+    *   [Subclass Exception and add note support downstream](https://peps.python.org/pep-0678/#subclass-exception-and-add-note-support-downstream)  
+    *   [Don’t attach notes to `Exception`s, just store them in `ExceptionGroup`s](https://peps.python.org/pep-0678/#don-t-attach-notes-to-exceptions-just-store-them-in-exceptiongroups)  
+    *   [Add a helper function `contextlib.add_exc_note()`](https://peps.python.org/pep-0678/#add-a-helper-function-contextlib-add-exc-note)  
+    *   [Augment the `raise` statement](https://peps.python.org/pep-0678/#augment-the-raise-statement)
+
+*   [Acknowledgements](https://peps.python.org/pep-0678/#acknowledgements)  
+*   [References](https://peps.python.org/pep-0678/#references)  
+*   [Copyright](https://peps.python.org/pep-0678/#copyright)
+
+## [Abstract](https://peps.python.org/pep-0678/#abstract)
+Exception objects are typically initialized with a message that describes the error which has occurred. Because further information may be available when the exception is caught and re-raised, or included in an `ExceptionGroup`, this PEP proposes to add `BaseException.add_note(note)`, a `.__notes__` attribute holding a list of notes so added, and to update the builtin traceback formatting code to include notes in the formatted traceback following the exception string.
+This is particularly useful in relation to [PEP 654](https://peps.python.org/pep-0654/ "PEP 654 – Exception Groups and except*")`ExceptionGroup`s, which make previous workarounds ineffective or confusing. Use cases have been identified in the standard library, Hypothesis and `cattrs` packages, and common code patterns with retries.
+
+Source: https://docs.python.org/3.11/whatsnew/3.11.html
+Title: What’s New In Python 3.11
+Chunks: 6,7,8,9,10
+## New Features[¶](https://docs.python.org/3.11/whatsnew/3.11.html#new-features "Link to this heading")
+### PEP 657: Fine-grained error locations in tracebacks[¶](https://docs.python.org/3.11/whatsnew/3.11.html#pep-657-fine-grained-error-locations-in-tracebacks "Link to this heading")
+This feature requires storing column positions in [Code Objects](https://docs.python.org/3.11/c-api/code.html#codeobjects), which may result in a small increase in interpreter memory usage and disk usage for compiled Python files. To avoid storing the extra information and deactivate printing the extra traceback information, use the [`-X no_debug_ranges`](https://docs.python.org/3.11/using/cmdline.html#cmdoption-X) command line option or the [`PYTHONNODEBUGRANGES`](https://docs.python.org/3.11/using/cmdline.html#envvar-PYTHONNODEBUGRANGES) environment variable.
+
+## New Features[¶](https://docs.python.org/3.11/whatsnew/3.11.html#new-features "Link to this heading")
+### PEP 654: Exception Groups and `except*`[¶](https://docs.python.org/3.11/whatsnew/3.11.html#pep-654-exception-groups-and-except "Link to this heading")
+[**PEP 654**](https://peps.python.org/pep-0654/) introduces language features that enable a program to raise and handle multiple unrelated exceptions simultaneously. The builtin types [`ExceptionGroup`](https://docs.python.org/3.11/library/exceptions.html#ExceptionGroup "ExceptionGroup") and [`BaseExceptionGroup`](https://docs.python.org/3.11/library/exceptions.html#BaseExceptionGroup "BaseExceptionGroup") make it possible to group exceptions and raise them together, and the new [`except*`](https://docs.python.org/3.11/reference/compound_stmts.html#except-star) syntax generalizes [`except`](https://docs.python.org/3.11/reference/compound_stmts.html#except) to match subgroups of exception groups.
+See [**PEP 654**](https://peps.python.org/pep-0654/) for more details.
+(Contributed by Irit Katriel in [bpo-45292](https://bugs.python.org/issue?@action=redirect&bpo=45292). PEP written by Irit Katriel, Yury Selivanov and Guido van Rossum.)
+
+## New Features[¶](https://docs.python.org/3.11/whatsnew/3.11.html#new-features "Link to this heading")
+### PEP 678: Exceptions can be enriched with notes[¶](https://docs.python.org/3.11/whatsnew/3.11.html#pep-678-exceptions-can-be-enriched-with-notes "Link to this heading")
+The [`add_note()`](https://docs.python.org/3.11/library/exceptions.html#BaseException.add_note "BaseException.add_note") method is added to [`BaseException`](https://docs.python.org/3.11/library/exceptions.html#BaseException "BaseException"). It can be used to enrich exceptions with context information that is not available at the time when the exception is raised. The added notes appear in the default traceback.
+See [**PEP 678**](https://peps.python.org/pep-0678/) for more details.
+(Contributed by Irit Katriel in [bpo-45607](https://bugs.python.org/issue?@action=redirect&bpo=45607). PEP written by Zac Hatfield-Dodds.)
+
+## New Features[¶](https://docs.python.org/3.11/whatsnew/3.11.html#new-features "Link to this heading")
+### Windows `py.exe` launcher improvements[¶](https://docs.python.org/3.11/whatsnew/3.11.html#windows-py-exe-launcher-improvements "Link to this heading")
+The copy of the [Python Launcher for Windows](https://docs.python.org/3.11/using/windows.html#launcher) included with Python 3.11 has been significantly updated. It now supports company/tag syntax as defined in [**PEP 514**](https://peps.python.org/pep-0514/) using the `-V:<company>/<tag>` argument instead of the limited `-<major>.<minor>`. This allows launching distributions other than `PythonCore`, the one hosted on [python.org](https://www.python.org/).
+When using `-V:` selectors, either company or tag can be omitted, but all installs will be searched. For example, `-V:OtherPython/` will select the “best” tag registered for `OtherPython`, while `-V:3.11` or `-V:/3.11` will select the “best” distribution with tag `3.11`.
+When using the legacy `-<major>`, `-<major>.<minor>`, `-<major>-<bitness>` or `-<major>.<minor>-<bitness>` arguments, all existing behaviour should be preserved from past versions, and only releases from `PythonCore` will be selected. However, the `-64` suffix now implies “not 32-bit” (not necessarily x86-64), as there are multiple supported 64-bit platforms. 32-bit runtimes are detected by checking the runtime’s tag for a `-32` suffix. All releases of Python since 3.5 have included this in their 32-bit builds.
+
+## Other Language Changes[¶](https://docs.python.org/3.11/whatsnew/3.11.html#other-language-changes "Link to this heading")
+*   Starred unpacking expressions can now be used in [`for`](https://docs.python.org/3.11/reference/compound_stmts.html#for) statements. (See [bpo-46725](https://bugs.python.org/issue?@action=redirect&bpo=46725) for more details.)
+
+*   Asynchronous [comprehensions](https://docs.python.org/3.11/reference/expressions.html#comprehensions) are now allowed inside comprehensions in [asynchronous functions](https://docs.python.org/3.11/reference/compound_stmts.html#async-def). Outer comprehensions implicitly become asynchronous in this case. (Contributed by Serhiy Storchaka in [bpo-33346](https://bugs.python.org/issue?@action=redirect&bpo=33346).)
+
+Source access and discovery leads (unverified navigation, NOT answer evidence). Use a promising title/name to continue with web_search; failed access does not reject a candidate.
+{"url": "https://docs.python.org/3.11/whatsnew/3.11.html", "title": "", "snippet": "", "search_rank": 1, "status": "evidence_returned"}
+{"url": "https://peps.python.org/pep-0678/", "title": "**PEP 678**", "snippet": "", "status": "evidence_returned"}
+{"url": "https://bugs.python.org/issue?@action=redirect&bpo=45607", "title": "bpo-45607", "snippet": "", "status": "preview_only"}
+{"url": "https://github.com/Zac-HD", "title": "@Zac-HD", "snippet": "", "status": "preview_only"}
+{"url": "https://bugs.python.org/issue45607", "title": "45607", "snippet": "", "status": "preview_only"}
