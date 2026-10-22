@@ -189,7 +189,7 @@ class LocalDecision:
             raise ValueError("Invalid decision packet size or in-flight question budget")
         self.cfg = config
         self.endpoint = local_reader_url(config.jev_base_url) + "/v1/systemone"
-        self.http = httpx.AsyncClient(timeout=180, trust_env=False)
+        self.http = httpx.AsyncClient(timeout=10, trust_env=False)
         self.slots = asyncio.Semaphore(config.jev_concurrency)
         self.question_condition = asyncio.Condition()
         self.question_waiters = deque()
@@ -474,13 +474,20 @@ class LocalDecision:
                 raise errors[0]
         return scores
 
+    @staticmethod
+    def _packet_timeout(question_count):
+        # Four concurrent 4096-token states measured at <=5.2s for 3 keys
+        # and <=26.5s for 16 keys. Leave headroom while bounding stalled work.
+        return max(10.0, 5.0 + 2.0 * question_count)
+
     async def _noul_packet(self, state, questions, trace, *, usage, context, stop=None):
         request_id = uuid4().hex
         body = {"model": self.cfg.jev_model, "state": state, "questions": questions,
                 "request_id": request_id}
         queued = time.perf_counter()
+        timeout_s = self._packet_timeout(len(questions))
         trace.event("jev.request", request_id=request_id, endpoint=self.endpoint, context=context,
-                    question_count=len(questions), body=body)
+                    question_count=len(questions), timeout_s=timeout_s, body=body)
         async with self.slots, self._question_slots(len(questions)) as batch_id:
             if stop is not None and stop.is_set():
                 raise asyncio.CancelledError
@@ -489,9 +496,14 @@ class LocalDecision:
             trace.event("jev.attempt", request_id=request_id, attempt=0,
                         queue_ms=1000*(started-queued),
                         question_count=len(questions), inflight_questions=self.inflight_questions,
-                        question_budget=self.cfg.jev_inflight_questions, batch_id=batch_id)
+                        question_budget=self.cfg.jev_inflight_questions, batch_id=batch_id,
+                        timeout_s=timeout_s)
             try:
-                response = await self.http.post(self.endpoint, json=body)
+                # Start the overall deadline after admission, not while queued.
+                # HTTPX read timeouts alone reset on every received data chunk.
+                async with asyncio.timeout(timeout_s):
+                    response = await self.http.post(self.endpoint, json=body,
+                        timeout=httpx.Timeout(timeout_s, connect=5.0, pool=5.0))
                 trace.event("jev.response", request_id=request_id, attempt=0,
                             duration_ms=1000*(time.perf_counter()-started),
                             status_code=response.status_code, response_text=response.text)
@@ -524,7 +536,9 @@ class LocalDecision:
                 detail = repr(exc)
                 if isinstance(exc, httpx.HTTPStatusError):
                     detail += f"; response={exc.response.text[:2000]}"
-                trace.event("jev.error", request_id=request_id, error=detail, retryable=False)
+                trace.event("jev.error", request_id=request_id, error=detail, retryable=False,
+                            timeout_s=timeout_s, question_count=len(questions),
+                            duration_ms=1000*(time.perf_counter()-started))
                 # Infrastructure failures must not masquerade as low relevance.
                 raise LocalDecisionError(f"Local decision failed ({context}): {detail}",
                     partial_scores=getattr(exc, 'partial_scores', {})) from exc

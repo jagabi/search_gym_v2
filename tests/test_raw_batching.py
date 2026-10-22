@@ -19,6 +19,41 @@ def original(body, key):
 
 
 class BatchingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_timeout_uses_actual_packet_key_count(self):
+        self.assertEqual([LocalDecision._packet_timeout(n) for n in (1, 3, 16, 64)],
+                         [10, 11, 37, 133])
+        posted = []
+        async def respond(request):
+            body = json.loads(request.content)
+            posted.append((len(body['questions']), request.extensions['timeout']))
+            return httpx.Response(200, json={'answers': {
+                k: {'noul': .6} for k in body['questions']}})
+        client = await self.client(respond, jev_concurrency=4)
+        await client.noul({'page_text': 'source'}, {
+            f'k{i}': {'type': 'noul', 'instructions': 'Useful?'} for i in range(65)},
+            Capture(), usage=JevUsage(), context={})
+        self.assertEqual(sorted((n, t['read']) for n, t in posted), [(1, 10), (64, 133)])
+        self.assertTrue(all(t['connect'] == 5 and t['pool'] == 5 for _, t in posted))
+
+    async def test_overall_timeout_releases_wave_for_next_request(self):
+        async def respond(request):
+            body = json.loads(request.content)
+            if body['state']['page_text'] == 'stalled':
+                await asyncio.Event().wait()
+            return httpx.Response(200, json={'answers': {'gain': {'noul': .6}}})
+        client = await self.client(respond, jev_concurrency=4)
+        client._packet_timeout = lambda count: .02
+        trace, usage = Capture(), JevUsage()
+        questions = {'gain': {'type': 'noul', 'instructions': 'Useful?'}}
+        with self.assertRaises(LocalDecisionError) as caught:
+            await client.noul({'page_text': 'stalled'}, questions, trace, usage=usage, context={})
+        self.assertIn('TimeoutError', str(caught.exception))
+        self.assertEqual(usage.failures, 1)
+        self.assertEqual(client.inflight_questions, 0)
+        self.assertEqual(client.batch_active, 0)
+        result = await client.noul({'page_text': 'ready'}, questions, trace, usage=usage, context={})
+        self.assertEqual(result, {'gain': .6})
+
     async def client(self, respond, **kwargs):
         client = LocalDecision(AgentConfig(**kwargs))
         await client.http.aclose()
