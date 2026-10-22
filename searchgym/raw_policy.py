@@ -6,13 +6,18 @@ def raw_policy(config, method):
         return None
     progressive = config.jev_traversal == "progressive"
     return {
+        "decision_provider": config.decision_provider,
+        "decision_model": "pplx-decider-v1.2" if config.decision_provider == 'pplx' else config.jev_model,
+        "decision_limits": {"requests_per_second": 6, "reserved_tokens_per_minute": 12000000}
+                           if config.decision_provider == 'pplx' else None,
         "traversal": config.jev_traversal,
         "expected_traversal": config.jev_expected_traversal or None,
         "tools": ["web_search", "read_source", "continue_search"] if progressive else ["web_search"],
         "research_state": progressive,
         "final_evidence_review": progressive or config.finalize_answer,
         "http_wave": {"requests": config.jev_concurrency, "questions_per_request": config.jev_packet_questions,
-                      "question_budget": config.jev_inflight_questions, "wait_for_all": True},
+                      "question_budget": config.jev_inflight_questions,
+                      "wait_for_all": config.decision_provider != 'pplx'},
         "decision_batching": {"scope": "same_search_phase_identical_state",
                               "source_token_budget": config.jev_bundle_tokens,
                               "source_binding": "one_unchanged_state_multiple_keys",
@@ -39,11 +44,7 @@ def raw_policy(config, method):
                            "inspections_per_depth": config.jev_frontier_width,
                            "final_source_quotas": [config.jev_direct_reads, config.jev_query_reads],
                            "last_read": "does_not_end_traversal",
-                           "early_return": "full_bundle_return_now_yes_with_returnable_evidence",
-                           "early_return_binary_cutoff": 0.5,
-                           "early_return_tie": "continue",
-                           "early_return_cleanup": "commit_partial_packets_cancel_and_drain_owned_work",
-                           "early_return_scope": "current_search_only",
+                           "early_return": False,
                            "preview_state": ["page_title", "page_text"],
                            "preview_state_tokens": config.jev_page_tokens,
                            "bundle_state_tokens": config.jev_bundle_tokens,

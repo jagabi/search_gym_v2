@@ -49,6 +49,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--conf", default="conf.yaml")
     parser.add_argument("--method", default=None, help="ragent | search-o1 | depthsearch")
     parser.add_argument("--model", default=None, help="qwen | gpt-oss | gemma")
+    parser.add_argument('--decision-provider', choices=('d3', 'pplx'),
+                        help='Required for jevtree: local d3 or Perplexity Decisions')
     parser.add_argument("--benchmark", default=None, help="데이터셋 이름")
     parser.add_argument("--path", default=None, help="데이터셋 파일을 직접 지정")
     parser.add_argument("--split", default=None, help="validation | test | train")
@@ -105,7 +107,12 @@ async def main_async(argv: list[str] | None = None) -> int:
         raw_link_floor=args.raw_link_floor,
         raw_query_pages=args.raw_query_pages,
         expected_raw_traversal=args.expect_raw_traversal,
+        decision_provider=args.decision_provider,
     )
+    if config.method == 'jevtree' and args.decision_provider is None:
+        raise SystemExit('jevtree requires --decision-provider d3|pplx')
+    if config.method == 'jevtree' and config.agent.decision_provider == 'pplx' and not args.dry_run:
+        require_env('PERPLEXITY_API_KEY')
     from searchgym.raw_policy import raw_policy
     policy = raw_policy(config.agent, config.method)
     if policy:

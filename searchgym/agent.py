@@ -152,6 +152,7 @@ class AgentConfig:
     # Raw evidence: browser documents, local decisions, selected source chunks.
     jev_base_url: str = "http://100.89.209.104:8101"
     jev_concurrency: int = 4
+    decision_provider: str = "d3"
     jev_packet_questions: int = 64    # batch independent keys in one shared source input
     jev_inflight_questions: int = 256 # four HTTP requests, each with at most 64 keys
     jev_frontier_width: int = 10
@@ -369,7 +370,9 @@ class SearchAgent:
         )
         if method == "jevtree" and self.config.jev_strategy == "raw":
             from .rawtree import LocalDecision
-            self.jev = LocalDecision(self.config)
+            from .pplx_decision import PerplexityDecision
+            self.jev = (PerplexityDecision(self.config) if self.config.decision_provider == 'pplx'
+                        else LocalDecision(self.config))
         else:
             self.jev = Jev(self.config.jev_model) if method == "jevtree" else None
 

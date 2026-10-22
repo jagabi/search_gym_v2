@@ -238,6 +238,7 @@ def load_test(
     raw_link_floor: float | None = None,
     raw_query_pages: int | None = None,
     expected_raw_traversal: str | None = None,
+    decision_provider: str | None = None,
 ) -> TestConfig:
     raw = _read(conf_path)
     outer = _build(_Outer, raw, "conf")
@@ -293,6 +294,15 @@ def load_test(
             config.agent.jev_reads = config.agent.jev_direct_reads + raw_query_pages
     if expected_raw_traversal is not None:
         config.agent.jev_expected_traversal = expected_raw_traversal
+    if decision_provider is not None:
+        if config.method != 'jevtree' or config.agent.jev_strategy != 'raw':
+            raise ValueError('--decision-provider requires jevtree with jev_strategy=raw')
+        if decision_provider not in ('d3', 'pplx'):
+            raise ValueError('decision_provider must be d3 or pplx')
+        config.agent.decision_provider = decision_provider
+        if decision_provider == 'pplx':
+            config.agent.jev_concurrency = 16
+            config.agent.jev_inflight_questions = 1024
     _validate(config)
     expected = config.agent.jev_expected_traversal
     if expected and (
@@ -415,6 +425,8 @@ def _validate(config: TestConfig) -> None:
             raise ValueError("jev_strategy must be level, lds or raw")
         if config.agent.jev_strategy == "raw":
             a = config.agent
+            if a.decision_provider not in ('d3', 'pplx'):
+                raise ValueError('decision_provider must be d3 or pplx')
             from .local_reader import local_reader_url
             local_reader_url(a.jev_base_url)
             if a.jev_traversal not in ("beam", "best_first", "progressive"):
