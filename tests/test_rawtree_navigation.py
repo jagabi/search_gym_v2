@@ -18,7 +18,8 @@ from test_rawtree_policy import BASE, config
 
 
 class Decision:
-    def __init__(self, score=None):
+    def __init__(self, score=None, return_score=None):
+        self.return_score = return_score
         self.chunker = chunker(64)
         self.calls = []
         self.score = score or (lambda state, key, ctx: .8)
@@ -31,6 +32,9 @@ class Decision:
         usage.calls += 1
         results = {}
         for key in questions:
+            if key == 'return_now':
+                results[key] = self.return_score(state, context) if self.return_score else 0.0
+                continue
             if context.get('phase') == 'region' and key.startswith('region_'):
                 region, objective = key.split('__', 1)
                 i = int(region.removeprefix('region_'))

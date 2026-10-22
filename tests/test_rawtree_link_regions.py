@@ -27,7 +27,7 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
                     and s['page_title']=='Search root']
         self.assertEqual(len(root_calls),1)
         state,questions,_=root_calls[0]
-        self.assertEqual(set(questions),{'direct_answer','query_answer','link_0','link_1'})
+        self.assertEqual(set(questions),{'direct_answer','query_answer','return_now','link_0','link_1'})
         self.assertIn('(link_0)',state['page_text'])
         self.assertIn('(link_1)',state['page_text'])
         self.assertEqual(set(state),{'page_title','page_text'})
@@ -53,8 +53,8 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
         result=await client.noul(state,questions,Capture(),usage=JevUsage(),
                                  context={'phase':'bundle','search_id':'s'})
         self.assertEqual(len(links),120)
-        self.assertEqual([len(b['questions']) for b in posted],[64,58])
-        self.assertEqual(len(result),122)
+        self.assertEqual([len(b['questions']) for b in posted],[64,59])
+        self.assertEqual(len(result),123)
         self.assertTrue(all(b['state']==state for b in posted))
         self.assertLessEqual(client.chunker.count(json.dumps(state,ensure_ascii=False)),4096)
 
@@ -65,7 +65,7 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
         text='[Self]('+BASE+'parent) [Back]('+BASE+'root) [New]('+BASE+'leaf) [Again]('+BASE+'leaf)'
         _,questions,links=tree._joint_input(node,text,'Q','q',{BASE+'root',BASE+'parent'})
         self.assertEqual([url for url,_ in links],[BASE+'leaf'])
-        self.assertEqual(set(questions),{'direct_answer','query_answer','link_0'})
+        self.assertEqual(set(questions),{'direct_answer','query_answer','return_now','link_0'})
 
     async def test_routing_can_reach_link_only_tail_without_answer_evidence(self):
         def score(state,key,ctx):

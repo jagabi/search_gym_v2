@@ -66,7 +66,7 @@ class JointInspectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('FINAL_FACT',text)
         self.assertEqual((stats['max_depth'],stats['inspected_pages'],stats['evidence_pages']),(3,3,1))
         joint=[q for s,q,c in decision.calls if c['phase']=='bundle']
-        self.assertEqual([len(q) for q in joint],[3,3,2])
+        self.assertEqual([len(q) for q in joint],[4,4,3])
 
     async def test_low_link_score_does_not_expand_even_with_good_evidence(self):
         def score(state,key,ctx):

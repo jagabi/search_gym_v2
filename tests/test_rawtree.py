@@ -399,7 +399,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                 usage.attempts += 1
                 values = {}
                 for key in questions:
-                    values[key] = (.9 if key == 'inspect_value' or key.startswith('link_') or
+                    values[key] = 0.0 if key == 'return_now' else (.9 if key == 'inspect_value' or key.startswith('link_') or
                                    'FINAL_FACT' in state['page_text'] else .01)
                 return values
 

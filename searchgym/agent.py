@@ -1415,7 +1415,7 @@ class SearchAgent:
                     "page_visits", "document_reuses", "page_eval_failures", "bundle_eval_failures",
                     "chunk_eval_failures", "links_pruned", "duplicate_candidates", "chunk_cache_hits",
                     "parent_expansions", "refreshes", "link_parent_skips", "read_selection_candidates", "branch_returns",
-                    "zero_read_selections", "region_evaluations", "region_cards", "inspected_pages", "evidence_pages", "link_budget_skips",
+                    "zero_read_selections", "region_evaluations", "region_cards", "inspected_pages", "evidence_pages", "link_budget_skips", "early_returns", "return_now_signals",
                     "link_region_evaluations", "link_sections_selected"):
             if key in stats:
                 result.reader_stats[key] = result.reader_stats.get(key, 0) + stats[key]
