@@ -151,7 +151,7 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
             jev_traversal='beam', jev_branch=2, jev_frontier_width=4, jev_depth=2))
         self.assertEqual(fetched, ['a', 'b', 'a1', 'a2', 'b1', 'b2'])
 
-    async def test_default_beam_narrows_six_two_two_and_returns_two_evidence_sources(self):
+    async def test_default_beam_returns_bundles_from_every_inspected_source(self):
         cfg = load_test(method='jevtree').agent
         graph = {'a': [('a1', .9), ('a2', .8), ('a3', .7)],
                  'b': [('b1', .85), ('b2', .11)],
@@ -169,8 +169,8 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(fetched[8:]), {'a11', 'b11'})
         self.assertEqual(stats['page_visits'], 10)
         self.assertEqual(stats['max_depth'], 3)
-        self.assertEqual((stats['reads'], stats['direct_reads'], stats['query_reads']), (6, 1, 1))
-        self.assertEqual(stats['evidence_pages'], 2)
+        self.assertEqual((stats['reads'], stats['direct_reads'], stats['query_reads']), (6, 4, 2))
+        self.assertEqual(stats['evidence_pages'], 6)
         precise_pages = {s['page_title'] for s, _, c in decision.contexts
                          if c['phase'] in {'bundle', 'chunk'}}
         self.assertEqual(precise_pages, {'a','b','a1','b1','a11','b11'})

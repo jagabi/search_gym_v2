@@ -11,6 +11,24 @@ from test_rawtree_policy import BASE, config
 
 
 class JointInspectionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_scored_leaf_bundle_survives_higher_scoring_parent_pages(self):
+        def score(state,key,ctx):
+            if key=='inspect_value' or key.startswith('link_'):
+                return .9
+            return {'Search root':.99,'Reader bridge':.9,'Reader leaf':.4}[state['page_title']]
+        _,decision,trace,fetched,(_,text,stats)=await self.run_graph({
+            'root':'Parent facts. [Bridge]('+BASE+'bridge)',
+            'bridge':'Intermediate facts. [Leaf]('+BASE+'leaf)',
+            'leaf':'FINAL_FACT lower-scoring but useful candidate.'},
+            score=score,jev_reads=1,jev_direct_reads=1,jev_query_reads=0)
+        self.assertEqual(fetched,['root','bridge','leaf'])
+        self.assertIn('FINAL_FACT',text)
+        pages=next(e['pages'] for e in trace.events if e['event']=='rawtree.pages_selected')
+        self.assertEqual([r['id'] for r in pages],['n0','n1','n2'])
+        self.assertEqual(stats['inspected_pages'],3)
+        self.assertEqual(stats['evidence_pages'],3)
+        self.assertEqual(sum(c['phase']=='bundle' for _,_,c in decision.calls),3)
+
     async def test_ten_roots_leave_four_child_visits_through_depth_three(self):
         roots = tuple(f'root{i}' for i in range(10))
         bodies = {name: f'{name} [A]({BASE}a) [B]({BASE}b)' for name in roots}

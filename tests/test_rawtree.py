@@ -420,7 +420,9 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['fast_fetches'], 0)
         self.assertEqual(stats['browser_fetches'], 50)
         self.assertEqual(stats['inspected_pages'], 50)
-        self.assertEqual(stats['evidence_pages'], 6)
+        # The final 4+8 bundle quota can draw from any inspected source,
+        # independently of the legacy 2+4 page quota.
+        self.assertEqual(stats['evidence_pages'], 12)
         self.assertEqual(len(fetched), 50)
         self.assertEqual(len({url for url, _ in fetched}), 50)
         self.assertEqual(stats['summary_calls'], 0)

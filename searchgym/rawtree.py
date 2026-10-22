@@ -27,7 +27,7 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import marker_context, partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/33"
+VERSION = "raw-browser-d3-navigation-docling/34"
 # Maximum number of decision keys accepted by /v1/systemone.
 D3_MAX_QUESTIONS = 64
 
@@ -880,8 +880,6 @@ class RawTree:
                         read_duration_s=time.perf_counter()-read_started)
             return card
 
-        beam_selected = []
-
         pending, sequence, round_index = [], 0, 0
         traversal_reason = 'frontier_exhausted'
 
@@ -942,12 +940,7 @@ class RawTree:
             level = next_level
             round_index += 1
         if cfg.jev_traversal == 'beam':
-            beam_selected = quota_select(inspected_rows, cfg.jev_direct_reads,
-                                         cfg.jev_query_reads, floor=cfg.jev_floor)[:cfg.jev_reads]
             stats['inspected_pages'] = stats['reads']
-            stats['evidence_pages'] = len(beam_selected)
-            stats['direct_reads'] = sum(r['objective'] == 'direct_answer' for r in beam_selected)
-            stats['query_reads'] = sum(r['objective'] == 'query_answer' for r in beam_selected)
         if cfg.jev_traversal == "best_first":
             # Keep a rolling window of page jobs. The shared LocalDecision
             # semaphore independently bounds HTTP requests across all searches.
@@ -1010,7 +1003,9 @@ class RawTree:
                     continue
                 unique[digest] = row
             rows = list(unique.values())
-        selected_pages = beam_selected if cfg.jev_traversal == 'beam' else await self._select_pages(
+        # Every inspected source contributes its scored bundles. A second page
+        # quota would discard useful chunks before chunk ranking can see them.
+        selected_pages = inspected_rows if cfg.jev_traversal == 'beam' else await self._select_pages(
             rows, page_cards, question, query, search_id, trace, meter, evaluate,
             read_selected=read_selected if cfg.jev_diverse_reads else None, stats=stats)
         trace.event("rawtree.pages_selected", search_id=search_id,
@@ -1020,6 +1015,10 @@ class RawTree:
             trace=trace, meter=meter, stats=stats, failures=failures, scores=scores, evaluate=evaluate,
             output_budget=cfg.jev_output_tokens-notice_budget, scored_pages=scored_pages,
             visited=visited if cfg.jev_traversal == 'beam' else None)
+        if cfg.jev_traversal == 'beam':
+            stats['evidence_pages'] = len(returned)
+            stats['direct_reads'] = sum(r['objective'] == 'direct_answer' for r in returned)
+            stats['query_reads'] = sum(r['objective'] == 'query_answer' for r in returned)
         if notice_budget:
             notice = self._navigation_notice(ordered, nodes, returned, chunker, notice_budget)
             if notice:
