@@ -1,6 +1,7 @@
 """Offline integration tests for RawTree scheduling and partial evidence recovery."""
 import asyncio
 import json
+import re
 import sys
 import unittest
 from dataclasses import replace
@@ -32,7 +33,7 @@ class GraphDecision:
     async def noul(self, state, questions, trace, *, usage, context):
         self.contexts.append((state, questions, context))
         usage.attempts += 1
-        name = state['page_url'].removeprefix(BASE)
+        name = state.get('page_url', state.get('page_title', '')).removeprefix(BASE)
         await asyncio.sleep(self.delays.get(name, 0))
         if self.fail and self.fail(state, context):
             usage.failures += 1
@@ -40,7 +41,11 @@ class GraphDecision:
         scores = {}
         edges = dict(self.graph.get(name, []))
         for key, question in questions.items():
-            if key in ('return_now', 'read_now', 'expand_now'):
+            if key == 'inspect_value':
+                values = self.page_scores.get(name, {})
+                scores[key] = values.get('inspect_value', max(values.get('direct_answer', .8),
+                                                            values.get('query_answer', .8)))
+            elif key in ('return_now', 'read_now', 'expand_now'):
                 defaults = {'return_now': .000001, 'read_now': .0000001 if edges else .9,
                             'expand_now': max(edges.values(), default=0)}
                 scores[key] = self.page_scores.get(name, {}).get(key, defaults[key])
@@ -48,10 +53,13 @@ class GraphDecision:
                 default = .0000001 if edges else .9
                 scores[key] = self.page_scores.get(name, {}).get(key, default)
             elif key.startswith('link_'):
-                url = question['instructions'].split('Destination: ', 1)[1].split('\n', 1)[0]
-                scores[key] = edges[url.removeprefix(BASE)]
+                if 'Destination: ' in question['instructions']:
+                    target = question['instructions'].split('Destination: ', 1)[1].split('\n', 1)[0].removeprefix(BASE)
+                else:
+                    target = re.search(r'\[([^]]+)\]\(' + re.escape(key) + r'\)', state['page_text']).group(1)
+                scores[key] = edges[target]
             else:
-                scores[key] = self.page_scores.get(name, {}).get(key, .8) if context['phase'] == 'preview' else .8
+                scores[key] = self.page_scores.get(name, {}).get(key, .8)
         usage.calls += 1
         return scores
 
@@ -79,7 +87,7 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
                 return Document(url, 'fetch unavailable', is_error=True)
             content = ((bodies or {}).get(name) or f'# Source {name}\n\nVERIFIED_FACT_{name}.\n\n')
             content += '\n'.join(f'[{child}]({BASE}{child})' for child, _ in graph.get(name, []))
-            return Document(url, content)
+            return Document(url, content, title=name)
 
         tree = RawTree(decision, cfg or config(), fetch)
         trace = Capture()
@@ -143,7 +151,7 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
             jev_traversal='beam', jev_branch=2, jev_frontier_width=4, jev_depth=2))
         self.assertEqual(fetched, ['a', 'b', 'a1', 'a2', 'b1', 'b2'])
 
-    async def test_default_beam_narrows_six_two_two_and_chunks_only_two_pages_across_depths(self):
+    async def test_default_beam_narrows_six_two_two_and_returns_two_evidence_sources(self):
         cfg = load_test(method='jevtree').agent
         graph = {'a': [('a1', .9), ('a2', .8), ('a3', .7)],
                  'b': [('b1', .85), ('b2', .11)],
@@ -161,10 +169,11 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(fetched[8:]), {'a11', 'b11'})
         self.assertEqual(stats['page_visits'], 10)
         self.assertEqual(stats['max_depth'], 3)
-        self.assertEqual((stats['reads'], stats['direct_reads'], stats['query_reads']), (2, 1, 1))
-        precise_pages = {s['page_url'].removeprefix(BASE) for s, _, c in decision.contexts
+        self.assertEqual((stats['reads'], stats['direct_reads'], stats['query_reads']), (6, 1, 1))
+        self.assertEqual(stats['evidence_pages'], 2)
+        precise_pages = {s['page_title'] for s, _, c in decision.contexts
                          if c['phase'] in {'bundle', 'chunk'}}
-        self.assertEqual(precise_pages, {'a', 'b11'})
+        self.assertEqual(precise_pages, {'a','b','a1','b1','a11','b11'})
 
     async def test_default_beam_does_not_fill_slots_below_threshold(self):
         cfg = load_test(method='jevtree').agent
@@ -202,7 +211,7 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(log['evaluation_failures'][0]['retained_keys'], [])
         self.assertTrue(any(e['event'] == 'rawtree.return' for e in trace.events))
 
-    async def test_bundle_and_chunk_failures_preserve_other_evidence(self):
+    async def test_bundle_failures_preserve_other_units_without_atomic_rescoring(self):
         body = '# Source\n\n' + '\n\n'.join(' '.join(f'fact_{i}_{j}' for j in range(20)) for i in range(25))
         def fail(state, ctx):
             return ((ctx['phase'] == 'bundle' and ctx['bundle_id'] == 0) or
@@ -211,7 +220,8 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
             {}, roots=('a',), cfg=config(jev_entries=1, jev_direct_reads=1, jev_query_reads=0),
             bodies={'a': body}, fail=fail)
         self.assertEqual(stats['bundle_eval_failures'], 1)
-        self.assertEqual(stats['chunk_eval_failures'], 1)
+        self.assertEqual(stats['chunk_eval_failures'], 0)
+        self.assertEqual(stats['chunks_scored'], 0)
         self.assertGreater(stats['chunks_returned'], 0)
         self.assertIn('Source: ' + BASE + 'a', text)
         self.assertIn('Retrieval is incomplete', text)

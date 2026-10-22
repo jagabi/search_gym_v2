@@ -1,5 +1,6 @@
 """Offline navigation regressions; source selection belongs exclusively to d3."""
 import unittest
+import json
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -28,7 +29,19 @@ class Decision:
     async def noul(self, state, questions, trace, *, usage, context):
         self.calls.append((state, questions, context))
         usage.calls += 1
-        return {k: self.score(state, k, context) for k in questions}
+        results = {}
+        for key in questions:
+            if context.get('phase') == 'region' and key.startswith('region_'):
+                region, objective = key.split('__', 1)
+                i = int(region.removeprefix('region_'))
+                start, stop = context['region_spans'][i]
+                text = state['page_text'].split(region + ' / bundles ', 1)[1]
+                text = text.split('\n\nregion_', 1)[0]
+                results[key] = self.score({**state, 'page_text': text}, objective,
+                                         {**context, 'bundle_start': start, 'bundle_stop': stop})
+            else:
+                results[key] = self.score(state, key, context)
+        return results
 
 
 class NavigationTests(unittest.IsolatedAsyncioTestCase):
@@ -118,7 +131,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_entry_complement_retains_alternative_outside_standalone_top_six(self):
         def score(state, key, ctx):
-            name = state['page_url'].removeprefix(BASE)
+            name = state.get('page_url', '').removeprefix(BASE)
             if ctx['phase'] == 'entry':
                 return .9 if int(name) <= 6 else .4
             if ctx['phase'] == 'entry_diversity':
@@ -139,7 +152,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_entry_comparison_keeps_original_admission(self):
         def score(state, key, ctx):
-            name = state['page_url'].removeprefix(BASE)
+            name = state.get('page_url', '').removeprefix(BASE)
             if ctx['phase'] == 'entry':
                 return .9 if int(name) <= 6 else .4
             if ctx['phase'] == 'entry_diversity':
@@ -195,8 +208,8 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
                 return .95 if '| Rowan | Northport |' in preview else .05
             if ctx['phase'] == 'preview':
                 return {'known': .99, 'registry': .4, 'other': .8}[name]
-            if ctx['phase'] == 'chunk':
-                return .99 if any(t in state['target_chunk'] for t in
+            if ctx['phase'] == 'bundle':
+                return .99 if any(t in state['page_text'] for t in
                                   ('Aster held the office', '| Rowan | Northport |')) else .01
             return .9
 
@@ -255,7 +268,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         def score(state, key, ctx):
             if key == 'return_now':
                 return .99
-            if key == 'expand_now':
+            if key.startswith('link_'):
                 return .05
             return .9
 
@@ -265,31 +278,29 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
             score=score, jev_entries=1, jev_depth=2, jev_traversal='beam', jev_link_floor=.1)
         self.assertEqual(fetched, [BASE+'record'])
         self.assertFalse(any(ctx['phase'] == 'links' for _, _, ctx in decision.calls))
-        self.assertEqual(stats['links_scored'], 0)
-        self.assertEqual(stats['link_parent_skips'], 1)
+        self.assertEqual(stats['links_scored'], 1)
+        self.assertEqual(stats['links_pruned'], 1)
 
     async def test_parent_beam_narrows_before_per_link_work(self):
         roots = ['a', 'b', 'c', 'd', 'e', 'f']
 
         def score(state, key, ctx):
-            if key in ('return_now', 'read_now'):
-                return .01
-            if key == 'expand_now':
-                return {'a': .99, 'b': .9}.get(state['page_url'].removeprefix(BASE), .1)
-            if ctx['phase'] == 'links':
-                return .9
-            return .001
+            if key == 'inspect_value':
+                return .99 if 'Record a.' in state['page_text'] else .9 if 'Record b.' in state['page_text'] else .1
+            return .9 if key.startswith('link_') else .001
 
-        _, decision, _, fetched, (_, _, stats) = await self.run_search(
+        _, decision, decision_trace, fetched, (_, _, stats) = await self.run_search(
             [{'link': BASE+x} for x in roots],
             {BASE+x: f'Record {x}. [Detail]({BASE}{x}1)' for x in roots},
             score=score, jev_entries=6, jev_fetch_budget=8, jev_frontier_width=2, jev_depth=2,
             jev_traversal='beam')
         self.assertEqual(fetched[:6], [BASE+x for x in roots])
         self.assertEqual(set(fetched[6:]), {BASE+'a1', BASE+'b1'})
-        self.assertEqual(len([ctx for _, _, ctx in decision.calls if ctx['phase'] == 'links']), 2)
+        self.assertEqual(len([q for _, q, ctx in decision.calls if ctx['phase'] == 'bundle'
+                              and any(k.startswith('link_') for k in q)]), 2)
         self.assertEqual(stats['links_scored'], 2)
-        self.assertEqual(stats['link_parent_skips'], 4)
+        selection = next(e for e in decision_trace.events if e['event']=='rawtree.inspection_selection')
+        self.assertEqual(len(selection['selected']), 2)
 
     async def test_failed_source_keeps_exact_title_and_url_as_unverified_lead(self):
         tree, _, _, _, (_, text, stats) = await self.run_search(
@@ -336,13 +347,15 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         chunks = [Chunk(i, f'Original source passage {i}.', 5, []) for i in range(256)]
         chunks[0].headings = ['TARGET_A original record']
         chunks[-1].headings = ['TARGET_B final appendix']
+        chunks[0].text = 'TARGET_A original record\n' + chunks[0].text
+        chunks[-1].text = 'TARGET_B final appendix\n' + chunks[-1].text
         bundles = [{'id': i, 'chunk_ids': [i], 'text': c.text} for i, c in enumerate(chunks)]
 
         def score(state, key, ctx):
             marker = 'TARGET_A' if key == 'direct_answer' else 'TARGET_B'
             return .99 if marker in state['page_text'] else .01
 
-        cfg = config(jev_document_tree=True, jev_region_tokens=600)
+        cfg = config(jev_document_tree=True, jev_region_tokens=600, jev_bundle_tokens=4096)
         decision, trace, stats = Decision(score), Capture(), {}
         tree = RawTree(decision, cfg, None)
 
@@ -353,22 +366,28 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
             chunks, bundles, 'original', 'query', 'search', trace, JevUsage(), stats, evaluate)
         self.assertEqual(len(selected), 4)
         self.assertTrue({0, 255}.issubset({b['id'] for b in selected}))
-        self.assertEqual(stats['region_evaluations'], 28)
+        self.assertEqual(stats['region_evaluations'], 24)
+        self.assertEqual(stats['region_cards'], 5)
+        self.assertEqual(stats.get('bundles_scored', 0), 0)
         events = [e for e in trace.events if e['event'] == 'rawtree.regions']
         self.assertTrue(all(len(e['selected']) <= 2 for e in events[:-1]))
-        self.assertTrue(all(decision.chunker.count(s['page_text']) <= 600 for s, _, _ in decision.calls))
+        self.assertTrue(all(decision.chunker.count(json.dumps(s, ensure_ascii=False)) <= cfg.jev_bundle_tokens
+                            for s, _, _ in decision.calls))
 
     async def test_failed_region_retains_an_uncertain_route(self):
         chunks = [Chunk(i, f'Passage {i}', 2, []) for i in range(32)]
         bundles = [{'id': i, 'chunk_ids': [i], 'text': c.text} for i, c in enumerate(chunks)]
 
-        def score(state, key, ctx):
-            if ctx['bundle_stop'] == 32:
-                raise LocalDecisionError('transient failure')
-            return .5
-
-        decision, trace = Decision(score), Capture()
-        tree = RawTree(decision, config(jev_document_tree=True), None)
+        class PartialRegion(Decision):
+            async def noul(self, state, questions, trace, *, usage, context):
+                result = await super().noul(state, questions, trace, usage=usage, context=context)
+                if context['phase'] == 'region':
+                    i = len(context['region_spans'])-1
+                    result.pop(f'region_{i}__query_answer')
+                return result
+        decision, trace = PartialRegion(lambda state, key, ctx:
+            .99 if ctx['phase'] == 'bundle' and ctx['bundle_id'] == 31 else .5), Capture()
+        tree = RawTree(decision, config(jev_document_tree=True, jev_bundle_tokens=4096), None)
 
         async def evaluate(coro, *args):
             try:
@@ -380,9 +399,11 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
             bundles, 'original', 'query', 'search', trace, JevUsage(), {}, evaluate)
         self.assertIn(31, [b['id'] for b in selected])
         self.assertLessEqual(len(selected), 4)
+        root = next(e for e in trace.events if e['event'] == 'rawtree.regions')
+        self.assertIn((28, 32), root['selected'])
 
     async def test_long_document_reaches_tail_through_real_chunker_despite_low_prefix_score(self):
-        body = '\n\n'.join(f'## Registry section {i}\n\n' + f'Record {i} ordinary facts. '*35
+        body = '\n\n'.join(f'## Registry section {i}\n\n' + f'Record {i} ordinary facts. '*350
                            for i in range(100))
         body += '\n\n## TARGET_FINAL appendix\n\nTARGET_FINAL named Mira as the archivist.'
 
@@ -397,11 +418,12 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
             [{'link': BASE+'registry', 'title': 'Registry archive',
               'snippet': 'Mira, archivist, final appendix'}], {BASE+'registry': body}, score=score,
             jev_entries=1, jev_reads=1, jev_direct_reads=1, jev_query_reads=0,
-            jev_page_tokens=64, jev_document_tree=True, jev_diverse_reads=True,
+            jev_page_tokens=64, jev_bundle_tokens=4096, jev_output_tokens=10000,
+            jev_document_tree=True, jev_diverse_reads=True,
             jev_read_dedup=True, jev_notice_tokens=400)
         timing = next(e for e in trace.events if e['event'] == 'rawtree.chunk_timing')
         self.assertGreater(timing['bundle_count'], 16)
-        self.assertLessEqual(stats['bundles_scored'], 4)
+        self.assertLessEqual(stats['bundles_scored'], 16)
         self.assertGreater(stats['region_evaluations'], 0)
         self.assertIn('TARGET_FINAL named Mira as the archivist.', text)
         returned = next(e['returned'] for e in trace.events if e['event'] == 'rawtree.return')
@@ -423,7 +445,8 @@ class NavigationConfigTests(unittest.TestCase):
         self.assertEqual(policy['entry_candidates'], 10)
         self.assertEqual(policy['document_routing']['leaf_bundles'], 4)
         self.assertEqual(policy['document_routing']['selector'], 'd3')
-        self.assertTrue(policy['complementary_reads'])
+        self.assertFalse(policy['complementary_reads'])
+        self.assertEqual(policy['branch_control']['selection'], 'single_inspect_value')
 
     def test_navigation_parameters_validate_and_change_run_fingerprint(self):
         cfg = load_test(method='jevtree')

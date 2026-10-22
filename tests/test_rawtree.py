@@ -399,15 +399,8 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
                 usage.attempts += 1
                 values = {}
                 for key in questions:
-                    if key == 'return_now':
-                        values[key] = .001
-                    elif key == 'read_now':
-                        values[key] = .9 if state['page_url'].count('/') >= 7 else .01
-                    elif key == 'expand_now':
-                        values[key] = .99
-                    else:
-                        values[key] = (.9 if context['phase'] != 'chunk' or
-                                       'FINAL_FACT' in state['target_chunk'] else .01)
+                    values[key] = (.9 if key == 'inspect_value' or key.startswith('link_') or
+                                   'FINAL_FACT' in state['page_text'] else .01)
                 return values
 
         self_test = self
@@ -426,7 +419,8 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['max_depth'], 5)
         self.assertEqual(stats['fast_fetches'], 0)
         self.assertEqual(stats['browser_fetches'], 50)
-        self.assertEqual(stats['reads'], 6)
+        self.assertEqual(stats['inspected_pages'], 50)
+        self.assertEqual(stats['evidence_pages'], 6)
         self.assertEqual(len(fetched), 50)
         self.assertEqual(len({url for url, _ in fetched}), 50)
         self.assertEqual(stats['summary_calls'], 0)

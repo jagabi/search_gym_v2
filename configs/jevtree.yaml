@@ -20,7 +20,7 @@ agent:
   jev_model: vllm-sr/d3-mini
   jev_base_url: http://172.16.3.192:8101
   jev_concurrency: 4            # shared HTTP wave size; wait for all responses before next wave
-  jev_packet_questions: 64      # combine independent keys, preserving each item's source context
+  jev_packet_questions: 64      # combine keys only for one identical source state
   jev_inflight_questions: 256   # four HTTP requests x at most 64 keys; concurrency remains 4
   jev_strategy: raw             # browser traversal -> saved documents -> raw chunks
   jev_traversal: beam           # d3 alone selects and expands links inside each search
@@ -32,29 +32,29 @@ agent:
   jev_entry_candidates: 10
   jev_branch: 2                 # each parent nominates at most 2 links, not 2 mandatory visits
   jev_depth: 3                  # search roots are depth 1; at most two subsequent link hops
-  jev_frontier_width: 2         # global child beam; only d3 EXPAND parents enter link scoring
+  jev_frontier_width: 2         # per-depth inspection cap and global child visit beam
   jev_fetch_budget: 10          # at most 6 + 2 + 2 visits PER SEARCH, including failed/cached pages
-  jev_reads: 2                  # up to 2 pages; final slot ends search; first read can expose new routes
-  jev_diverse_reads: true       # beam actions compare against actual selected original chunks
+  jev_reads: 2                  # final evidence source cap; inspections use frontier_width per depth
+  jev_diverse_reads: true       # legacy best_first complementary reading; no extra beam judgment
   jev_read_dedup: true          # identical bodies share a read slot; exact judgments are reused
-  jev_direct_reads: 1           # 원질문 근거 몫; 실제 선택한 목표에 읽기 슬롯을 차감
-  jev_query_reads: 1            # 현재 검색어 근거 몫; 소진 후에는 원질문 목표로 선별
+  jev_direct_reads: 1           # final original-question evidence source quota
+  jev_query_reads: 1            # final current-query evidence source quota
   jev_floor: 0.15               # full-document reading opportunity and bundle/atomic-chunk minimum
-  jev_page_tokens: 5000         # candidate 원문 범위 유지; selected source는 실제 선별 청크로 비교
-  jev_chunk_tokens: 512         # Docling HybridChunker, d3 tokenizer
-  jev_bundle_tokens: 5000
+  jev_page_tokens: 4096         # complete inspection state: page_title + page_text
+  jev_chunk_tokens: 512         # internal Docling pieces only; no atomic d3 scoring
+  jev_bundle_tokens: 4096       # final reading/evaluation unit, counted by the d3 tokenizer
   jev_overlap_chunks: 2
-  jev_neighbor_chunks: 1
-  jev_direct_chunks: 4
-  jev_query_chunks: 8
+  jev_neighbor_chunks: 1        # legacy atomic mode; raw returns scored whole bundles
+  jev_direct_chunks: 4          # upper bound on original-question bundle selections, within output budget
+  jev_query_chunks: 8           # upper bound on query bundle selections, within output budget
   jev_output_tokens: 16000      # includes adjacent chunks; whole chunks only
   jev_notice_tokens: 2000       # included in output budget; navigation leads, never evidence
   jev_document_tree: true       # d3 navigates headings + original excerpts, no lexical ranking
   jev_tree_min_bundles: 16      # short documents retain exhaustive bundle evaluation
-  jev_region_branch: 4          # reading/link routing: split regions into up to 4 contiguous children
-  jev_region_beam: 2            # global region beam; links score at most 2 final source sections
-  jev_region_tokens: 600
-  jev_leaf_bundles: 4           # reading leaves; link routing narrows to <=4 sections before leaf scoring
+  jev_region_branch: 4          # document root: branch*beam; deeper document/link regions: branch
+  jev_region_beam: 2            # global region beam; document routing retains two ranges per level
+  jev_region_tokens: 600       # legacy preview size; beam has no separate link-section routing
+  jev_leaf_bundles: 4           # document routing stops at <=4 source bundles
 
 explorer:
   # Legacy schema fields only; the raw strategy never calls the reader model.

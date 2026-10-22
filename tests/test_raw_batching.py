@@ -1,4 +1,4 @@
-"""Multi-item d3 transport: real request assembly, fake HTTP, no model services."""
+"""Single-state multi-key d3 transport: real request assembly, fake HTTP, no model services."""
 import asyncio
 import json
 import unittest
@@ -41,7 +41,7 @@ class BatchingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(posted), 1)
         self.assertEqual(posted[0]['state'], state)
 
-    async def test_33_chunks_merge_to_64_plus_2_keys_without_swapping_scores(self):
+    async def test_33_distinct_states_remain_33_requests_without_swapping_scores(self):
         posted = []
         async def respond(request):
             body = json.loads(request.content); posted.append(body)
@@ -62,8 +62,9 @@ class BatchingTests(unittest.IsolatedAsyncioTestCase):
             for k in ('direct_answer', 'query_answer')}, trace, usage=usage,
             context={'search_id': 'search', 'phase': 'chunk', 'chunk_id': i})
             for i, state in enumerate(states)))
-        self.assertEqual([len(b['questions']) for b in posted], [64, 2])
-        self.assertEqual(usage.calls, 2)
+        self.assertEqual([len(b['questions']) for b in posted], [2]*33)
+        self.assertTrue(all('items' not in b['state'] for b in posted))
+        self.assertEqual(usage.calls, 33)
         for i, result in enumerate(results):
             self.assertEqual(result, {'direct_answer': i/100, 'query_answer': i/100+.001})
         self.assertTrue(all(s['target_chunk'] == f'original_{i}' for i, s in enumerate(states)))
@@ -99,7 +100,7 @@ class BatchingTests(unittest.IsolatedAsyncioTestCase):
         async def respond(request):
             body = json.loads(request.content)
             return httpx.Response(200, json={'answers': {
-                k: {'noul': .7} for k in body['questions'] if k != 'item_1__query_answer'}})
+                k: {'noul': .7} for k in body['questions'] if not (body['state']['target_chunk'] == '1' and k == 'query_answer')}})
         client = await self.client(respond)
         trace, usage = Capture(), JevUsage()
         results = await asyncio.gather(*(client.noul({'target_chunk': str(i)}, {
@@ -128,15 +129,15 @@ class BatchingTests(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, json={'answers': {k: {'noul': .5} for k in body['questions']}})
         client = await self.client(respond)
         trace, usage = Capture(), JevUsage()
-        jobs = [asyncio.create_task(client.noul({'page_text': str(i)},
-            {'gain': {'type': 'noul', 'instructions': 'Useful?'}}, trace, usage=usage,
+        jobs = [asyncio.create_task(client.noul({'page_text': 'same source'},
+            {f'gain_{i}': {'type': 'noul', 'instructions': 'Useful?'}}, trace, usage=usage,
             context={'phase': 'chunk'})) for i in range(2)]
         await asyncio.wait_for(posted.wait(), 3)
         jobs[0].cancel()
         with self.assertRaises(asyncio.CancelledError):
             await jobs[0]
         release.set()
-        self.assertEqual(await asyncio.wait_for(jobs[1], 3), {'gain': .5})
+        self.assertEqual(await asyncio.wait_for(jobs[1], 3), {'gain_1': .5})
         self.assertEqual(usage.attempts, 1)
 
     async def test_different_links_keep_their_own_exact_context_and_destination(self):
@@ -159,7 +160,8 @@ class BatchingTests(unittest.IsolatedAsyncioTestCase):
             'outgoing_links': {f'link_{i}': f'https://example.org/{i}'}},
             {f'link_{i}': {'type': 'noul', 'instructions': f'Evaluate link_{i}.'}},
             trace, usage=usage, context={'search_id': 's', 'phase': 'links'}) for i in range(3)))
-        self.assertEqual(len(posted), 1)
+        self.assertEqual(len(posted), 3)
+        self.assertTrue(all('items' not in b['state'] for b in posted))
         self.assertEqual(results, [{f'link_{i}': i/10} for i in range(3)])
 
     async def test_four_64_key_requests_share_wave_without_early_fifth(self):
@@ -211,8 +213,8 @@ class BatchingTests(unittest.IsolatedAsyncioTestCase):
                 raise
         client = await self.client(respond)
         trace, usage = Capture(), JevUsage()
-        jobs = [asyncio.create_task(client.noul({'page_text': str(i)},
-            {'gain': {'type': 'noul', 'instructions': 'Useful?'}}, trace, usage=usage,
+        jobs = [asyncio.create_task(client.noul({'page_text': 'same source'},
+            {f'gain_{i}': {'type': 'noul', 'instructions': 'Useful?'}}, trace, usage=usage,
             context={'phase': 'chunk'})) for i in range(2)]
         await asyncio.wait_for(posted.wait(), 3)
         await client.aclose()
@@ -231,8 +233,8 @@ class BatchingTests(unittest.IsolatedAsyncioTestCase):
                 raise ValueError('fake tokenizer failure')
         client.chunker = BrokenCounter()
         trace, usage = Capture(), JevUsage()
-        results = await asyncio.wait_for(asyncio.gather(*(client.noul({'page_text': str(i)},
-            {'gain': {'type': 'noul', 'instructions': 'Useful?'}}, trace, usage=usage,
+        results = await asyncio.wait_for(asyncio.gather(*(client.noul({'page_text': 'same source'},
+            {f'gain_{i}': {'type': 'noul', 'instructions': 'Useful?'}}, trace, usage=usage,
             context={'phase': 'chunk'}) for i in range(2)), return_exceptions=True), 3)
         self.assertTrue(all(isinstance(r, LocalDecisionError) for r in results))
         self.assertEqual(usage.attempts, 0)

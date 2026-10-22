@@ -141,11 +141,11 @@ class AgentConfig:
     jev_entries: int = 3           # e: search results opened per search, by entry score
     jev_branch: int = 3            # b: links expanded per page, by link score
     jev_depth: int = 3             # d: root is depth 1
-    jev_reads: int = 6             # total reader budget per search
+    jev_reads: int = 6             # raw beam: final evidence sources; legacy: document reads
     jev_direct_reads: int | None = None  # default: one third of reads
     jev_query_reads: int | None = None   # default: remaining reads
     jev_floor: float = 0.15        # reader score floor; also entry floor in level strategy
-    jev_page_tokens: int = 5000    # only complete URLs inside this token-capped prefix are scored
+    jev_page_tokens: int = 4096    # complete title + prefix state for raw beam inspection
     jev_reasoning_tokens: int = 2000  # legacy snapshot field; no longer used by Jev
     jev_strategy: str = "level"   # level (historical) | lds | raw
     jev_fetch_budget: int = 40    # LDS: logical fetch attempts per search, including failures
@@ -164,7 +164,7 @@ class AgentConfig:
     jev_target_expansions: int = 6
     jev_link_floor: float = 0.0  # raw link expansion only; never a page/evidence threshold
     jev_chunk_tokens: int = 512
-    jev_bundle_tokens: int = 5000
+    jev_bundle_tokens: int = 4096
     jev_overlap_chunks: int = 2
     jev_neighbor_chunks: int = 1
     jev_direct_chunks: int = 4
@@ -1411,11 +1411,12 @@ class SearchAgent:
                             ("jev_input_tokens", stats["jev_input_tokens"]),
                             ("jev_failures", stats["jev_failures"])):
             result.reader_stats[key] = result.reader_stats.get(key, 0) + amount
-        for key in ("fast_fetches", "browser_fetches", "native_fetches", "bundles_scored", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
+        for key in ("fast_fetches", "browser_fetches", "native_fetches", "bundles_scored", "bundles_returned", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
                     "page_visits", "document_reuses", "page_eval_failures", "bundle_eval_failures",
                     "chunk_eval_failures", "links_pruned", "duplicate_candidates", "chunk_cache_hits",
                     "parent_expansions", "refreshes", "link_parent_skips", "read_selection_candidates", "branch_returns",
-                    "zero_read_selections", "link_region_evaluations", "link_sections_selected"):
+                    "zero_read_selections", "region_evaluations", "region_cards", "inspected_pages", "evidence_pages", "link_budget_skips",
+                    "link_region_evaluations", "link_sections_selected"):
             if key in stats:
                 result.reader_stats[key] = result.reader_stats.get(key, 0) + stats[key]
 
