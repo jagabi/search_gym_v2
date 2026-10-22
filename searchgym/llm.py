@@ -268,7 +268,7 @@ class LLM:
 
     # --- 토큰 ---------------------------------------------------------------
 
-    async def count_tokens(self, text: str) -> int:
+    async def count_tokens(self, text: str, *, strict: bool = False) -> int:
         """**돌리는 모델의 토크나이저로** 센다. 실패하면 근사치로 물러선다."""
         try:
             import httpx
@@ -282,9 +282,15 @@ class LLM:
             response = await self._http.post(
                 f"{root}/tokenize", json={"model": self.model_name, "prompt": text}
             )
+            response.raise_for_status()
             return int(response.json()["count"])
-        except Exception:
+        except Exception as exc:
+            if strict:
+                raise RuntimeError('Main-model output tokenizer unavailable') from exc
             return estimate_tokens(text)
+
+    async def count_output_tokens(self, text: str) -> int:
+        return await self.count_tokens(text, strict=True)
 
     async def cap(self, text: str, limit_tokens: int) -> tuple[str, bool]:
         """토큰 상한에 맞춰 자른다. 경계 근처에서만 서버에 정확한 수를 묻는다."""

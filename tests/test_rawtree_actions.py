@@ -16,7 +16,7 @@ class JointInspectionTests(unittest.IsolatedAsyncioTestCase):
             if key=='inspect_value' or key.startswith('link_'):
                 return .9
             return {'Search root':.99,'Reader bridge':.9,'Reader leaf':.4}[state['page_title']]
-        _,decision,trace,fetched,(_,text,stats)=await self.run_graph({
+        _,decision,trace,fetched,(log,text,stats)=await self.run_graph({
             'root':'Parent facts. [Bridge]('+BASE+'bridge)',
             'bridge':'Intermediate facts. [Leaf]('+BASE+'leaf)',
             'leaf':'FINAL_FACT lower-scoring but useful candidate.'},
@@ -28,6 +28,9 @@ class JointInspectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['inspected_pages'],3)
         self.assertEqual(stats['evidence_pages'],3)
         self.assertEqual(sum(c['phase']=='bundle' for _,_,c in decision.calls),3)
+        self.assertIn('evidence_value',log['opened'][0])
+        self.assertNotIn('direct_answer',log['opened'][0])
+        self.assertNotIn('query_answer',log['opened'][0])
 
     async def test_ten_roots_leave_four_child_visits_through_depth_three(self):
         roots = tuple(f'root{i}' for i in range(10))
@@ -102,7 +105,7 @@ class JointInspectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('FINAL_FACT',text)
         self.assertEqual((stats['max_depth'],stats['inspected_pages'],stats['evidence_pages']),(3,3,1))
         joint=[q for s,q,c in decision.calls if c['phase']=='bundle']
-        self.assertEqual([len(q) for q in joint],[3,3,2])
+        self.assertEqual([len(q) for q in joint],[2,2,1])
 
     async def test_low_link_score_does_not_expand_even_with_good_evidence(self):
         def score(state,key,ctx):
@@ -161,7 +164,7 @@ class JointInspectionTests(unittest.IsolatedAsyncioTestCase):
             async def noul(self,state,questions,trace,*,usage,context):
                 result=await super().noul(state,questions,trace,usage=usage,context=context)
                 if context['phase']=='bundle' and 'link_0' in result:
-                    result.pop('query_answer')
+                    result.pop('evidence_value')
                     raise LocalDecisionError('synthetic missing evidence key',partial_scores=result)
                 return result
         decision=Partial(lambda state,key,ctx: .9)

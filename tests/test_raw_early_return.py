@@ -73,5 +73,5 @@ class NoEarlyReturnTests(unittest.IsolatedAsyncioTestCase):
             [{'link': BASE+'root', 'title': 'Search'}], question='original', trace=Capture(), usage=None)
         self.assertTrue(later_done.is_set())
         self.assertIn('SOURCE_FACT', text)
-        self.assertEqual([len(b['questions']) for b in posted], [1, 64, 58])
+        self.assertEqual([len(b['questions']) for b in posted], [1, 64, 57])
         self.assertEqual(client.inflight_questions, 0)

@@ -27,7 +27,7 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
                     and s['page_title']=='Search root']
         self.assertEqual(len(root_calls),1)
         state,questions,_=root_calls[0]
-        self.assertEqual(set(questions),{'direct_answer','query_answer','link_0','link_1'})
+        self.assertEqual(set(questions),{'evidence_value','link_0','link_1'})
         self.assertIn('(link_0)',state['page_text'])
         self.assertIn('(link_1)',state['page_text'])
         self.assertEqual(set(state),{'page_title','page_text'})
@@ -36,8 +36,8 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('Destination: '+BASE+'b', questions['link_0']['instructions'])
         self.assertNotIn('Destination: '+BASE+'a', questions['link_1']['instructions'])
         self.assertNotIn('criteria', questions['link_0'])
-        self.assertEqual(questions['direct_answer']['type'], 'noul')
-        self.assertNotIn('Destination:', questions['direct_answer']['instructions'])
+        self.assertEqual(questions['evidence_value']['type'], 'noul')
+        self.assertNotIn('Destination:', questions['evidence_value']['instructions'])
         self.assertEqual(set(fetched),{'root','a','b'})
         self.assertIn('FINAL_FACT',text)
 
@@ -59,8 +59,8 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
         result=await client.noul(state,questions,Capture(),usage=JevUsage(),
                                  context={'phase':'bundle','search_id':'s'})
         self.assertEqual(len(links),120)
-        self.assertEqual([len(b['questions']) for b in posted],[64,58])
-        self.assertEqual(len(result),122)
+        self.assertEqual([len(b['questions']) for b in posted],[64,57])
+        self.assertEqual(len(result),121)
         self.assertTrue(all(b['state']==state for b in posted))
         self.assertLessEqual(client.chunker.count(json.dumps(state,ensure_ascii=False)),4096)
 
@@ -71,7 +71,7 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
         text='[Self]('+BASE+'parent) [Back]('+BASE+'root) [New]('+BASE+'leaf) [Again]('+BASE+'leaf)'
         _,questions,links=tree._joint_input(node,text,'Q','q',{BASE+'root',BASE+'parent'})
         self.assertEqual([url for url,_ in links],[BASE+'leaf'])
-        self.assertEqual(set(questions),{'direct_answer','query_answer','link_0'})
+        self.assertEqual(set(questions),{'evidence_value','link_0'})
         self.assertIn('Destination: '+BASE+'leaf', questions['link_0']['instructions'])
         self.assertNotIn(BASE+'root', questions['link_0']['instructions'])
 
@@ -96,7 +96,7 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
             failures=[],scores=unexpected,evaluate=evaluate,visited={BASE+'root'})
         self.assertEqual([u for _,u,_ in node.link_scores],[BASE+'leaf'])
         self.assertEqual(returned,[])
-        self.assertTrue(any('concrete outgoing links' in str(q) for _,q,c in decision.calls
+        self.assertTrue(any('evidence or links' in str(q) for _,q,c in decision.calls
                             if c['phase']=='region'))
 
     async def test_returned_source_keeps_original_urls_and_does_not_include_markers(self):

@@ -513,7 +513,8 @@ class SearchAgent:
                 from .raw_progressive import ProgressiveRawTree
                 jevtree = ProgressiveRawTree(self.jev, cfg, guarded_fetch, result.research_state)
             else:
-                jevtree = RawTree(self.jev, cfg, guarded_fetch)
+                jevtree = RawTree(self.jev, cfg, guarded_fetch,
+                    count_output_tokens=getattr(self.llm, 'count_output_tokens', self.llm.count_tokens))
         explorer = (
             Explorer(self.llm, explorer_cfg, self.explorer_prompt, guarded_fetch,
                      enforce_tool_availability=self.method == "depthsearch",

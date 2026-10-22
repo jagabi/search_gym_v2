@@ -169,7 +169,7 @@ class PolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(fetched[8:]), {'a11', 'b11'})
         self.assertEqual(stats['page_visits'], 10)
         self.assertEqual(stats['max_depth'], 3)
-        self.assertEqual((stats['reads'], stats['direct_reads'], stats['query_reads']), (6, 4, 2))
+        self.assertEqual((stats['reads'], stats['direct_reads'], stats['query_reads']), (6, 0, 0))
         self.assertEqual(stats['evidence_pages'], 6)
         precise_pages = {s['page_title'] for s, _, c in decision.contexts
                          if c['phase'] in {'bundle', 'chunk'}}

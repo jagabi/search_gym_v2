@@ -45,10 +45,10 @@ agent:
   jev_bundle_tokens: 4096       # final reading/evaluation unit, counted by the d3 tokenizer
   jev_overlap_chunks: 2
   jev_neighbor_chunks: 1        # legacy atomic mode; raw returns scored whole bundles
-  jev_direct_chunks: 4          # upper bound on original-question bundle selections, within output budget
-  jev_query_chunks: 8           # upper bound on query bundle selections, within output budget
-  jev_output_tokens: 16000      # includes adjacent chunks; whole chunks only
-  jev_notice_tokens: 2000       # included in output budget; navigation leads, never evidence
+  jev_direct_chunks: 4          # legacy traversal quota; beam ranks all bundles by evidence_value
+  jev_query_chunks: 8           # legacy traversal quota; not used by beam
+  jev_output_tokens: 16384      # main-model tokens: 14336 source evidence + 2048 navigation
+  jev_notice_tokens: 2048       # main-model tokens; navigation leads, never evidence
   jev_document_tree: true       # d3 navigates headings + original excerpts, no lexical ranking
   jev_tree_min_bundles: 16      # short documents retain exhaustive bundle evaluation
   jev_region_branch: 4          # document root: branch*beam; deeper document/link regions: branch
