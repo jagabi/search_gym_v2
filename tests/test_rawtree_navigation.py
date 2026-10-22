@@ -133,44 +133,38 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stats['entry_eval_failures'], 1)
         self.assertTrue(next(e for e in trace.events if e['event'] == 'rawtree.entries')['fallback'])
 
-    async def test_entry_complement_retains_alternative_outside_standalone_top_six(self):
+    async def test_beam_downloads_all_ten_before_any_entry_judgment(self):
         def score(state, key, ctx):
-            name = state.get('page_url', '').removeprefix(BASE)
-            if ctx['phase'] == 'entry':
-                return .9 if int(name) <= 6 else .4
-            if ctx['phase'] == 'entry_diversity':
-                self.assertEqual(len(state['selected_leads']), 4)
-                self.assertNotIn('selected_sources', state)
-                return .99 if name == '7' else .1
-            return .99 if key == 'return_now' else .01
-
+            self.assertNotIn(ctx['phase'], ('entry', 'entry_diversity'))
+            return .01
+        results = [{'link': BASE+str(i), 'title': f'Search {i}', 'snippet': f'Clue {i}'}
+                   for i in range(1, 11)]
         _, decision, trace, fetched, (_, _, stats) = await self.run_search(
-            [{'link': BASE+str(i), 'title': 'Candidate record'} for i in range(1, 11)], {},
-            score=score, jev_traversal='beam', jev_entries=6, jev_rank_entries=True,
-            jev_frontier_width=2)
-        self.assertEqual(len(fetched), 6)
-        self.assertIn(BASE+'7', fetched)
-        self.assertEqual(stats['entries'], 6)
-        self.assertEqual(len([c for _, _, c in decision.calls if c['phase'] == 'entry_diversity']), 6)
-        self.assertFalse(next(e for e in trace.events if e['event'] == 'rawtree.entry_diversity')['fallback'])
+            results, {}, score=score, jev_traversal='beam', jev_entries=10,
+            jev_fetch_budget=14, jev_rank_entries=True, jev_frontier_width=2)
+        self.assertEqual(fetched, [BASE+str(i) for i in range(1, 11)])
+        self.assertEqual(stats['entries'], 10)
+        previews = [(s,q) for s,q,c in decision.calls if c['phase']=='preview']
+        self.assertEqual(len(previews), 10)
+        self.assertTrue(all(set(q)=={'inspect_value'} for _,q in previews))
+        self.assertEqual(previews[6][0]['page_title'], 'Search 7')
+        self.assertEqual(previews[6][0]['search_snippet'], 'Clue 7')
+        self.assertFalse(any(e['event']=='rawtree.entry_diversity' for e in trace.events))
 
-    async def test_failed_entry_comparison_keeps_original_admission(self):
-        def score(state, key, ctx):
-            name = state.get('page_url', '').removeprefix(BASE)
-            if ctx['phase'] == 'entry':
-                return .9 if int(name) <= 6 else .4
-            if ctx['phase'] == 'entry_diversity':
-                if name == '7':
-                    raise LocalDecisionError('comparison unavailable')
-                return .99
-            return .99 if key == 'return_now' else .01
-
-        _, _, trace, fetched, (_, _, stats) = await self.run_search(
-            [{'link': BASE+str(i)} for i in range(1, 11)], {}, score=score,
-            jev_traversal='beam', jev_entries=6, jev_rank_entries=True, jev_frontier_width=2)
-        self.assertEqual(fetched, [BASE+str(i) for i in range(1, 7)])
-        self.assertEqual(stats['entry_eval_failures'], 1)
-        self.assertTrue(next(e for e in trace.events if e['event'] == 'rawtree.entry_diversity')['fallback'])
+    async def test_entry_metadata_is_complete_inside_total_preview_budget(self):
+        title = ' '.join(f'title{i}' for i in range(150))
+        snippet = ' '.join(f'snippet{i}' for i in range(240))
+        body = ' '.join(f'source{i}' for i in range(6000))
+        _, decision, _, _, _ = await self.run_search(
+            [{'link': BASE+'root', 'title': title, 'snippet': snippet}], {BASE+'root': body},
+            score=lambda *args:.01, jev_traversal='beam', jev_entries=10,
+            jev_fetch_budget=14, jev_page_tokens=4096)
+        state = next(s for s,_,c in decision.calls if c['phase']=='preview')
+        self.assertEqual(state['page_title'], title)
+        self.assertEqual(state['search_snippet'], snippet)
+        self.assertTrue(body.startswith(state['page_text']))
+        self.assertNotIn('source5999', state['page_text'])
+        self.assertLessEqual(decision.chunker.count(json.dumps(state,ensure_ascii=False)),4096)
 
     async def test_complementary_read_beats_second_copy_of_known_entity(self):
         def score(state, key, ctx):
@@ -447,6 +441,10 @@ class NavigationConfigTests(unittest.TestCase):
         self.assertEqual(policy['http_wave'], {'requests': 4, 'questions_per_request': 64,
                                              'question_budget': 256, 'wait_for_all': True})
         self.assertEqual(policy['entry_candidates'], 10)
+        self.assertEqual(policy['initial_pages'], 10)
+        self.assertEqual(policy['visits_per_search_limit'], 14)
+        self.assertEqual(policy['entry_selection'], 'fetch_all_then_source_prefix')
+        self.assertEqual(policy['entry_complement_slots'], 0)
         self.assertEqual(policy['document_routing']['leaf_bundles'], 4)
         self.assertEqual(policy['document_routing']['selector'], 'd3')
         self.assertFalse(policy['complementary_reads'])
@@ -461,7 +459,7 @@ class NavigationConfigTests(unittest.TestCase):
             cfg.agent = replace(original, **{field: bad})
             with self.subTest(field=field), self.assertRaises(ValueError):
                 _validate(cfg)
-        for change in ({'jev_document_tree': False}, {'jev_rank_entries': False},
+        for change in ({'jev_document_tree': False}, {'jev_rank_entries': True},
                        {'jev_region_beam': 3}, {'jev_read_dedup': False}):
             self.assertNotEqual(_agent_fingerprint(original),
                                 _agent_fingerprint(replace(original, **change)))

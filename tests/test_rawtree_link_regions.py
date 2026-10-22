@@ -31,7 +31,13 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('(link_0)',state['page_text'])
         self.assertIn('(link_1)',state['page_text'])
         self.assertEqual(set(state),{'page_title','page_text'})
-        self.assertNotIn(BASE+'a',str(questions))
+        self.assertIn('Destination: '+BASE+'a', questions['link_0']['instructions'])
+        self.assertIn('Destination: '+BASE+'b', questions['link_1']['instructions'])
+        self.assertNotIn('Destination: '+BASE+'b', questions['link_0']['instructions'])
+        self.assertNotIn('Destination: '+BASE+'a', questions['link_1']['instructions'])
+        self.assertNotIn('criteria', questions['link_0'])
+        self.assertEqual(questions['direct_answer']['type'], 'noul')
+        self.assertNotIn('Destination:', questions['direct_answer']['instructions'])
         self.assertEqual(set(fetched),{'root','a','b'})
         self.assertIn('FINAL_FACT',text)
 
@@ -66,6 +72,8 @@ class JointLinkTests(unittest.IsolatedAsyncioTestCase):
         _,questions,links=tree._joint_input(node,text,'Q','q',{BASE+'root',BASE+'parent'})
         self.assertEqual([url for url,_ in links],[BASE+'leaf'])
         self.assertEqual(set(questions),{'direct_answer','query_answer','link_0'})
+        self.assertIn('Destination: '+BASE+'leaf', questions['link_0']['instructions'])
+        self.assertNotIn(BASE+'root', questions['link_0']['instructions'])
 
     async def test_routing_can_reach_link_only_tail_without_answer_evidence(self):
         def score(state,key,ctx):

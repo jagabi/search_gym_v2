@@ -11,6 +11,21 @@ from test_rawtree_policy import BASE, config
 
 
 class JointInspectionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ten_roots_leave_four_child_visits_through_depth_three(self):
+        roots = tuple(f'root{i}' for i in range(10))
+        bodies = {name: f'{name} [A]({BASE}a) [B]({BASE}b)' for name in roots}
+        bodies.update(a=f'A [C]({BASE}c) [D]({BASE}d)',
+                      b=f'B [C]({BASE}c) [D]({BASE}d)', c='C final fact.', d='D final fact.')
+        _, _, trace, fetched, (_, _, stats) = await self.run_graph(
+            bodies, roots=roots, score=lambda *args:.9,
+            jev_entries=10, jev_fetch_budget=14, jev_depth=3)
+        self.assertEqual(fetched[:10], list(roots))
+        self.assertEqual(set(fetched[10:]), {'a','b','c','d'})
+        self.assertEqual(len(fetched), 14)
+        self.assertEqual((stats['entries'],stats['nodes'],stats['max_depth']), (10,14,3))
+        selections = [e for e in trace.events if e['event']=='rawtree.inspection_selection']
+        self.assertEqual([(e['depth'],len(e['selected'])) for e in selections], [(1,2),(2,2),(3,2)])
+
     async def run_graph(self, bodies, *, roots=('root',), score=None, decision=None, **options):
         def default(state, key, ctx):
             if key == 'inspect_value':
@@ -43,7 +58,10 @@ class JointInspectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([s['page_title'] for s,_,_ in previews], ['Search root', 'Reader leaf'])
         self.assertTrue(all(set(q)=={'inspect_value'} for _,q,_ in previews))
         for state, questions, ctx in decision.calls:
-            self.assertEqual(set(state), {'page_title','page_text'})
+            fields = {'page_title','page_text'}
+            if ctx['phase'] == 'preview' and state['page_title'] == 'Search root':
+                fields.add('search_snippet')
+            self.assertEqual(set(state), fields)
             self.assertNotIn('PRIVATE_REASONING', str(state)+str(questions))
             self.assertLessEqual(decision.chunker.count(json.dumps(state,ensure_ascii=False)),4096)
         self.assertFalse(any(c['phase'] in ('links','link_region','node_action','read_selection')

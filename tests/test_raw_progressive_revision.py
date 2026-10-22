@@ -113,7 +113,7 @@ class ContractTests(unittest.TestCase):
         cfg = load_test('conf.yaml', method='jevtree', expected_raw_traversal='beam')
         policy = raw_policy(cfg.agent, cfg.method)
         self.assertEqual(policy['max_searches'], 10)
-        self.assertEqual(policy['initial_pages'], 6)
+        self.assertEqual(policy['initial_pages'], 10)
         self.assertEqual(policy['traversal'], 'beam')
         self.assertFalse(policy['final_evidence_review'])
         self.assertEqual(policy['tools'], ['web_search'])

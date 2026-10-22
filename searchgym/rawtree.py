@@ -27,7 +27,7 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import marker_context, partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/31"
+VERSION = "raw-browser-d3-navigation-docling/33"
 # Maximum number of decision keys accepted by /v1/systemone.
 D3_MAX_QUESTIONS = 64
 
@@ -633,19 +633,21 @@ class RawTree:
             return n
 
         candidates = []
-        for rank, result in enumerate(results[:cfg.jev_entry_candidates] if cfg.jev_rank_entries else results, 1):
+        entry_results = (results[:cfg.jev_entry_candidates]
+                         if cfg.jev_rank_entries or cfg.jev_traversal == 'beam' else results)
+        for rank, result in enumerate(entry_results, 1):
             try:
                 url = normalize_fetch_url(str(result.get("link") or ""))
             except ValueError:
                 continue
             if _norm(url) in leads:
                 continue
-            lead = {"url": url, "title": chunker.prefix(str(result.get("title") or ""), 80),
-                    "snippet": chunker.prefix(str(result.get("snippet") or ""), 160), "search_rank": rank}
+            lead = {"url": url, "title": str(result.get("title") or ""),
+                    "snippet": str(result.get("snippet") or ""), "search_rank": rank}
             leads[_norm(url)] = lead
             candidates.append(lead)
         ordered = candidates
-        if cfg.jev_rank_entries and candidates:
+        if cfg.jev_rank_entries and cfg.jev_traversal != 'beam' and candidates:
             async def rank_entry(lead):
                 questions = {}
                 for key, target in (("direct_answer", question), ("query_answer", query)):
@@ -681,55 +683,6 @@ class RawTree:
                 ranked_order = quota_select(ranked, (cfg.jev_entries+1)//2, cfg.jev_entries//2)
                 chosen = {r['id'] for r in ranked_order}
                 ranked_order += [r for r in ranked if r['id'] not in chosen]
-                width = min(cfg.jev_entries, cfg.jev_fetch_budget, len(ranked_order))
-                if cfg.jev_traversal == 'beam' and width >= 3 and len(ranked_order) > width:
-                    # Reserve existing beam-width entry slots for incremental navigation
-                    # value. No entity extraction or URL/domain diversity heuristic.
-                    reserve = min(cfg.jev_frontier_width, width-1)
-                    seed_width = width-reserve
-                    seed = quota_select(ranked, (seed_width+1)//2, seed_width//2)
-                    seed_ids = {r['id'] for r in seed}
-                    rest = [r for r in ranked_order if r['id'] not in seed_ids]
-
-                    async def entry_gain(row):
-                        try:
-                            sc = await self._noul(
-                                {'page_url': row['lead']['url'], 'candidate': row['lead'],
-                                 'selected_leads': [r['lead'] for r in seed]},
-                                {'entry_gain': {'type': 'noul', 'instructions': (
-                                    'Would opening candidate add a useful discovery route beyond '
-                                    'selected_leads for the target? Prefer another plausible entity, '
-                                    'a list of qualified alternatives, an original record, or a '
-                                    'missing relationship over another biography repeating the same '
-                                    'candidate. A different domain alone is not new evidence. '
-                                    'The current query can contain a mistaken name, year or place: '
-                                    'a source that tests that assumption is useful. Do not demand '
-                                    'that one lead satisfy the whole original question. Titles and '
-                                    'snippets are unverified navigation leads, not established facts.\n'
-                                    f'Current target: {query}\nOriginal question: {question}\n'
-                                    + RELATION_SCOPE)}}, trace, usage=meter,
-                                context={'search_id': search_id, 'phase': 'entry_diversity',
-                                         'node_id': row['id']})
-                            if 'entry_gain' not in sc:
-                                raise LocalDecisionError('Incomplete entry gain score')
-                            return sc['entry_gain']
-                        except LocalDecisionError as exc:
-                            stats['entry_eval_failures'] += 1
-                            failures.append({'phase': 'entry', 'url': row['lead']['url'],
-                                             'error': str(exc)})
-                            return None
-
-                    gains = await _gather_owned(*(entry_gain(r) for r in rest))
-                    if all(value is not None for value in gains):
-                        extras = sorted(range(len(rest)), key=lambda i: (-gains[i], i))[:reserve]
-                        extra_ids = {rest[i]['id'] for i in extras}
-                        ranked_order = seed + [rest[i] for i in extras] + [
-                            r for r in rest if r['id'] not in extra_ids]
-                    trace.event('rawtree.entry_diversity', search_id=search_id,
-                                seed=[r['id'] for r in seed],
-                                candidates=[{'id': r['id'], 'score': value} for r, value in zip(rest, gains)],
-                                selected=[r['id'] for r in ranked_order[:width]],
-                                fallback=any(value is None for value in gains))
                 ordered = [r['lead'] for r in ranked_order]
             trace.event('rawtree.entries', search_id=search_id, candidates=[r for r in ranked if r],
                         selected=[x['url'] for x in ordered[:cfg.jev_entries]],
@@ -742,6 +695,11 @@ class RawTree:
             if n:
                 level.append(n)
         stats["entries"] = len(level)
+        if cfg.jev_traversal == 'beam':
+            trace.event('rawtree.entries', search_id=search_id,
+                        candidates=[{'lead': lead} for lead in candidates],
+                        selected=[n.url for n in level], fallback=False,
+                        selection='fetch_all_then_source_prefix')
 
         async def preview(n):
             key = _norm(n.url)
@@ -778,7 +736,8 @@ class RawTree:
                                     "source_preview": prefix}
             if cfg.jev_traversal == 'beam':
                 title = self._inspection_title(n)
-                state = self._bounded_source_state(title, prefix, cfg.jev_page_tokens)
+                state = self._bounded_source_state(title, prefix, cfg.jev_page_tokens,
+                    search_snippet=lead['snippet'] if n.depth == 1 else None)
                 state['page_text'] = complete_prefix(doc.content, state['page_text'])
                 page_cards[n.node_id] = {'url': n.url, 'source_preview': state['page_text']}
                 request = {'inspect_value': {'type': 'noul', 'instructions': (
@@ -1098,24 +1057,27 @@ class RawTree:
         return (f'Source: {node.url}\n' + (f'Source ID: {sid}\n' if sid else '')
                 + (f'Title: {title}\n' if title else ''))
 
-    def _bounded_source_state(self, title, text, limit):
+    def _bounded_source_state(self, title, text, limit, *, search_snippet=None):
         """Count the complete serialized source state, including JSON overhead."""
         chunker = self.jev.chunker
-        title = chunker.prefix(title, min(120, max(1, limit//4)))
+        if search_snippet is None:
+            title = chunker.prefix(title, min(120, max(1, limit//4)))
         state = {'page_title': title, 'page_text': text}
+        if search_snippet is not None:
+            state['search_snippet'] = search_snippet
         while chunker.count(json.dumps(state, ensure_ascii=False)) > limit:
             overflow = chunker.count(json.dumps(state, ensure_ascii=False))-limit
             available = chunker.count(state['page_text'])-overflow-1
             if available <= 0:
                 state['page_text'] = ''
                 if chunker.count(json.dumps(state, ensure_ascii=False)) > limit:
-                    raise ValueError('Source title and state fields exceed token budget')
+                    raise ValueError('Source metadata alone exceeds the state token budget')
                 break
             state['page_text'] = chunker.prefix(state['page_text'], available)
         return state
 
     def _joint_input(self, node, text, question, query, visited):
-        """Source state only; destination mapping and visited filtering stay local."""
+        """One source state; link questions disclose their locally mapped destination."""
         links = (candidate_links(text, node.url, visited)
                  if node.depth < self.cfg.jev_depth and len(visited) < self.cfg.jev_fetch_budget else [])
         state = {'page_title': self.jev.chunker.prefix(self._inspection_title(node), 120),
@@ -1123,15 +1085,13 @@ class RawTree:
         questions = {
             'direct_answer': decision_question(question, query=False),
             'query_answer': decision_question(query, query=True, original_question=question)}
-        for i, _ in enumerate(links):
+        for i, (url, _) in enumerate(links):
             key = f'link_{i}'
             questions[key] = {'type': 'noul', 'instructions': (
-                f'Would following {key}, using its anchor and surrounding original text, '
-                'likely reveal a fact or connecting record needed to solve the original '
-                'question? A useful candidate list, original record or refutation counts. '
-                'Judge the route, not whether this excerpt itself answers. Topic similarity '
-                'alone is insufficient. Other links are not evidence for this destination.\n'
-                f'Original question: {question}\nCurrent search target: {query}\n' + RELATION_SCOPE)}
+                'Would this URL open a specific record or candidate list that advances the missing relation? '
+                'An intermediate record counts. A page defining or describing an organization/service '
+                'does not count. Evaluate the destination itself, not the record linked beside it.\n'
+                f'Destination: {url}\nOriginal question: {question}\nCurrent search target: {query}')}
         return state, questions, links
 
     async def _noul(self, state, questions, trace, *, usage, context, on_result=None, stop=None):
