@@ -418,8 +418,8 @@ class NavigationConfigTests(unittest.TestCase):
         self.assertFalse(policy['research_state'])
         self.assertEqual(policy['traversal'], 'beam')
         self.assertEqual(policy['max_searches'], 10)
-        self.assertEqual(policy['http_wave'], {'requests': 4, 'questions_per_request': 1,
-                                             'question_budget': 4, 'wait_for_all': True})
+        self.assertEqual(policy['http_wave'], {'requests': 4, 'questions_per_request': 64,
+                                             'question_budget': 256, 'wait_for_all': True})
         self.assertEqual(policy['entry_candidates'], 10)
         self.assertEqual(policy['document_routing']['leaf_bundles'], 4)
         self.assertEqual(policy['document_routing']['selector'], 'd3')

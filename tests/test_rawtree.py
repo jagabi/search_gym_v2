@@ -14,7 +14,7 @@ from searchgym.agent import AgentConfig
 from searchgym.explorer import Document
 from searchgym.jevtree import JevUsage
 from searchgym.raw_chunks import SourceChunker
-from searchgym.rawtree import LocalDecision, RawTree, decision_question, quota_select, _gather_owned
+from searchgym.rawtree import LocalDecision, LocalDecisionError, RawTree, decision_question, quota_select, _gather_owned
 from searchgym.trace import NullTrace
 
 
@@ -188,19 +188,20 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             results = await asyncio.gather(*(client.noul({'page_text': 'source'}, {'direct': q, 'query': q},
                                                NullTrace(), usage=meter, context={}) for _ in range(7)))
             self.assertEqual(peak, 4)
-            self.assertEqual(meter.calls, 14)
-            self.assertEqual(meter.attempts, 14)
-            self.assertEqual(meter.input_tokens, 140)
-            self.assertEqual(len(bodies), 14)
+            self.assertEqual(meter.calls, 7)
+            self.assertEqual(meter.attempts, 7)
+            self.assertEqual(meter.input_tokens, 70)
+            self.assertEqual(len(bodies), 7)
             self.assertTrue(all(r == {'direct': .7, 'query': .7} for r in results))
-            self.assertTrue(all(len(b['questions']) == 1 for b in bodies))
+            self.assertTrue(all(len(b['questions']) == 2 for b in bodies))
             self.assertTrue(all(set(b['state']) == {'page_text'} for b in bodies))
         finally:
             await client.aclose()
 
     async def test_page_and_link_requests_preserve_shared_source_cutoff_and_score_mapping(self):
         cfg = AgentConfig(jev_strategy='raw', jev_traversal='best_first', jev_entries=1, jev_branch=1, jev_depth=2,
-                          jev_fetch_budget=2, jev_direct_reads=0, jev_query_reads=0)
+                          jev_fetch_budget=2, jev_direct_reads=0, jev_query_reads=0,
+                          jev_packet_questions=1, jev_inflight_questions=4)
         client = LocalDecision(cfg)
         await client.http.aclose()
         client.chunker = chunker()
@@ -268,11 +269,12 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         meter = JevUsage()
         try:
             q = decision_question('target', query=True)
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(LocalDecisionError) as caught:
                 await client.noul('source', {'direct_answer': q, 'link_0': q},
                                   NullTrace(), usage=meter, context={})
-            self.assertEqual(meter.attempts, 2)
-            self.assertEqual(meter.calls, 1)
+            self.assertEqual(caught.exception.partial_scores, {'direct_answer': .8})
+            self.assertEqual(meter.attempts, 1)
+            self.assertEqual(meter.calls, 0)
             self.assertEqual(meter.failures, 1)
         finally:
             await client.aclose()

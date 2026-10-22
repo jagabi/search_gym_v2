@@ -13,7 +13,7 @@ from test_rawtree import Capture
 
 class BackpressureTests(unittest.IsolatedAsyncioTestCase):
     async def test_four_single_judgments_wait_for_entire_wave_across_sources(self):
-        client = LocalDecision(AgentConfig())
+        client = LocalDecision(AgentConfig(jev_packet_questions=1, jev_inflight_questions=4))
         await client.http.aclose()
         four_started, three_finished, release_slow = asyncio.Event(), asyncio.Event(), asyncio.Event()
         posted, finished = [], []
@@ -75,7 +75,7 @@ class BackpressureTests(unittest.IsolatedAsyncioTestCase):
             await client.aclose()
 
     async def test_failed_key_keeps_successful_siblings_and_stops_after_wave(self):
-        client = LocalDecision(AgentConfig())
+        client = LocalDecision(AgentConfig(jev_packet_questions=1, jev_inflight_questions=4))
         await client.http.aclose()
         posted = []
 

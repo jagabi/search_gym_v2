@@ -1,6 +1,6 @@
 """Bounded browser traversal with per-node read/expand/return decisions.
 
-The shared SearchAgent dispatches waves of single-judgment HTTP requests.
+The shared SearchAgent dispatches waves of bounded multi-key HTTP requests.
 A wave must finish before the next wave can enter, across all source jobs.
 """
 from __future__ import annotations
@@ -27,8 +27,8 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import marker_context, partitions, region_preview, section_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/22"
-# d3-mini /v1/systemone rejects larger packets with HTTP 400.
+VERSION = "raw-browser-d3-navigation-docling/24"
+# Maximum number of decision keys accepted by /v1/systemone.
 D3_MAX_QUESTIONS = 64
 
 # Shared by raw routing and evidence judgments. Search targets can contain a
@@ -265,6 +265,138 @@ class LocalDecision:
         self.batch_closed = False
         self.chunker = None
         self.prepare_lock = asyncio.Lock()
+        self.pending_decisions = []
+        self.decision_flush = None
+        self.decision_tasks = set()
+        self.decision_futures = set()
+
+    def _packed_input(self, jobs):
+        """Preserve each original state and bind every key to its own input."""
+        if len(jobs) == 1:
+            job = jobs[0]
+            return job['state'], job['questions'], {
+                key: (0, key) for key in job['questions']}
+        states = [job['state'] for job in jobs]
+        keys = [key for job in jobs for key in job['questions']]
+        if all(s == states[0] for s in states[1:]) and len(set(keys)) == len(keys):
+            return states[0], {k: q for job in jobs for k, q in job['questions'].items()}, {
+                key: (i, key) for i, job in enumerate(jobs) for key in job['questions']}
+        shared = {}
+        if all(isinstance(s, dict) for s in states):
+            shared = {key: value for key, value in states[0].items()
+                      if all(key in s and s[key] == value for s in states[1:])}
+        items, questions, mapping = {}, {}, {}
+        for i, job in enumerate(jobs):
+            item = f'item_{i}'
+            items[item] = ({k: v for k, v in job['state'].items() if k not in shared}
+                           if isinstance(job['state'], dict) else job['state'])
+            for key, question in job['questions'].items():
+                packed_key = f'{item}__{key}'
+                questions[packed_key] = {**question, 'instructions': (
+                    f'Evaluate ONLY {item}. Its input state is shared overlaid with items.{item}. '
+                    'All field names below refer to that input. Other items are not evidence '
+                    'for this judgment.\n' + question['instructions'])}
+                mapping[packed_key] = (i, key)
+        return {'shared': shared, 'items': items}, questions, mapping
+
+    def _fits_packet(self, jobs):
+        if sum(len(job['questions']) for job in jobs) > self.cfg.jev_packet_questions:
+            return False
+        state, _, _ = self._packed_input(jobs)
+        text = json.dumps(state, ensure_ascii=False)
+        # Bound additional independent source inputs; never shorten an original
+        # state merely to make it fit. One existing state retains its old limit.
+        tokens = self.chunker.count(text) if self.chunker else (len(text) + 2)//3
+        return tokens <= self.cfg.jev_bundle_tokens
+
+    async def _dispatch_decisions(self, jobs):
+        jobs = [job for job in jobs if not job['future'].cancelled()]
+        if not jobs:
+            return
+        try:
+            state, questions, mapping = self._packed_input(jobs)
+        except Exception as exc:
+            for job in jobs:
+                if not job['future'].done():
+                    job['future'].set_exception(LocalDecisionError(f'Invalid decision input: {exc!r}'))
+            return
+        context = dict(jobs[0]['context'])
+        if len(jobs) > 1:
+            # Per-item provenance remains available even when node IDs differ.
+            context.pop('node_id', None)
+            context.update(batched_items=len(jobs), items=[dict(job['context']) for job in jobs])
+        if len(jobs) > 1:
+            context.update(total_question_count=len(questions), packet_index=0, packet_count=1)
+        try:
+            scores = await self._noul_packet(state, questions, jobs[0]['trace'],
+                usage=jobs[0]['usage'], context=context)
+            error = None
+        except LocalDecisionError as exc:
+            scores, error = exc.partial_scores, exc
+        except asyncio.CancelledError:
+            for job in jobs:
+                job['future'].cancel()
+            raise
+        except Exception as exc:
+            scores, error = {}, LocalDecisionError(f'Decision batch failed: {exc!r}')
+        unpacked = [{} for _ in jobs]
+        for key, score in scores.items():
+            i, original_key = mapping[key]
+            unpacked[i][original_key] = score
+        for job, result in zip(jobs, unpacked):
+            future = job['future']
+            if future.done():
+                continue
+            if all(key in result for key in job['questions']):
+                future.set_result(result)
+            else:
+                future.set_exception(LocalDecisionError(
+                    str(error or 'Incomplete decision batch response'), partial_scores=result))
+
+    def _decision_packets(self, pending):
+        groups = {}
+        for job in pending:
+            if job['future'].cancelled():
+                continue
+            c = job['context']
+            group = (id(job['trace']), id(job['usage']), c.get('search_id'), c.get('phase'))
+            groups.setdefault(group, []).append(job)
+        packets = []
+        for jobs in groups.values():
+            packet = []
+            for job in jobs:
+                if packet and not self._fits_packet(packet + [job]):
+                    packets.append(packet)
+                    packet = []
+                packet.append(job)
+            if packet:
+                packets.append(packet)
+        return packets
+
+    async def _flush_decisions(self):
+        # Collect peers already runnable at this decision boundary, without a
+        # timed wait or crossing read/expand dependencies.
+        await asyncio.sleep(0)
+        pending, self.pending_decisions = self.pending_decisions, []
+        self.decision_flush = None
+        try:
+            packets = self._decision_packets(pending)
+        except Exception as exc:
+            for job in pending:
+                if not job['future'].done():
+                    job['future'].set_exception(LocalDecisionError(f'Cannot pack decision input: {exc!r}'))
+            return
+        tasks = []
+        for packet in packets:
+            task = asyncio.create_task(self._dispatch_decisions(packet))
+            def cancelled(_, packet=packet, task=task):
+                if all(job['future'].cancelled() for job in packet):
+                    task.cancel()
+            for job in packet:
+                job['future'].add_done_callback(cancelled)
+            tasks.append(task)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     @asynccontextmanager
     async def _question_slots(self, count):
@@ -317,6 +449,42 @@ class LocalDecision:
             self.chunker = await asyncio.to_thread(SourceChunker, self.cfg.jev_model, self.cfg.jev_chunk_tokens)
 
     async def noul(self, state, questions, trace, *, usage, context):
+        if self.cfg.jev_packet_questions == 1:
+            return await self._separate_noul(state, questions, trace, usage=usage, context=context)
+        if not questions:
+            return {}
+        jobs = []
+        items = list(questions.items())
+        for start in range(0, len(items), self.cfg.jev_packet_questions):
+            future = asyncio.get_running_loop().create_future()
+            job = dict(state=state, questions=dict(items[start:start+self.cfg.jev_packet_questions]),
+                       trace=trace, usage=usage, context={**context,
+                           'packet_index': start//self.cfg.jev_packet_questions,
+                           'packet_count': (len(items)+self.cfg.jev_packet_questions-1)//self.cfg.jev_packet_questions,
+                           'total_question_count': len(items)}, future=future)
+            jobs.append(job)
+            self.pending_decisions.append(job)
+            self.decision_futures.add(future)
+            future.add_done_callback(self.decision_futures.discard)
+        if self.decision_flush is None:
+            self.decision_flush = asyncio.create_task(self._flush_decisions())
+            self.decision_tasks.add(self.decision_flush)
+            self.decision_flush.add_done_callback(self.decision_tasks.discard)
+        results = await asyncio.gather(*(job['future'] for job in jobs), return_exceptions=True)
+        scores, errors = {}, []
+        for result in results:
+            if isinstance(result, BaseException):
+                if isinstance(result, asyncio.CancelledError):
+                    raise result
+                errors.append(result)
+                scores.update(getattr(result, 'partial_scores', {}))
+            else:
+                scores.update(result)
+        if errors:
+            raise LocalDecisionError(str(errors[0]), partial_scores=scores)
+        return scores
+
+    async def _separate_noul(self, state, questions, trace, *, usage, context):
         if not questions:
             return {}
         items = list(questions.items())
@@ -371,14 +539,20 @@ class LocalDecision:
                             status_code=response.status_code, response_text=response.text)
                 response.raise_for_status()
                 payload = response.json()
-                scores = {}
-                for key in questions:
-                    score = float(payload["answers"][key]["noul"])
-                    if not math.isfinite(score) or not 0 <= score <= 1:
-                        raise ValueError(f"Invalid probability for {key}: {score}")
-                    scores[key] = score
-                usage.calls += 1
                 usage.input_tokens += int(payload.get("usage", {}).get("input_tokens", 0))
+                scores = {}
+                invalid = []
+                for key in questions:
+                    try:
+                        score = float(payload["answers"][key]["noul"])
+                        if not math.isfinite(score) or not 0 <= score <= 1:
+                            raise ValueError(f"Invalid probability for {key}: {score}")
+                        scores[key] = score
+                    except (KeyError, TypeError, ValueError) as exc:
+                        invalid.append(f'{key}: {exc}')
+                if invalid:
+                    raise LocalDecisionError('; '.join(invalid), partial_scores=scores)
+                usage.calls += 1
                 trace.event("jev.result", request_id=request_id, scores=scores,
                             question_count=len(questions), usage=payload.get("usage"), failed=False,
                             duration_ms=1000*(time.perf_counter()-queued))
@@ -394,9 +568,17 @@ class LocalDecision:
                     detail += f"; response={exc.response.text[:2000]}"
                 trace.event("jev.error", request_id=request_id, error=detail, retryable=False)
                 # Infrastructure failures must not masquerade as low relevance.
-                raise LocalDecisionError(f"Local decision failed ({context}): {detail}") from exc
+                raise LocalDecisionError(f"Local decision failed ({context}): {detail}",
+                    partial_scores=getattr(exc, 'partial_scores', {})) from exc
 
     async def aclose(self):
+        for future in list(self.decision_futures):
+            future.cancel()
+        tasks = list(self.decision_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         await self.http.aclose()
 
 
