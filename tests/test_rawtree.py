@@ -77,9 +77,11 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         from searchgym.tools import WebTools
         seen = []
 
+        body = 'Exact source text. ' * 20  # above the Reader body floor
+
         async def respond(request):
             seen.append(request)
-            return httpx.Response(200, json={'code': 200, 'data': {'title': 'Source', 'content': 'Exact source text'}})
+            return httpx.Response(200, json={'code': 200, 'data': {'title': 'Source', 'content': body}})
 
         tools = WebTools()
         tools.reader_status = {'jina_base_url': 'http://127.0.0.1:3001'}
@@ -88,7 +90,7 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
             for engine in ['curl', 'browser']:
                 doc = await tools.fetch('https://example.org/page', engine=engine)
                 self.assertFalse(doc.is_error)
-                self.assertEqual(doc.content, 'Exact source text')
+                self.assertEqual(doc.content, body)
         self.assertEqual([r.headers['X-Engine'] for r in seen], ['curl', 'browser'])
         self.assertTrue(all(r.headers['X-No-Cache'] == 'true' for r in seen))
         self.assertTrue(all(r.headers['X-Assert-Status-Code'] == '200' for r in seen))

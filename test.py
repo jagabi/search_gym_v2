@@ -55,6 +55,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--path", default=None, help="데이터셋 파일을 직접 지정")
     parser.add_argument("--split", default=None, help="validation | test | train")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--ids", default=None,
+                        help="이 문항 번호(index)만 실행. 쉼표 구분, 예: 8,26,74 (--limit 무시)")
     parser.add_argument("--tag", default=None, help="실행 디렉터리 이름에 붙일 꼬리표")
     parser.add_argument("--prompt", default=None, help="메인 시스템 프롬프트를 파일에서 읽는다")
     parser.add_argument("--explorer-prompt", default=None, help="explorer 프롬프트 파일")
@@ -138,7 +140,14 @@ async def main_async(argv: list[str] | None = None) -> int:
     profile = profile_for(config.model)
     dataset = config.benchmark.dataset(args.split or "validation")
     benchmark = load_benchmark(config.benchmark.name, dataset)
-    items = benchmark.load(limit=config.benchmark.limit)
+    items = benchmark.load(limit=None if args.ids else config.benchmark.limit)
+    if args.ids:
+        wanted = {int(i) for i in args.ids.split(",") if i.strip()}
+        missing = sorted(wanted - {item.index for item in items})
+        if missing:
+            print(f"{dataset}에 없는 문항 번호: {missing}")
+            return 1
+        items = [item for item in items if item.index in wanted]
 
     out = _resolve_dir(args, config, profile)
     if out is None:
@@ -270,6 +279,7 @@ def _write_run_config(out, config, profile, dataset, items):
             "model": profile.repo,
             "dataset": str(dataset),
             "items": len(items),
+            "item_ids": [item.index for item in items],
             "agent": asdict(config.agent),
             "effective_raw_policy": raw_policy(config.agent, config.method),
             "explorer": asdict(config.explorer) if config.uses_explorer else None,

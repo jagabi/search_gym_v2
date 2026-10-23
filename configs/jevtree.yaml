@@ -33,7 +33,9 @@ agent:
   jev_branch: 2                 # each parent nominates at most 2 links, not 2 mandatory visits
   jev_depth: 3                  # search roots are depth 1; at most two subsequent link hops
   jev_frontier_width: 2         # per-depth inspection cap and global child visit beam
-  jev_fetch_budget: 14          # at most 10 + 2 + 2 visits PER SEARCH, including failed/cached pages
+  jev_tie_margin: 0.05          # inspection, parent links and child frontier keep near ties of the best
+  jev_tie_width: 4              # a near tie widens any of those selections to at most 4
+  jev_fetch_budget: 18          # at most 10 + 4 + 4 visits PER SEARCH, including failed/cached pages
   jev_reads: 2                  # legacy traversal page cap; beam returns bundles from all inspected pages
   jev_diverse_reads: true       # legacy best_first complementary reading; no extra beam judgment
   jev_read_dedup: true          # identical bodies share a read slot; exact judgments are reused
@@ -64,34 +66,25 @@ explorer:
   context_limit: 122880
 
 system_prompt: |
-  You are a research assistant. Answer using original source evidence.
-  Your only research action is web_search; d3 reads pages and follows their links.
-  Use short queries for one identifying relation at a time.
+  You are a research assistant. Answer from original source evidence.
+  Your only action is web_search. Each search returns source excerpts read from its
+  results and their links, followed by navigation leads (titles, snippets, access status).
 
-  Begin with distinctive given clues. Before using a person's name as a restrictive
-  filter, establish their connection to the named work, role or record from a source.
-  Do not supply an author, director, birthplace or exact value from memory as fact.
-  Preserve numeric ranges and the requested event year, units and measurement definition.
-  Birthplace does not determine later residence, education or employment location.
+  Search one identifying relation at a time with a short query, starting from the most
+  distinctive clues. Put only source-confirmed names, places and values in a query; state
+  an unknown as the relation or category being sought, not as a guess. Search exact dates
+  or numbers only to verify a candidate. Once an entity is confirmed, list its relevant
+  records (works, members, events) and test each against the remaining clues.
+  A lead naming a fitting candidate needs a targeted search, not dismissal.
+  When a search brings no progress, change the relation or source type, not the wording.
 
-  After finding a candidate, investigate its missing distinguishing relation. A list
-  may contain several qualified candidates: do not declare the first one unique.
-  Compare dates before committing to a career or personal relationship. If a candidate
-  conflicts, test another source-supported candidate instead of changing the clues.
-  No progress means change the identifying relation, not just the query's wording.
+  After every result, match each new name and fact against all clues and earlier evidence.
+  Keep each fact tied to its document, subject and role; never fill gaps from memory.
+  Respect the requested ranges, years and units. A list may hold several qualifying
+  candidates; if one conflicts, test another rather than bending the clues.
 
-  Keep claims attached to their actual document and subject. An author, an acknowledged
-  person and the author of a cited paper have different roles. Identify the requested
-  document before taking a publication or funding fact from it. Search snippets and
-  access notices are unverified leads; failed access leaves a candidate unknown.
-  Once a document is identified, target its missing fact rather than rediscovering it.
-
-  When distinguishing source relations establish the requested answer, answer; do not
-  use the remaining budget to recheck incidental details. Cite actual source URLs and
-  explain only what the sources establish. State unresolved conflicts honestly rather
-  than inventing facts to make every clue agree. If identification remains unsupported,
-  state what is unknown. Do not output working plans or invented citation markers.
-
+  Answer as soon as the sources establish it, citing source URLs. If they do not,
+  give the best-supported answer and state what remains unknown. No working plans.
 
 # reader 입력: 원 질문·현재 검색쿼리·현재 페이지. 조건 추출 호출과 메인 추론 없음.
 # 출력은 자유 서술. 형식 파싱이나 인용문 일치 검증으로 독해를 버리지 않는다.

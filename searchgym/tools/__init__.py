@@ -44,6 +44,9 @@ from ..local_reader import local_reader_url
 __all__ = ["ToolResult", "ToolSpec", "WebTools"]
 
 _EMPTY: dict[str, Any] = {"type": "object", "properties": {}}
+# Local Reader bodies shorter than this (non-whitespace) are access, consent or
+# age screens, not documents. They must not take an inspection slot.
+MIN_BODY_CHARS = 200
 
 
 def _reader_diagnostics(response: httpx.Response, metadata: dict) -> Any:
@@ -332,7 +335,8 @@ class WebTools:
             content = data.get("content")
             if not isinstance(content, str):
                 raise ValueError("Reader did not return data.content")
-            failure = reader_failure(content)
+            failure = reader_failure(content, title=str(data.get("title") or ""),
+                                     min_chars=MIN_BODY_CHARS)
             if failure:
                 metadata.update(failure_stage="reader_content", error_message=failure[:1000])
             return Document(url=url, content=content, title=str(data.get("title") or ""),

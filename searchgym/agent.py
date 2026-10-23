@@ -156,6 +156,8 @@ class AgentConfig:
     jev_packet_questions: int = 64    # batch independent keys in one shared source input
     jev_inflight_questions: int = 256 # four HTTP requests, each with at most 64 keys
     jev_frontier_width: int = 10
+    jev_tie_margin: float = 0.0  # raw beam: keep candidates this close to the best (0 = off)
+    jev_tie_width: int = 0       # raw beam: widest selection a near tie may reach
     jev_traversal: str = "beam"  # raw: beam | best_first | progressive
     jev_expand_batch: int = 4    # rolling best-first page jobs; independent of HTTP concurrency
     jev_parent_limit: int = 1    # progressive: separately limit evaluated parent pages
@@ -1415,7 +1417,7 @@ class SearchAgent:
                             ("jev_input_tokens", stats["jev_input_tokens"]),
                             ("jev_failures", stats["jev_failures"])):
             result.reader_stats[key] = result.reader_stats.get(key, 0) + amount
-        for key in ("fast_fetches", "browser_fetches", "native_fetches", "bundles_scored", "bundles_returned", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
+        for key in ("fast_fetches", "browser_fetches", "native_fetches", "curl_fetches", "curl_fallbacks", "bundles_scored", "bundles_returned", "chunks_scored", "chunks_returned", "raw_output_tokens", "chunking_ms", "bundling_ms",
                     "page_visits", "document_reuses", "page_eval_failures", "bundle_eval_failures",
                     "chunk_eval_failures", "links_pruned", "duplicate_candidates", "chunk_cache_hits",
                     "parent_expansions", "refreshes", "link_parent_skips", "read_selection_candidates", "branch_returns",

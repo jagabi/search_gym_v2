@@ -41,6 +41,10 @@ def raw_policy(config, method):
                            "selection": "single_inspect_value", "depth_barrier": True,
                            "inspect_floor": config.jev_floor,
                            "inspections_per_depth": config.jev_frontier_width,
+                           "near_tie": {"margin": config.jev_tie_margin,
+                                        "max_width": max(config.jev_tie_width, config.jev_frontier_width),
+                                        "applies_to": ["inspection", "parent_links", "child_frontier"]}
+                                       if config.jev_tie_margin > 0 else None,
                            "final_source_quotas": None,
                            "return_selection": "all_inspected_bundles_by_evidence_value",
                            "evidence_key": "evidence_value",

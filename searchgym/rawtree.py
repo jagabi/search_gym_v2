@@ -27,7 +27,7 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import marker_context, partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/35"
+VERSION = "raw-browser-d3-navigation-docling/36"
 # Maximum number of decision keys accepted by /v1/systemone.
 D3_MAX_QUESTIONS = 64
 
@@ -180,6 +180,22 @@ def quota_select(rows: list[dict], direct: int, query: int, *, floor: float = 0.
             seen.add(row["id"])
             budget -= 1
     return selected
+
+
+def near_tie_take(rows, score, width, margin, cap, accept=lambda row: True):
+    """Take `width` rows in descending score order, widened up to `cap` while
+    a row stays within `margin` of the best; a beam must not split a near tie.
+    `accept` may reject a row (duplicate, budget) without using a place."""
+    taken, best = [], None
+    for row in rows:
+        value = score(row)
+        best = value if best is None else best
+        if len(taken) >= max(width, cap) or (
+                len(taken) >= width and (margin <= 0 or value < best-margin)):
+            break
+        if accept(row):
+            taken.append(row)
+    return taken
 
 
 class LocalDecision:
@@ -606,7 +622,7 @@ class RawTree:
                      bundle_eval_failures=0, chunk_eval_failures=0,
                      links_pruned=0, duplicate_candidates=0, entry_eval_failures=0,
                      region_evaluations=0, duplicate_reads_avoided=0,
-                     link_parent_skips=0, read_selection_candidates=0)
+                     link_parent_skips=0, read_selection_candidates=0, curl_fallbacks=0)
         leads, page_cards, link_inputs = {}, {}, {}
         trace.event("rawtree.start", search_id=search_id, query=query, version=VERSION,
                     config={k: v for k, v in asdict(cfg).items() if k.startswith("jev_")})
@@ -723,11 +739,20 @@ class RawTree:
                 stats["document_reuses"] += 1
                 trace.event("rawtree.fetch_reused", search_id=search_id, node_id=n.node_id,
                             url=n.url, source_search_id=source_search_id,
-                            engine='native' if doc.retrieval == 'native' else 'browser')
+                            engine=doc.retrieval.removeprefix('jina_'))
             else:
                 stats["fetched"] += 1
                 doc = await self.fetch(n.url, engine="browser")
-                counter = 'native_fetches' if doc.retrieval == 'native' else 'browser_fetches'
+                if doc.is_error and doc.retrieval == 'jina_browser' and (doc.reader_metadata or {}).get('failure_stage'):
+                    # Browser navigation timeouts and extraction failures often
+                    # read with plain HTTP. Same URL, one attempt, still one visit.
+                    browser_error = doc.content
+                    doc = await self.fetch(n.url, engine="curl")
+                    stats["curl_fallbacks"] += 1
+                    trace.event("rawtree.fetch_fallback", search_id=search_id, node_id=n.node_id,
+                                url=n.url, browser_error=browser_error[:500],
+                                recovered=not doc.is_error)
+                counter = {'native': 'native_fetches', 'jina_curl': 'curl_fetches'}.get(doc.retrieval, 'browser_fetches')
                 stats[counter] = stats.get(counter, 0) + 1
                 if not doc.is_error:
                     self.documents[key] = (doc, search_id)
@@ -736,7 +761,7 @@ class RawTree:
                 n.error = doc.content
                 stats["fetch_failed"] += 1
                 trace.event("rawtree.fetch_failed", search_id=search_id, node_id=n.node_id,
-                            url=n.url, engine='native' if doc.retrieval == 'native' else 'browser',
+                            url=n.url, engine=doc.retrieval.removeprefix('jina_'),
                             error=doc.content,
                             reader_metadata=doc.reader_metadata)
                 return []
@@ -905,16 +930,15 @@ class RawTree:
             pool = sorted((r for r in rows if r['id'] in level_ids
                            and r['inspect_value'] >= cfg.jev_floor),
                           key=lambda r: (-r['inspect_value'], r['id']))
-            selected = []
-            for row in pool:
+            def fresh(row):
                 digest = hashlib.sha256(row['node'].document.content.encode()).hexdigest()
                 if cfg.jev_read_dedup and digest in inspected_hashes:
                     stats['duplicate_reads_avoided'] += 1
-                    continue
-                selected.append(row)
+                    return False
                 inspected_hashes.add(digest)
-                if len(selected) >= cfg.jev_frontier_width:
-                    break
+                return True
+            selected = near_tie_take(pool, lambda r: r['inspect_value'], cfg.jev_frontier_width,
+                                     cfg.jev_tie_margin, cfg.jev_tie_width, fresh)
             trace.event('rawtree.inspection_selection', search_id=search_id,
                         depth=level[0].depth, candidates=[r['id'] for r in pool],
                         selected=[r['id'] for r in selected], width=cfg.jev_frontier_width)
@@ -934,16 +958,21 @@ class RawTree:
                 n.identification = n.evidence = judged['evidence_value']
                 inspected_rows.append({**row, **judged})
             candidates = [(score, url, anchor, row['node']) for row in selected
-                          for score, url, anchor in row['node'].link_scores[:cfg.jev_branch]]
+                          for score, url, anchor in near_tie_take(
+                              row['node'].link_scores, lambda v: v[0], cfg.jev_branch,
+                              cfg.jev_tie_margin, cfg.jev_tie_width)]
             eligible = [c for c in candidates if c[0] >= cfg.jev_link_floor]
             stats['links_pruned'] += len(candidates)-len(eligible)
             next_level = []
-            for score, url, anchor, parent in sorted(eligible, key=lambda c: (-c[0], c[1])):
-                if len(next_level) >= cfg.jev_frontier_width:
-                    break
+
+            def enter(candidate):
+                score, url, anchor, parent = candidate
                 node = admit(url, parent, anchor, score)
                 if node:
                     next_level.append(node)
+                return node is not None
+            near_tie_take(sorted(eligible, key=lambda c: (-c[0], c[1])), lambda c: c[0],
+                          cfg.jev_frontier_width, cfg.jev_tie_margin, cfg.jev_tie_width, enter)
             trace.event('rawtree.frontier', search_id=search_id, depth=level[0].depth,
                         traversal='beam', round=round_index,
                         candidates=[{'url': u, 'parent': p.node_id, 'score': v}

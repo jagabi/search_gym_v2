@@ -433,6 +433,8 @@ def _validate(config: TestConfig) -> None:
                 raise ValueError("RawTree jev_traversal must be beam, best_first, or progressive")
             if not 0 <= a.jev_link_floor <= 1 or not 0 <= a.jev_floor <= 1:
                 raise ValueError("RawTree score floors must be between 0 and 1")
+            if not 0 <= a.jev_tie_margin <= 1 or type(a.jev_tie_width) is not int or a.jev_tie_width < 0:
+                raise ValueError("RawTree near-tie margin must be 0..1 and width a nonnegative integer")
             if (type(a.jev_packet_questions) is not int or not 1 <= a.jev_packet_questions <= 64
                     or type(a.jev_inflight_questions) is not int
                     or a.jev_inflight_questions < a.jev_packet_questions):

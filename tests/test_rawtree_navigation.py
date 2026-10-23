@@ -442,7 +442,10 @@ class NavigationConfigTests(unittest.TestCase):
                                              'question_budget': 256, 'wait_for_all': True})
         self.assertEqual(policy['entry_candidates'], 10)
         self.assertEqual(policy['initial_pages'], 10)
-        self.assertEqual(policy['visits_per_search_limit'], 14)
+        self.assertEqual(policy['visits_per_search_limit'], 18)
+        self.assertEqual(policy['branch_control']['near_tie'],
+                         {'margin': .05, 'max_width': 4,
+                          'applies_to': ['inspection', 'parent_links', 'child_frontier']})
         self.assertEqual(policy['entry_selection'], 'fetch_all_then_source_prefix')
         self.assertEqual(policy['entry_complement_slots'], 0)
         self.assertEqual(policy['document_routing']['leaf_bundles'], 4)
