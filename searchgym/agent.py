@@ -177,6 +177,7 @@ class AgentConfig:
     jev_entry_candidates: int = 10
     jev_diverse_reads: bool = False  # d3 estimates marginal evidence against selected pages
     jev_notice_tokens: int = 0       # URL-specific navigation/access state, never evidence
+    jev_search_results: bool = False # every result's title/snippet/status, outside jev_output_tokens
     jev_document_tree: bool = False
     jev_tree_min_bundles: int = 16   # shorter documents retain exhaustive coarse scoring
     jev_region_branch: int = 4

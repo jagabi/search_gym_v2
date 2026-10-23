@@ -62,6 +62,12 @@ def raw_policy(config, method):
         "evidence_first": False,
         "read_dedup": config.jev_read_dedup,
         "navigation_notice_tokens": config.jev_notice_tokens,
+        "navigation_notice_items": "linked_pages_only" if config.jev_search_results else "search_results_and_linked_pages",
+        "search_results_block": {"fields": ["rank", "title", "url", "status", "snippet"],
+                                 "position": "before_excerpts",
+                                 "budget": "outside_output_tokens",
+                                 "excluded": "pages_blocked_as_evaluation_material"}
+                                if config.jev_search_results else None,
         "output_tokenizer": "main_model",
         "body_output_tokens": config.jev_output_tokens - min(config.jev_notice_tokens, config.jev_output_tokens//3),
         "document_routing": {"selector": "d3", "min_bundles": config.jev_tree_min_bundles,

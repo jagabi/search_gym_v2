@@ -95,6 +95,8 @@ class TreeNode:
     root_id: str = ""
     rank: int = 0
     discrepancy: int = 0
+    inspect_value: float | None = None  # raw beam: score of the opening part
+    budget_dropped: bool = False        # raw: relevant passages left out for length
 
     def log(self) -> dict[str, Any]:
         """Same shape as explorer logs so explorer.json/tree.svg keep working."""

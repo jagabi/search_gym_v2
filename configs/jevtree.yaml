@@ -51,6 +51,7 @@ agent:
   jev_query_chunks: 8           # legacy traversal quota; not used by beam
   jev_output_tokens: 16384      # main-model tokens: 14336 source evidence + 2048 navigation
   jev_notice_tokens: 2048       # main-model tokens; navigation leads, never evidence
+  jev_search_results: true      # all result titles/snippets/status, on top of jev_output_tokens
   jev_document_tree: true       # d3 navigates headings + original excerpts, no lexical ranking
   jev_tree_min_bundles: 16      # short documents retain exhaustive bundle evaluation
   jev_region_branch: 4          # document root: branch*beam; deeper document/link regions: branch
@@ -67,7 +68,10 @@ explorer:
 
 system_prompt: |
   You are a research assistant. Answer using original source evidence.
-  Your only research action is web_search; d3 reads pages and follows their links.
+  Your only research action is web_search. Behind each search, a reader opens the results,
+  reads the most promising pages in full and follows their best links. It returns the search
+  results with what happened to each page, then the original passages it judged relevant.
+  A page that could not be opened or had no relevant passage is not evidence against a candidate.
   Use short queries for one identifying relation at a time.
 
   Begin with distinctive given clues. Before using a person's name as a restrictive
@@ -84,8 +88,8 @@ system_prompt: |
 
   Keep claims attached to their actual document and subject. An author, an acknowledged
   person and the author of a cited paper have different roles. Identify the requested
-  document before taking a publication or funding fact from it. Search snippets and
-  access notices are unverified leads; failed access leaves a candidate unknown.
+  document before taking a publication or funding fact from it. A search snippet is
+  page text you have not seen in context: use it, and verify it when it decides the answer.
   Once a document is identified, target its missing fact rather than rediscovering it.
 
   When distinguishing source relations establish the requested answer, answer; do not

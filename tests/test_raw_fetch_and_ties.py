@@ -72,6 +72,41 @@ class FallbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((stats['curl_fallbacks'], stats['fetch_failed']), (0, 1))
 
 
+class SearchResultsBlockTests(unittest.IsolatedAsyncioTestCase):
+    async def test_all_snippets_lead_the_output_outside_its_budget(self):
+        async def fetch(url, *, engine):
+            if url.endswith('blocked'):
+                return Document(url, 'BLOCKED: evaluation material', is_error=True, retrieval='jina_browser')
+            if url.endswith('gated'):
+                return Document(url, 'Are you 18?', is_error=True, retrieval='jina_browser',
+                                retrieval_note='Too little readable text (9 characters)')
+            return Document(url, 'FINAL_FACT body. [Child](' + BASE + 'child)', title='Body')
+
+        results = [{'link': BASE+name, 'title': 'Title '+name, 'snippet': 'Snippet about '+name}
+                   for name in ('body', 'gated', 'blocked')]
+        decision = Decision(lambda state, key, ctx: .9 if 'FINAL_FACT' in state['page_text'] or key == 'inspect_value' else .01)
+        tree = RawTree(decision, config(jev_traversal='beam', jev_entries=3, jev_frontier_width=2,
+                       jev_depth=2, jev_fetch_budget=6, jev_bundle_tokens=4096, jev_page_tokens=4096,
+                       jev_link_floor=.1, jev_output_tokens=3000, jev_notice_tokens=500,
+                       jev_search_results=True), fetch)
+        _, text, stats = await tree.run_search('q', results, question='original', trace=Capture(), usage=None)
+        self.__class__.sample = text
+        block, _, rest = text.partition('\n\nExcerpts from the pages read')
+        self.assertTrue(block.startswith('Search results for "q"'))
+        self.assertIn('[1] Title body\n' + BASE + 'body\nPage: read; its relevant passages are in the '
+                      'excerpts below.\nSnippet about body', block)
+        self.assertIn('Page: could not be opened: only a consent, age or bot-check screen came back.\n'
+                      'Snippet about gated', block)
+        self.assertNotIn('blocked', block)
+        self.assertNotIn('NOT answer evidence', text)
+        self.assertIn('FINAL_FACT', rest)
+        notice = rest.partition('Pages reached through links:')[2]
+        self.assertIn('- ' + BASE + 'child (link "Child" on ' + BASE + 'body, link score 0.90): read', notice)
+        self.assertNotIn('Snippet about', notice)      # search results are not repeated there
+        self.assertGreater(stats['search_results_tokens'], 0)
+        self.assertLessEqual(stats['body_output_tokens'] + stats['notice_output_tokens'], 3000)
+
+
 class NearTieTests(unittest.IsolatedAsyncioTestCase):
     def test_take_widens_only_within_margin_and_cap(self):
         take = lambda rows, margin, cap=4: near_tie_take(rows, lambda v: v, 2, margin, cap)
