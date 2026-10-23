@@ -35,6 +35,7 @@ from dataclasses import asdict
 from tqdm import tqdm
 from pathlib import Path
 
+from searchgym.agent import RAW_METHODS
 from searchgym.benchmarks import load_benchmark
 from searchgym.config import load_test
 from searchgym.judge import Judge
@@ -47,7 +48,7 @@ from searchgym.serving import profile_for
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="검색 방법을 벤치마크에서 평가한다")
     parser.add_argument("--conf", default="conf.yaml")
-    parser.add_argument("--method", default=None, help="ragent | search-o1 | depthsearch")
+    parser.add_argument("--method", default=None, help="ragent | search-o1 | depthsearch | jevtree | search-o1-decision")
     parser.add_argument("--model", default=None, help="qwen | gpt-oss | gemma")
     parser.add_argument('--decision-provider', choices=('d3', 'pplx'),
                         help='Required for jevtree: local d3 or Perplexity Decisions')
@@ -61,12 +62,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--prompt", default=None, help="메인 시스템 프롬프트를 파일에서 읽는다")
     parser.add_argument("--explorer-prompt", default=None, help="explorer 프롬프트 파일")
     parser.add_argument("--no-cache", action="store_true")
-    parser.add_argument("--raw-traversal", choices=("beam", "best_first", "progressive"), default=None,
+    parser.add_argument("--raw-traversal", choices=("beam", "best_first", "progressive", "flat"), default=None,
                         help="RawTree 탐색 정책 비교 (browser 수집·원문 청크 전달은 동일)")
-    parser.add_argument("--expect-raw-traversal", choices=("beam", "best_first", "progressive"), default=None,
+    parser.add_argument("--expect-raw-traversal", choices=("beam", "best_first", "progressive", "flat"), default=None,
                         help="Fail before model calls if the resolved policy differs")
     parser.add_argument("--raw-link-floor", type=float, default=None,
                         help="RawTree 링크 확장 최소 점수 (예: 0 또는 0.01)")
+    parser.add_argument("--top-n", type=int, default=None,
+                        help="search-o1-decision: 검색당 메인에 넘길 상위 묶음 수 (0 = 본문 예산까지 전부)")
     parser.add_argument("--raw-query-pages", type=int, default=None,
                         help="RawTree 쿼리용 청킹 페이지 수; 원질문 몫과 합산해 총 읽기 예산 갱신")
     parser.add_argument("--retry-errors", action="store_true",
@@ -108,12 +111,13 @@ async def main_async(argv: list[str] | None = None) -> int:
         raw_traversal=args.raw_traversal,
         raw_link_floor=args.raw_link_floor,
         raw_query_pages=args.raw_query_pages,
+        raw_top_n=args.top_n,
         expected_raw_traversal=args.expect_raw_traversal,
         decision_provider=args.decision_provider,
     )
-    if config.method == 'jevtree' and args.decision_provider is None:
+    if config.method in RAW_METHODS and args.decision_provider is None:
         raise SystemExit('jevtree requires --decision-provider d3|pplx')
-    if config.method == 'jevtree' and config.agent.decision_provider == 'pplx' and not args.dry_run:
+    if config.method in RAW_METHODS and config.agent.decision_provider == 'pplx' and not args.dry_run:
         require_env('PERPLEXITY_API_KEY')
     from searchgym.raw_policy import raw_policy
     policy = raw_policy(config.agent, config.method)
@@ -130,7 +134,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         print("--resume 과 --no-cache 는 같이 못 씁니다.", file=sys.stderr)
         return 1
 
-    if config.method == "jevtree" and config.agent.jev_strategy != "raw" and not args.dry_run:
+    if config.method in RAW_METHODS and config.agent.jev_strategy != "raw" and not args.dry_run:
         try:
             require_env("TYPESAFE_API_KEY")
         except RuntimeError as exc:

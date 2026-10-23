@@ -2,7 +2,7 @@
 
 
 def raw_policy(config, method):
-    if method != "jevtree" or config.jev_strategy != "raw":
+    if method not in ("jevtree", "search-o1-decision") or config.jev_strategy != "raw":
         return None
     progressive = config.jev_traversal == "progressive"
     return {
@@ -59,6 +59,11 @@ def raw_policy(config, method):
                            "links": "joint_with_evidence_keys_on_observed_bundle",
                            "link_question": "compact_record_route_with_destination_url",
                            "visited_links": "filtered_before_questions"} if config.jev_traversal == 'beam' else None,
+        "flat_reading": {"pages": "all_search_results", "inspection_gate": None, "links": None,
+                         "document_routing": None, "bundle_question": "evidence_value",
+                         "returned": f"top {config.jev_top_n or 'all'} bundles by evidence_value within body budget",
+                         "evidence_floor": config.jev_floor}
+                        if config.jev_traversal == 'flat' else None,
         "evidence_first": False,
         "read_dedup": config.jev_read_dedup,
         "navigation_notice_tokens": config.jev_notice_tokens,

@@ -22,7 +22,7 @@ from typing import Any
 
 import yaml
 
-from .agent import METHODS, AgentConfig
+from .agent import METHODS, RAW_METHODS, AgentConfig
 from .benchmarks import BENCHMARKS
 from .explorer import ExplorerConfig
 from .judge import JudgeConfig
@@ -177,7 +177,7 @@ class TestConfig:
 
     def describe(self) -> dict[str, Any]:
         budget = f"search {self.agent.max_searches}"
-        if self.method == "jevtree" and self.agent.jev_strategy == "raw":
+        if self.method in RAW_METHODS and self.agent.jev_strategy == "raw":
             budget += (f" / {self.agent.jev_traversal} / browser pages {self.agent.jev_fetch_budget}"
                        f" / depth {self.agent.jev_depth} / chunk pages "
                        f"{self.agent.jev_direct_reads}+{self.agent.jev_query_reads}")
@@ -237,6 +237,7 @@ def load_test(
     raw_traversal: str | None = None,
     raw_link_floor: float | None = None,
     raw_query_pages: int | None = None,
+    raw_top_n: int | None = None,
     expected_raw_traversal: str | None = None,
     decision_provider: str | None = None,
 ) -> TestConfig:
@@ -280,13 +281,15 @@ def load_test(
         config.agent.model_name = outer.served_model_name
     if tag:
         config.run.tag = tag
-    if any(v is not None for v in (raw_traversal, raw_link_floor, raw_query_pages)):
-        if config.method != "jevtree" or config.agent.jev_strategy != "raw":
+    if any(v is not None for v in (raw_traversal, raw_link_floor, raw_query_pages, raw_top_n)):
+        if config.method not in RAW_METHODS or config.agent.jev_strategy != "raw":
             raise ValueError("--raw-* overrides require jevtree with jev_strategy=raw")
         if raw_traversal is not None:
             config.agent.jev_traversal = raw_traversal
         if raw_link_floor is not None:
             config.agent.jev_link_floor = raw_link_floor
+        if raw_top_n is not None:
+            config.agent.jev_top_n = raw_top_n
         if raw_query_pages is not None:
             if config.agent.jev_direct_reads is None:
                 raise ValueError("RawTree requires an explicit direct page quota")
@@ -295,7 +298,7 @@ def load_test(
     if expected_raw_traversal is not None:
         config.agent.jev_expected_traversal = expected_raw_traversal
     if decision_provider is not None:
-        if config.method != 'jevtree' or config.agent.jev_strategy != 'raw':
+        if config.method not in RAW_METHODS or config.agent.jev_strategy != 'raw':
             raise ValueError('--decision-provider requires jevtree with jev_strategy=raw')
         if decision_provider not in ('d3', 'pplx'):
             raise ValueError('decision_provider must be d3 or pplx')
@@ -306,7 +309,7 @@ def load_test(
     _validate(config)
     expected = config.agent.jev_expected_traversal
     if expected and (
-            config.method != "jevtree" or config.agent.jev_strategy != "raw"
+            config.method not in RAW_METHODS or config.agent.jev_strategy != "raw"
             or config.agent.jev_traversal != expected):
         raise ValueError(f"Expected raw traversal {expected!r}, got "
                          f"{config.method}/{config.agent.jev_strategy}/{config.agent.jev_traversal}")
@@ -420,7 +423,7 @@ def _validate(config: TestConfig) -> None:
                 "max_depth 가 1보다 크면 max_subtree_children 도 1 이상이어야 합니다."
             )
 
-    if config.method == "jevtree":
+    if config.method in RAW_METHODS:
         if config.agent.jev_strategy not in ("level", "lds", "raw"):
             raise ValueError("jev_strategy must be level, lds or raw")
         if config.agent.jev_strategy == "raw":
@@ -429,8 +432,12 @@ def _validate(config: TestConfig) -> None:
                 raise ValueError('decision_provider must be d3 or pplx')
             from .local_reader import local_reader_url
             local_reader_url(a.jev_base_url)
-            if a.jev_traversal not in ("beam", "best_first", "progressive"):
-                raise ValueError("RawTree jev_traversal must be beam, best_first, or progressive")
+            if a.jev_traversal not in ("beam", "best_first", "progressive", "flat"):
+                raise ValueError("RawTree jev_traversal must be beam, best_first, progressive, or flat")
+            if (a.jev_traversal == "flat") != (config.method == "search-o1-decision"):
+                raise ValueError("flat traversal is the search-o1-decision method, and that method requires it")
+            if type(a.jev_top_n) is not int or a.jev_top_n < 0:
+                raise ValueError("jev_top_n must be a nonnegative integer")
             if not 0 <= a.jev_link_floor <= 1 or not 0 <= a.jev_floor <= 1:
                 raise ValueError("RawTree score floors must be between 0 and 1")
             if not 0 <= a.jev_tie_margin <= 1 or type(a.jev_tie_width) is not int or a.jev_tie_width < 0:

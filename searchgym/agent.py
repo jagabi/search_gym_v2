@@ -34,9 +34,11 @@ from .jevtree import Jev, JevTree, SEARCH_FOLLOWUP
 from .research_state import (ResearchState, CONTROL_PROMPT, SELECT_PROMPT, SELECT_FETCH_TOOL, ENTRY_PROMPT, entry_prompt,
                              parse_control, is_search_endpoint, batch_fetch_tool, entry_return_messages)
 
-__all__ = ["METHODS", "AgentConfig", "RunResult", "SearchAgent", "Step"]
+__all__ = ["METHODS", "RAW_METHODS", "AgentConfig", "RunResult", "SearchAgent", "Step"]
 
-METHODS = ("ragent", "search-o1", "depthsearch", "jevtree")
+METHODS = ("ragent", "search-o1", "depthsearch", "jevtree", "search-o1-decision")
+# Methods served by the RawTree reader (search-o1-decision is its flat traversal).
+RAW_METHODS = ("jevtree", "search-o1-decision")
 
 SEARCH_EXHAUSTED = (
     "web_search limit reached — you have used all {used} of your {limit} searches and "
@@ -178,6 +180,7 @@ class AgentConfig:
     jev_diverse_reads: bool = False  # d3 estimates marginal evidence against selected pages
     jev_notice_tokens: int = 0       # URL-specific navigation/access state, never evidence
     jev_search_results: bool = False # every result's title/snippet/status, outside jev_output_tokens
+    jev_top_n: int = 0               # flat traversal: bundles returned per search (0 = budget only)
     jev_document_tree: bool = False
     jev_tree_min_bundles: int = 16   # shorter documents retain exhaustive coarse scoring
     jev_region_branch: int = 4
@@ -371,17 +374,17 @@ class SearchAgent:
             timeout_s=self.config.timeout_s,
             model_name=self.config.model_name,
         )
-        if method == "jevtree" and self.config.jev_strategy == "raw":
+        if method in RAW_METHODS and self.config.jev_strategy == "raw":
             from .rawtree import LocalDecision
             from .pplx_decision import PerplexityDecision
             self.jev = (PerplexityDecision(self.config) if self.config.decision_provider == 'pplx'
                         else LocalDecision(self.config))
         else:
-            self.jev = Jev(self.config.jev_model) if method == "jevtree" else None
+            self.jev = Jev(self.config.jev_model) if method in RAW_METHODS else None
 
     @property
     def progressive_raw(self) -> bool:
-        return self.method == "jevtree" and self.config.jev_strategy == "raw" and self.config.jev_traversal == "progressive"
+        return self.method in RAW_METHODS and self.config.jev_strategy == "raw" and self.config.jev_traversal == "progressive"
 
     @property
     def uses_explorer(self) -> bool:
@@ -403,7 +406,7 @@ class SearchAgent:
         _available_specs에서 검색만 허용한다. 이전 선택기 모드 DS와
         search-o1은 검색 내부에서 읽기를 실행하므로 메인에는 검색만 제공한다.
         """
-        if self.method == "jevtree":
+        if self.method in RAW_METHODS:
             return ["web_search"]
         if self.relational_reading or self.method == "search-o1" or (self.method == "depthsearch" and self.config.depthsearch_control
                                           and not self.independent_clues):
@@ -479,7 +482,7 @@ class SearchAgent:
         if self.progressive_raw:
             from .raw_research import raw_specs
             specs = raw_specs(specs, cfg.jev_parent_limit)
-        if self.method == "jevtree" and not self.progressive_raw:
+        if self.method in RAW_METHODS and not self.progressive_raw:
             specs = copy.deepcopy(specs)
             for spec in specs:
                 if spec["function"]["name"] == "web_search":
@@ -603,7 +606,7 @@ class SearchAgent:
                 result.steps.append(step)
 
                 active_specs = self._available_specs(specs, result)
-                if (self.method == 'jevtree' and cfg.jev_strategy == 'raw'
+                if (self.method in RAW_METHODS and cfg.jev_strategy == 'raw'
                         and not self.progressive_raw and not active_specs
                         and result.searches >= cfg.max_searches):
                     # The last search has completed: replace research instructions
@@ -813,7 +816,7 @@ class SearchAgent:
                 result.stop_reason = "salvaged"
                 trace.event("run.salvaged", answer_chars=len(salvaged))
 
-        if (self.method == 'jevtree' and cfg.jev_strategy == 'raw'
+        if (self.method in RAW_METHODS and cfg.jev_strategy == 'raw'
                 and not result.answer.strip()):
             # Keep model-output failure distinct from successful synthesis. This
             # is an explicit failure response, never a guessed research answer.
@@ -843,7 +846,7 @@ class SearchAgent:
             ) or (s["function"]["name"] == "read_source" and state and state.sources)
               or (s["function"]["name"] == "continue_search" and state and
                   any(v.get("can_continue") or v.get("can_retarget") for v in state.sessions.values()))]
-        if self.method == "jevtree":
+        if self.method in RAW_METHODS:
             return [s for s in specs if not result.context_exhausted
                     and s['function']['name'] == 'web_search'
                     and result.searches < self.config.max_searches]
@@ -915,7 +918,7 @@ class SearchAgent:
         오류 복구와 기존 baseline 경로는 질문·도구 결과로 답변을 재구성한다.
         복구 오류가 원래 오류를 덮지 않도록 여기서는 예외를 반환하지 않는다.
         """
-        answer_only = answer_only or (self.method == 'jevtree' and self.config.jev_strategy == 'raw')
+        answer_only = answer_only or (self.method in RAW_METHODS and self.config.jev_strategy == 'raw')
         if answer_only:
             question = next((m for m in messages if m.get("role") == "user"), None)
             # Keep the original question and every returned source, but remove
@@ -1085,7 +1088,7 @@ class SearchAgent:
                     trace.event("tool.invalid_arguments", tool=name, arguments=arguments, error=str(exc))
                     return record.result
 
-        if name == "web_fetch" and (self.method == "jevtree" or (
+        if name == "web_fetch" and (self.method in RAW_METHODS or (
                 self.method == "depthsearch" and (cfg.depthsearch_control or self.relational_reading)
                 and not self.independent_clues)):
             record.refused = True
@@ -1173,7 +1176,7 @@ class SearchAgent:
             result.invalid_tool_calls += 1
 
         suffix = ""
-        if self.method == "jevtree" and name == "web_search" and not self.progressive_raw:
+        if self.method in RAW_METHODS and name == "web_search" and not self.progressive_raw:
             suffix = "\n\n" + SEARCH_FOLLOWUP.format(
                 query=json.dumps(str(arguments.get("query") or ""), ensure_ascii=False))
         text, truncated = await self._fit(text, result, suffix=suffix)
@@ -1443,7 +1446,7 @@ class SearchAgent:
             result.fetch_attempts += 1
         started = time.perf_counter()
         document = await tools.fetch(url, engine=engine) if engine else await tools.fetch(url)
-        if self.method == "jevtree":
+        if self.method in RAW_METHODS:
             trace.event("fetch.raw", url=url, content=document.content, is_error=document.is_error,
                         retrieval=document.retrieval, reader_metadata=document.reader_metadata,
                         duration_ms=round((time.perf_counter()-started)*1000, 1))

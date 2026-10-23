@@ -209,7 +209,7 @@ class Runner:
         semaphore = asyncio.Semaphore(self.workers)
 
         async with WebTools(search_results=self.agent.config.search_results) as tools:
-            if self.method == "jevtree" and self.agent.config.jev_strategy == "raw":
+            if self.method in ("jevtree", "search-o1-decision") and self.agent.config.jev_strategy == "raw":
                 await self.agent.jev.prepare()
             async def one(item: Item) -> Record:
                 async with semaphore:
@@ -274,7 +274,8 @@ class Runner:
         빠지면 depth 1 결과를 depth 3 실행이 조용히 재사용한다.
         """
         return digest(
-            {"depthsearch": DEPTHSEARCH_CACHE_VERSION, "jevtree": JEVTREE_CACHE_VERSION}.get(
+            {"depthsearch": DEPTHSEARCH_CACHE_VERSION, "jevtree": JEVTREE_CACHE_VERSION,
+             "search-o1-decision": JEVTREE_CACHE_VERSION}.get(
                 self.method, CACHE_VERSION),
             self.method,
             self.profile.repo,
