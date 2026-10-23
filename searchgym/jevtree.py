@@ -42,9 +42,17 @@ MAX_LINKS = 300
 
 SEARCH_FOLLOWUP = """Next action:
 The results above were obtained using the query {query}.
-If the evidence collected so far answers the original question, give the final answer now.
-Otherwise search for one unverified fact about a promising candidate or connection; with
-no new lead, start from a different clue or source type instead of rephrasing this query."""
+
+Use these results together with all evidence collected so far. If they support
+an answer to the original question, return the final answer instead of searching again.
+
+If you cannot answer yet and another search is available:
+- If you found a promising candidate or a new connection, use it to search for
+  a specific fact that is still unverified.
+- If you gained no new lead, abandon the current approach. Start from a different
+  clue, relationship, or type of source in the original question.
+- Do not repeat the previous query with only a number, a few keywords, or synonyms
+  changed. The next query must seek different information, not rephrase the same search."""
 
 ENTRY_NOTE = "Prioritize answering search_query; direct evidence for question also counts."
 IDENTIFICATION_QUESTION = {
