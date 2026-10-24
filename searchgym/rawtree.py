@@ -21,13 +21,13 @@ import httpx
 
 from .explorer import _norm
 from .jevtree import MAX_LINKS, JevUsage, TreeNode, candidate_links
-from .jevtree_input import complete_prefix, numbered_page
+from .jevtree_input import complete_prefix, numbered_page, strip_links
 from .local_reader import local_reader_url
 from .raw_chunks import SourceChunker
 from .raw_navigation import marker_context, partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/37"
+VERSION = "raw-browser-d3-navigation-docling/39"
 # Maximum number of decision keys accepted by /v1/systemone.
 D3_MAX_QUESTIONS = 64
 
@@ -1514,7 +1514,9 @@ class RawTree:
             stats["direct_reads" if row["objective"] == "direct_answer" else "query_reads"] += 1
             # Local CPU only; no summary model call and no document prefix cutoff.
             chunk_started = time.perf_counter()
-            chunks, bundles, cache_hit = await self._chunks(doc.content)
+            # Flat reading follows no links, so their destinations are only noise.
+            body = strip_links(doc.content) if flat else doc.content
+            chunks, bundles, cache_hit = await self._chunks(body)
             if visited is not None or flat:
                 state_of = ((lambda text: self._joint_input(n, text, question, query, visited)[0])
                             if visited is not None else (lambda text: self._flat_state(n, text)))
@@ -1536,7 +1538,7 @@ class RawTree:
             bundle_ms = round(1000*(time.perf_counter()-bundle_started))
             stats["bundling_ms"] += bundle_ms
             trace.event("rawtree.chunk_timing", search_id=search_id, node_id=n.node_id,
-                        source_chars=len(doc.content), chunk_count=len(chunks), bundle_count=len(bundles),
+                        source_chars=len(doc.content), body_chars=len(body), chunk_count=len(chunks), bundle_count=len(bundles),
                         chunking_ms=chunk_ms, bundling_ms=bundle_ms)
 
             links_remaining = MAX_LINKS

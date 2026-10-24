@@ -59,7 +59,8 @@ def raw_policy(config, method):
                            "links": "joint_with_evidence_keys_on_observed_bundle",
                            "link_question": "compact_record_route_with_destination_url",
                            "visited_links": "filtered_before_questions"} if config.jev_traversal == 'beam' else None,
-        "flat_reading": {"pages": "all_search_results", "inspection_gate": None, "links": None,
+        "flat_reading": {"pages": "all_search_results", "inspection_gate": None,
+                         "links": "not_followed; destinations and images stripped before chunking",
                          "document_routing": None, "bundle_question": "evidence_value",
                          "returned": f"top {config.jev_top_n or 'all'} bundles by evidence_value within body budget",
                          "evidence_floor": config.jev_floor}
@@ -67,6 +68,7 @@ def raw_policy(config, method):
         "evidence_first": False,
         "read_dedup": config.jev_read_dedup,
         "navigation_notice_tokens": config.jev_notice_tokens,
+        "search_followup_notice": config.jev_search_followup,
         "navigation_notice_items": "linked_pages_only" if config.jev_search_results else "search_results_and_linked_pages",
         "search_results_block": {"fields": ["rank", "title", "url", "status", "snippet"],
                                  "position": "before_excerpts",

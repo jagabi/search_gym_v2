@@ -4,12 +4,35 @@ import re
 from .explorer import _balanced_markdown_links, _balanced_url_tokens, _norm
 
 INPUT_VERSION = 'query-and-original/2'
+_IMAGE_START = re.compile(r"!\[[^\]]*\]\(\s*<?(?=https?://)")
 LINK_CRITERIA = {'true': 'Helps answer the query or directly answers the original question.',
                  'false': 'Unrelated or navigation.'}
 
 
 def _unescape(url: str) -> str:
     return re.sub(r'\\([\\`*_{}\[\]()#+\-.!~])', r'\1', url)
+
+
+def strip_links(text: str) -> str:
+    """Drop Markdown images and link destinations, keeping link labels.
+
+    For reading without link following. Images go first so a linked image
+    ``[![alt](img)](url)`` collapses to an empty link. Bare URLs in prose stay.
+    """
+    tokens = {start: end for start, end, _url in _balanced_url_tokens(text)}
+    out, last = [], 0
+    for match in _IMAGE_START.finditer(text):
+        end = tokens.get(match.end())
+        closer = re.match(r'>?\s*(?:"[^"\n]*"\s*)?\)', text[end:]) if end is not None else None
+        if closer and match.start() >= last:
+            out.append(text[last:match.start()])
+            last = end + closer.end()
+    text = ''.join(out) + text[last:]
+    out, last = [], 0
+    for start, end, label, _url in _balanced_markdown_links(text):
+        out.append(text[last:start] + label)
+        last = end
+    return ''.join(out) + text[last:]
 
 
 def complete_prefix(source: str, prefix: str) -> str:

@@ -57,6 +57,16 @@ class FlatReadingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('BEST fact', text)
         self.assertNotIn('weak text only', text.partition('Excerpts from the pages read')[2])
         self.assertIn('read in full; its passages ranked below the top excerpts.', text)
+        scored = ' '.join(s['page_text'] for s, _, _ in decision.calls)
+        self.assertNotIn(BASE + 'never', scored)                     # link destinations are not scored
+        self.assertIn('Link', scored)                                 # its label stays
+
+    def test_strip_links_keeps_labels_and_drops_images(self):
+        from searchgym.jevtree_input import strip_links
+        page = ('See [Ten Words](https://en.wikipedia.org/wiki/China_(book)) and '
+                '[![Image 1](https://img.example/a.jpg)](https://example.org/x) photo. '
+                '![Image 2: cover](https://img.example/b.png) Bare https://example.org/cite stays.')
+        self.assertEqual(strip_links(page), 'See Ten Words and  photo.  Bare https://example.org/cite stays.')
 
     async def test_top_zero_keeps_every_bundle_within_budget(self):
         bodies = {'a': 'GOOD one.', 'b': 'BEST two.', 'c': 'GOOD three.'}
@@ -73,7 +83,10 @@ class FlatConfigTests(unittest.TestCase):
         self.assertEqual(policy['traversal'], 'flat')
         self.assertIsNone(policy['branch_control'])
         self.assertEqual(policy['flat_reading']['pages'], 'all_search_results')
-        self.assertIn('scores all of its passages', cfg.system_prompt)
+        self.assertIn('open every result page', cfg.system_prompt)
+        self.assertNotIn('Birthplace', cfg.system_prompt)              # no tuned research rules
+        self.assertFalse(a.jev_search_followup)
+        self.assertFalse(policy['search_followup_notice'])
 
     def test_flat_belongs_only_to_search_o1_decision(self):
         with self.assertRaises(ValueError):

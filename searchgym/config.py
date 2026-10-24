@@ -477,6 +477,10 @@ def _validate(config: TestConfig) -> None:
         raise ValueError("agent.jev_model 은 jevtree 에서만 씁니다.")
 
     # 자동 페치는 search-o1 만 한다. 나머지 둘은 메인 모델이 검색 결과를 보고 고른다.
+    if config.agent.o1_batch_reading and config.method != "search-o1":
+        raise ValueError("o1_batch_reading 은 search-o1 의 Reason-in-Documents 설정입니다.")
+    if config.agent.fetch_max_chars < 0 or config.agent.o1_doc_context_chars < 1:
+        raise ValueError("fetch_max_chars 는 0 이상, o1_doc_context_chars 는 1 이상이어야 합니다.")
     if config.method == "search-o1":
         if config.agent.search_top_k <= 0:
             raise ValueError("search-o1 은 agent.search_top_k 가 1 이상이어야 합니다.")

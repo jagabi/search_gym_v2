@@ -1,14 +1,19 @@
 # Search-o1 — agentic RAG + Reason-in-Documents (Li et al., 2025).
 #
-# 모델은 검색만 한다. 검색당 상위 k개를 자동으로 페치해 explorer(= RiD 모듈)가
-# 한 번에 읽고 요약하며, 그 요약만 메인 추론 체인에 들어간다.
+# 모델은 검색만 한다. 검색당 상위 10개를 자동으로 페치하고, Reason-in-Documents 호출
+# **한 번**이 10개 문서를 함께 읽어 `Final Information` 만 메인 추론 체인에 넣는다.
 #
-# depthsearch 와 같은 코드 경로를 쓴다. 다른 것은 explorer.max_depth 뿐이다.
+# 설정은 Search-o1 저장소(scripts/run_search_o1.py, bing_search.py, prompts.py)를 따른다:
+# 문서는 jina 마크다운에서 URL을 지운 앞 8000자, 그 안에서 스니펫과 가장 맞는 문장의
+# 앞뒤 3000자. RiD 입력의 이전 추론은 첫 단계·마지막 4단계·검색 단계만 남긴다.
+# 반복 검색어는 실행하지 않고 안내만 준다. 바꾼 것: 검색 API(Bing → Serper), 도구 호출
+# 방식(특수토큰 → 함수 호출), 모델·샘플링(모델 권장값 유지), 문장 분할(nltk 대신 저장소에
+# 주석으로 남아 있는 정규식).
 
 agent:
   base_url: http://127.0.0.1:8000/v1
   max_tokens: 8192
-  max_turns: 40
+  max_turns: 15                 # 원본 MAX_TURN (multi-hop QA)
   timeout_s: 600
 
   # 검색 예산. 세 방법이 같은 값을 써야 비교가 성립한다.
@@ -22,14 +27,18 @@ agent:
   # 답을 찾아서 멈추는 것이 아니라 예산이 남아서 계속 찾는다. 그래서 손잡이는
   # 예산이 아니라 "언제 멈추는가"이고, 그쪽은 시스템 프롬프트에서 건다.
   max_searches: 10
-  # 검색당 자동 페치 수. **원 논문과 같은 10.**
-  #
-  # 한때 5로 깎아 두었는데, 그 근거는 k개를 한 reader 에 묶어 넣어 문서 예산을
-  # 나눠 갖던 시절의 계산이었다. 지금은 페이지마다 reader 가 하나씩 붙어 각자
-  # max_document_tokens 를 통째로 받으므로 k 가 커져도 장당 분량은 그대로다.
-  # 근거가 사라진 값만 남아 있었고, 그동안 이 베이스라인만 웹을 절반만 봤다.
+  # 검색당 자동 페치 수. **원 저장소 top_k 와 같은 10.**
   search_top_k: 10
   search_results: 10            # serper 가 돌려주는 결과 수 (상위 k개만 페치)
+  # Search-o1 저장소(scripts/bing_search.py)의 페이지 처리: jina 마크다운에서 URL을
+  # 정규식으로 지우고 앞 8000자만 쓴다. 검색 결과는 organic 목록만 보여준다
+  # (Bing → Serper 로 바뀐 것 외에는 같다).
+  fetch_strip_urls: true
+  fetch_max_chars: 8000
+  search_extras: false
+  o1_batch_reading: true        # 검색당 RiD 한 번, 10개 문서를 함께
+  o1_doc_context_chars: 3000    # 원본 max_doc_len
+  repeat_query_notice: true     # 원본: 반복 검색어는 실행·계수하지 않음
 
   # 페치한 페이지 하나의 토큰 상한. **세 방법 공통** — 같은 분량의 웹을 봐야
   # 비교가 성립한다. 도구 서버는 토크나이저가 없어 자 단위로밖에 못 자르므로
@@ -47,23 +56,14 @@ agent:
   max_tool_recoveries: 2
 
 explorer:
-  # 1 = 재귀 없음. 페치한 문서를 읽고 요약만 한다 (= Search-o1 의 RiD).
+  # o1_batch_reading 에서는 RiD 호출 하나만 쓴다. max_tokens 가 그 출력 상한이고
+  # (원본 비-QwQ 모델 8192), 나머지 필드는 스키마 유지용이다.
   max_depth: 1
   max_expansion_nodes: 0
   max_subtree_children: 0
   max_turns: 1
-  # 정제 출력 상한. 추출 작업이라 실제로는 1~2K 면 충분하다. 크게 잡으면 문서 예산과
-  # 합쳐 컨텍스트를 넘기므로 8192 로 둔다.
   max_tokens: 8192
-  # **페이지 하나**의 토큰 상한. ragent 의 fetch_max_tokens · depthsearch 의
-  # max_document_tokens 와 같은 값이어야 세 방법이 같은 분량의 웹을 본 것이 된다.
-  #
-  # 상위 k개를 묶어서 한 번에 읽히지 않는다 — 페이지마다 explorer 를 하나씩 태우고
-  # 그 요약들을 이어 붙여 메인 모델에 올린다. 묶어서 주면 k개가 이 예산을 나눠 갖게
-  # 되어 페이지당 분량이 1/k 로 줄고(실측: 절단 41%, 다른 두 방법은 1%) 비교가
-  # 깨진다. 하나씩 주면 explorer 는 어느 방법에서든 늘 페이지 하나를 읽는다.
   max_document_tokens: 32768
-  # explorer 세션 하나의 컨텍스트 상한(자기 페이지 + 자식 요약 누적).
   context_limit: 122880
 
 # 메인 추론 모델의 시스템 프롬프트.
@@ -101,6 +101,8 @@ system_prompt: |
   - Call `web_search` to request a web search.
   - When done searching, continue your reasoning.
 
+# o1_batch_reading 에서는 쓰지 않는다. RiD 프롬프트는 원 저장소 문구 그대로 코드에 있다
+# (searchgym/agent.py O1_REASON_IN_DOCUMENTS). 페이지별 reader 경로를 위해 남겨 둔다.
 explorer_prompt: |
   Task Instruction:
   You are tasked with reading and analyzing web pages based on the following inputs:

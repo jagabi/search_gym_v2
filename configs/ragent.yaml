@@ -5,6 +5,10 @@
 #
 # 모델이 검색 결과를 보고 열 URL을 직접 고르고, 페치 원문(jina 마크다운)이 정제 없이
 # 그대로 메인 컨텍스트에 들어간다. explorer가 없다.
+#
+# 설정은 Search-o1 저장소(scripts/run_rag_agent.py, bing_search.py)를 따른다.
+# 검색 API(Bing → Serper), 도구 호출 방식(특수토큰 → 함수 호출), 모델·샘플링은 바꾸지 않는다.
+# 검색 예산은 다른 방법과 같은 10회, URL 페치는 모델이 정한다(원본 기본 5회 상한은 두지 않음).
 
 agent:
   base_url: http://127.0.0.1:8000/v1
@@ -26,7 +30,13 @@ agent:
   # 예산이 아니라 "언제 멈추는가"이고, 그쪽은 시스템 프롬프트에서 건다.
   max_searches: 10
   max_fetches: 0                # 0 = 무제한. 모델이 고르는 쪽이라 굳이 막지 않는다
-  search_results: 10            # 모델에게 보여줄 검색 결과 수
+  search_results: 10            # 모델에게 보여줄 검색 결과 수 (원본 top_k 10)
+  # Search-o1 저장소(scripts/bing_search.py)의 페이지 처리: jina 마크다운에서 URL을
+  # 정규식으로 지우고 앞 8000자만 쓴다. 검색 결과는 organic 목록만 보여준다
+  # (Bing → Serper 로 바뀐 것 외에는 같다).
+  fetch_strip_urls: true
+  fetch_max_chars: 8000
+  search_extras: false
 
   # 페치한 페이지 하나의 토큰 상한. **세 방법 공통** — 같은 분량의 웹을 봐야
   # 비교가 성립한다. 도구 서버는 토크나이저가 없어 자 단위로밖에 못 자르므로

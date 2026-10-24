@@ -70,6 +70,49 @@ FINAL_SYSTEM = (
     "is incomplete. If the evidence cannot establish an answer, state that explicitly. "
     "Return a nonempty final response, not a research plan. Do not invent missing facts."
 )
+# Search-o1 repository, scripts/prompts.py get_webpage_to_reasonchain_instruction (verbatim).
+O1_REASON_IN_DOCUMENTS = """**Task Instruction:**
+
+You are tasked with reading and analyzing web pages based on the following inputs: **Previous Reasoning Steps**, **Current Search Query**, and **Searched Web Pages**. Your objective is to extract relevant and helpful information for **Current Search Query** from the **Searched Web Pages** and seamlessly integrate this information into the **Previous Reasoning Steps** to continue reasoning for the original question.
+
+**Guidelines:**
+
+1. **Analyze the Searched Web Pages:**
+- Carefully review the content of each searched web page.
+- Identify factual information that is relevant to the **Current Search Query** and can aid in the reasoning process for the original question.
+
+2. **Extract Relevant Information:**
+- Select the information from the Searched Web Pages that directly contributes to advancing the **Previous Reasoning Steps**.
+- Ensure that the extracted information is accurate and relevant.
+
+3. **Output Format:**
+- **If the web pages provide helpful information for current search query:** Present the information beginning with `**Final Information**` as shown below.
+**Final Information**
+
+[Helpful information]
+
+- **If the web pages do not provide any helpful information for current search query:** Output the following text.
+
+**Final Information**
+
+No helpful information found.
+
+**Inputs:**
+- **Previous Reasoning Steps:**  
+{prev_reasoning}
+
+- **Current Search Query:**  
+{search_query}
+
+- **Searched Web Pages:**  
+{document}
+
+Now you should analyze each web page and find helpful information based on the current search query "{search_query}" and previous reasoning steps.
+"""
+REPEATED_QUERY = "You have searched this query. Please refer to previous results."
+O1_BEGIN_SEARCH_QUERY, O1_END_SEARCH_QUERY = "<|begin_search_query|>", "<|end_search_query|>"
+O1_BEGIN_SEARCH_RESULT, O1_END_SEARCH_RESULT = "<|begin_search_result|>", "<|end_search_result|>"
+
 CONTEXT_EXHAUSTED = (
     "\n\n[Context limit reached. The result above was truncated and no further tool "
     "output can be added. Answer the question now from what you have gathered.]"
@@ -119,6 +162,19 @@ class AgentConfig:
     search_results: int = 10
     # search-o1의 검색당 자동 페치 수. DS 선택적 진입은 depthsearch_control로 제어.
     search_top_k: int = 0
+
+    # Search-o1 repository settings for the ragent/search-o1 baselines (off by default).
+    # bing_search.extract_text_from_url: strip URLs from the jina markdown, keep text[:8000].
+    fetch_strip_urls: bool = False
+    fetch_max_chars: int = 0
+    # Serper answer box / knowledge graph / related searches; the repo shows organic results only.
+    search_extras: bool = True
+    # run_search_o1.py: one Reason-in-Documents call per search over all top-k pages,
+    # each cut to +-o1_doc_context_chars around the sentence best matching its snippet.
+    o1_batch_reading: bool = False
+    o1_doc_context_chars: int = 3000
+    # run_search_o1.py: a repeated query is answered with a notice and not counted.
+    repeat_query_notice: bool = False
 
     # 페치한 페이지 하나의 토큰 상한. **세 방법이 같은 값을 써야** 같은 분량의 웹을
     # 본 것이 된다 — ragent 는 이걸 원문 그대로 대화에 넣고, 나머지 둘은 explorer 에게
@@ -181,6 +237,7 @@ class AgentConfig:
     jev_notice_tokens: int = 0       # URL-specific navigation/access state, never evidence
     jev_search_results: bool = False # every result's title/snippet/status, outside jev_output_tokens
     jev_top_n: int = 0               # flat traversal: bundles returned per search (0 = budget only)
+    jev_search_followup: bool = True # append the SEARCH_FOLLOWUP "Next action" notice after each search
     jev_document_tree: bool = False
     jev_tree_min_bundles: int = 16   # shorter documents retain exhaustive coarse scoring
     jev_region_branch: int = 4
@@ -1125,6 +1182,13 @@ class SearchAgent:
             record.refused, record.result = True, notice
             trace.event("budget.search_exhausted", turn=step.turn, used=used)
             return notice
+        if name == "web_search" and cfg.repeat_query_notice and arguments["query"].strip() in {
+                c.query.strip() for c in result.tool_calls
+                if c is not record and c.name == "web_search" and not c.refused and c.query}:
+            record.refused, record.result = True, REPEATED_QUERY
+            record.result_chars = len(record.result)
+            trace.event("tool.repeated_query", turn=step.turn, query=arguments["query"])
+            return record.result
         if name == "web_fetch" and cfg.max_fetches and used + result.auto_fetches >= cfg.max_fetches:
             notice = FETCH_EXHAUSTED.format(used=used, limit=cfg.max_fetches)
             record.refused, record.result = True, notice
@@ -1176,7 +1240,8 @@ class SearchAgent:
             result.invalid_tool_calls += 1
 
         suffix = ""
-        if self.method in RAW_METHODS and name == "web_search" and not self.progressive_raw:
+        if (self.method in RAW_METHODS and name == "web_search" and not self.progressive_raw
+                and cfg.jev_search_followup):
             suffix = "\n\n" + SEARCH_FOLLOWUP.format(
                 query=json.dumps(str(arguments.get("query") or ""), ensure_ascii=False))
         text, truncated = await self._fit(text, result, suffix=suffix)
@@ -1237,6 +1302,8 @@ class SearchAgent:
         if leaked:
             record.leaked = leaked
             trace.event("contamination.filtered", turn=turn, removed=leaked)
+        if not self.config.search_extras:
+            parsed = {k: v for k, v in parsed.items() if k in ("organic", "filtered_results")}
 
         if result.research_state is not None and explorer is not None and not self.progressive_raw:
             state = result.research_state
@@ -1324,7 +1391,12 @@ class SearchAgent:
             if jevtree is not None:
                 notes = await self._jev_reading(jevtree, query, parsed, result, record,
                                                trace, question, main_reasoning)
-                if self.config.jev_strategy == 'raw' and self.config.jev_traversal == 'beam':
+                if self.config.jev_strategy == 'raw' and self.config.jev_search_results:
+                    # The search results block already lists every organic result.
+                    extras = {k: v for k, v in parsed.items() if k != "organic"}
+                    text = notes + ("\n\nOther search engine output:\n" + json.dumps(extras, ensure_ascii=False)
+                                    if extras else "")
+                elif self.config.jev_strategy == 'raw' and self.config.jev_traversal == 'beam':
                     text = notes + "\n\nUnverified search results for further navigation:\n" + text
                 else:
                     text += "\n\n" + notes
@@ -1356,6 +1428,11 @@ class SearchAgent:
             blocked=blocked,
             urls=[d.url for d in documents],
         )
+
+        if self.config.o1_batch_reading:
+            pairs = list(zip([e for e in entries if e.get("link")], documents))
+            text = await self._reason_in_documents(query, pairs, result, trace, turn)
+            return text, len(outcome.text)
 
         # **페이지 하나에 explorer 하나.** 묶어서 한 번에 읽히지 않는다.
         #
@@ -1391,6 +1468,36 @@ class SearchAgent:
         if answer_box := parsed.get("answer_box"):
             text = f"{text}\n\n**Search answer box:** {json.dumps(answer_box, ensure_ascii=False)}"
         return text, len(outcome.text)
+
+    async def _reason_in_documents(self, query: str, pairs: list, result: RunResult,
+                                   trace: Trace, turn: int) -> str:
+        """run_search_o1.py: every top-k page in one Reason-in-Documents call."""
+        pages = []
+        for i, (entry, doc) in enumerate(pairs):
+            snippet = str(entry.get("snippet") or "").replace("<b>", "").replace("</b>", "")
+            _, context = _snippet_context_like_search_o1(doc.content, snippet, self.config.o1_doc_context_chars)
+            info = {"id": i + 1, "title": str(entry.get("title") or ""), "url": str(entry.get("link") or ""),
+                    "date": str(entry.get("date") or ""), "snippet": snippet, "context": context}
+            pages.append(f"**Web Page {i + 1}:**\n" + json.dumps(info, ensure_ascii=False, indent=2) + "\n")
+        prompt = O1_REASON_IN_DOCUMENTS.format(
+            prev_reasoning=_truncated_reasoning_like_search_o1(result, query),
+            search_query=query, document="".join(pages))
+        messages = [{"role": "user", "content": prompt}]
+        if system := _system_prompt(None, self.profile.reasoning_effort):
+            messages.insert(0, {"role": "system", "content": system})
+        try:
+            reply = await self.llm.chat(messages, max_tokens=(self.explorer_config or ExplorerConfig()).max_tokens,
+                                        usage=result.usage)
+        except Exception as exc:  # A failed read must not end the question.
+            trace.event("search.reason_in_documents_failed", turn=turn, query=query, error=repr(exc))
+            return "No helpful information found."
+        raw = reply.text or ""
+        info = _final_information(raw)
+        result.explorer_calls += 1
+        trace.event("search.reason_in_documents", turn=turn, query=query, pages=len(pages),
+                    prompt_chars=len(prompt), raw_output=raw, extracted=info,
+                    reasoning_chars=len(reply.reasoning or ""), finish_reason=reply.finish_reason)
+        return info
 
     async def _jev_reading(self, jevtree: JevTree, query: str, parsed: dict[str, Any],
                            result: RunResult, record: ToolCall, trace: Trace,
@@ -1472,6 +1579,11 @@ class SearchAgent:
         # RawTree applies its own 5k prefix and chunks the *whole* browser body.
         if engine is not None:
             return document
+
+        if self.config.fetch_strip_urls:
+            document.content = _strip_urls_like_search_o1(document.content)
+        if self.config.fetch_max_chars:
+            document.content = document.content[:self.config.fetch_max_chars]
 
         document.content, truncated = await self.llm.cap(
             document.content, self.config.fetch_max_tokens
@@ -2007,6 +2119,81 @@ def _accumulated_reasoning(result: RunResult) -> str:
         elif step.text:
             blocks.append(f"[turn {step.turn}] {step.text.strip()}")
     return "\n\n".join(blocks)
+
+
+def _strip_urls_like_search_o1(text: str) -> str:
+    """bing_search.extract_text_from_url: drop URLs from the jina markdown and compact it."""
+    text = re.sub(r"\(https?:.*?\)|\[https?:.*?\]", "", text)
+    return text.replace('---', '-').replace('===', '=').replace('   ', ' ').replace('   ', ' ')
+
+
+def _snippet_context_like_search_o1(full_text: str, snippet: str, context_chars: int) -> tuple[bool, str]:
+    """bing_search.extract_snippet_with_context, with the repository's own regex
+    sentence split (the commented alternative to nltk) so no tokenizer data is needed."""
+    import string
+
+    def words(s):
+        return set(s.lower().translate(str.maketrans("", "", string.punctuation)).split())
+
+    def f1(a, b):
+        hit = len(a & b)
+        if not hit:
+            return 0.0
+        p, r = hit / len(b), hit / len(a)
+        return 2 * p * r / (p + r)
+
+    full_text = full_text[:50000]
+    target, best, best_f1 = words(snippet), None, 0.2
+    for sentence in re.split(r"(?<=[.!?]) +", full_text):
+        score = f1(target, words(sentence)) if target else 0.0
+        if score > best_f1:
+            best, best_f1 = sentence, score
+    if best is None:
+        return False, full_text[:context_chars * 2]
+    start = full_text.find(best)
+    return True, full_text[max(0, start - context_chars):min(len(full_text), start + len(best) + context_chars)]
+
+
+def _final_information(output: str) -> str:
+    """evaluate.extract_answer(mode='infogen')."""
+    if "**Final Information**" in output:
+        return output.split("**Final Information**")[-1].replace("\n", "").strip("```").strip()
+    if "**Modified Reasoning Steps**" in output:
+        return output.split("**Modified Reasoning Steps**")[-1].strip("```").strip()
+    return "No helpful information found."
+
+
+def _truncated_reasoning_like_search_o1(result: RunResult, query: str) -> str:
+    """run_search_o1.py: the first step, the last four and every search step.
+
+    The repository's sequence text is rebuilt from this run: model reasoning and
+    text, each executed query and the information returned for it.
+    """
+    parts = []
+    for step in result.steps:
+        parts += [s.strip() for s in (step.reasoning, step.text) if s and s.strip()]
+        for call in step.tool_calls:
+            if call.name != "web_search" or call.refused or not call.query:
+                continue
+            parts.append(f"{O1_BEGIN_SEARCH_QUERY}{call.query}{O1_END_SEARCH_QUERY}")
+            if isinstance(call.result, str) and call.result:
+                parts.append(f"{O1_BEGIN_SEARCH_RESULT}{call.result}{O1_END_SEARCH_RESULT}")
+    current = f"{O1_BEGIN_SEARCH_QUERY}{query}{O1_END_SEARCH_QUERY}"
+    if not parts or parts[-1] != current:
+        parts.append(current)
+    steps = "\n".join(parts).replace("\n\n", "\n").split("\n")
+    truncated = "".join(f"Step {i + 1}: {s}\n\n" for i, s in enumerate(steps))
+    prev = truncated.split("\n\n")
+    if len(prev) <= 5:
+        truncated = "\n\n".join(prev)
+    else:
+        truncated = ""
+        for i, s in enumerate(prev):
+            if i == 0 or i >= len(prev) - 4 or O1_BEGIN_SEARCH_QUERY in s or O1_BEGIN_SEARCH_RESULT in s:
+                truncated += s + "\n\n"
+            elif truncated[-len("\n\n...\n\n"):] != "\n\n...\n\n":
+                truncated += "...\n\n"
+    return truncated.strip("\n")
 
 
 def _system_prompt(system_prompt: str | None, reasoning_effort: str) -> str:
