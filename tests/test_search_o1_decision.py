@@ -78,7 +78,7 @@ class FlatConfigTests(unittest.TestCase):
     def test_method_config_selects_flat_reading(self):
         cfg = load_test(method='search-o1-decision')
         a = cfg.agent
-        self.assertEqual((a.jev_traversal, a.jev_depth, a.jev_top_n, a.jev_document_tree), ('flat', 1, 3, False))
+        self.assertEqual((a.jev_traversal, a.jev_depth, a.jev_top_n, a.jev_document_tree), ('flat', 1, 4, False))
         policy = raw_policy(a, cfg.method)
         self.assertEqual(policy['traversal'], 'flat')
         self.assertIsNone(policy['branch_control'])

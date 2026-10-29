@@ -210,7 +210,9 @@ class AgentConfig:
     # Raw evidence: browser documents, local decisions, selected source chunks.
     jev_base_url: str = "http://100.89.209.104:8101"
     jev_concurrency: int = 4
-    decision_provider: str = "d3"
+    decision_provider: str = "d3-mini"  # d3-mini | d3-flash | pplx (all self-hosted)
+    # Tokenizer for Docling chunks and bundle budgets, fixed across decision models.
+    jev_tokenizer: str = "vllm-sr/d3-mini"
     jev_packet_questions: int = 64    # batch independent keys in one shared source input
     jev_inflight_questions: int = 256 # four HTTP requests, each with at most 64 keys
     jev_frontier_width: int = 10
@@ -238,6 +240,12 @@ class AgentConfig:
     jev_search_results: bool = False # every result's title/snippet/status, outside jev_output_tokens
     jev_top_n: int = 0               # flat traversal: bundles returned per search (0 = budget only)
     jev_search_followup: bool = True # append the SEARCH_FOLLOWUP "Next action" notice after each search
+    # Once searches are exhausted RawTree normally rebuilds an answer-only context from the
+    # question and tool results. False keeps the baselines' ending instead: the model keeps
+    # its conversation and web_search, which returns the limit notice, and answers itself.
+    jev_answer_only_finalize: bool = True
+    # Append the jevtree reading description to the web_search tool description.
+    jev_tool_note: bool = True
     jev_document_tree: bool = False
     jev_tree_min_bundles: int = 16   # shorter documents retain exhaustive coarse scoring
     jev_region_branch: int = 4
@@ -432,10 +440,8 @@ class SearchAgent:
             model_name=self.config.model_name,
         )
         if method in RAW_METHODS and self.config.jev_strategy == "raw":
-            from .rawtree import LocalDecision
-            from .pplx_decision import PerplexityDecision
-            self.jev = (PerplexityDecision(self.config) if self.config.decision_provider == 'pplx'
-                        else LocalDecision(self.config))
+            from .pplx_decision import decision_client
+            self.jev = decision_client(self.config)
         else:
             self.jev = Jev(self.config.jev_model) if method in RAW_METHODS else None
 
@@ -539,7 +545,7 @@ class SearchAgent:
         if self.progressive_raw:
             from .raw_research import raw_specs
             specs = raw_specs(specs, cfg.jev_parent_limit)
-        if self.method in RAW_METHODS and not self.progressive_raw:
+        if self.method in RAW_METHODS and not self.progressive_raw and cfg.jev_tool_note:
             specs = copy.deepcopy(specs)
             for spec in specs:
                 if spec["function"]["name"] == "web_search":
@@ -663,7 +669,7 @@ class SearchAgent:
                 result.steps.append(step)
 
                 active_specs = self._available_specs(specs, result)
-                if (self.method in RAW_METHODS and cfg.jev_strategy == 'raw'
+                if (self.method in RAW_METHODS and cfg.jev_strategy == 'raw' and cfg.jev_answer_only_finalize
                         and not self.progressive_raw and not active_specs
                         and result.searches >= cfg.max_searches):
                     # The last search has completed: replace research instructions
@@ -904,9 +910,11 @@ class SearchAgent:
               or (s["function"]["name"] == "continue_search" and state and
                   any(v.get("can_continue") or v.get("can_retarget") for v in state.sessions.values()))]
         if self.method in RAW_METHODS:
+            # Baseline ending: web_search stays offered and answers with the limit notice.
             return [s for s in specs if not result.context_exhausted
                     and s['function']['name'] == 'web_search'
-                    and result.searches < self.config.max_searches]
+                    and (result.searches < self.config.max_searches
+                         or not self.config.jev_answer_only_finalize)]
         if self.method != "depthsearch":
             return specs
         if result.context_exhausted:
@@ -975,7 +983,8 @@ class SearchAgent:
         오류 복구와 기존 baseline 경로는 질문·도구 결과로 답변을 재구성한다.
         복구 오류가 원래 오류를 덮지 않도록 여기서는 예외를 반환하지 않는다.
         """
-        answer_only = answer_only or (self.method in RAW_METHODS and self.config.jev_strategy == 'raw')
+        answer_only = answer_only or (self.method in RAW_METHODS and self.config.jev_strategy == 'raw'
+                                      and self.config.jev_answer_only_finalize)
         if answer_only:
             question = next((m for m in messages if m.get("role") == "user"), None)
             # Keep the original question and every returned source, but remove

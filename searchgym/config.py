@@ -23,6 +23,9 @@ from typing import Any
 import yaml
 
 from .agent import METHODS, RAW_METHODS, AgentConfig
+
+# --decision value -> model the self-hosted decision server must be serving.
+DECISION_MODELS = {'d3-mini': 'vllm-sr/d3-mini', 'd3-flash': 'vllm-sr/d3-flash', 'pplx': 'pplx-decider'}
 from .benchmarks import BENCHMARKS
 from .explorer import ExplorerConfig
 from .judge import JudgeConfig
@@ -299,10 +302,12 @@ def load_test(
         config.agent.jev_expected_traversal = expected_raw_traversal
     if decision_provider is not None:
         if config.method not in RAW_METHODS or config.agent.jev_strategy != 'raw':
-            raise ValueError('--decision-provider requires jevtree with jev_strategy=raw')
-        if decision_provider not in ('d3', 'pplx'):
-            raise ValueError('decision_provider must be d3 or pplx')
+            raise ValueError('--decision requires a RawTree method (jevtree, search-o1-decision)')
+        decision_provider = {'d3': 'd3-mini'}.get(decision_provider, decision_provider)
+        if decision_provider not in DECISION_MODELS:
+            raise ValueError(f'--decision must be one of {sorted(DECISION_MODELS)}')
         config.agent.decision_provider = decision_provider
+        config.agent.jev_model = DECISION_MODELS[decision_provider]
         if decision_provider == 'pplx':
             config.agent.jev_concurrency = 16
             config.agent.jev_inflight_questions = 1024
@@ -428,8 +433,11 @@ def _validate(config: TestConfig) -> None:
             raise ValueError("jev_strategy must be level, lds or raw")
         if config.agent.jev_strategy == "raw":
             a = config.agent
-            if a.decision_provider not in ('d3', 'pplx'):
-                raise ValueError('decision_provider must be d3 or pplx')
+            if a.decision_provider not in DECISION_MODELS:
+                raise ValueError(f'decision_provider must be one of {sorted(DECISION_MODELS)}')
+            if a.jev_model != DECISION_MODELS[a.decision_provider]:
+                raise ValueError(f'decision_provider {a.decision_provider} requires jev_model '
+                                 f'{DECISION_MODELS[a.decision_provider]}, got {a.jev_model}')
             from .local_reader import local_reader_url
             local_reader_url(a.jev_base_url)
             if a.jev_traversal not in ("beam", "best_first", "progressive", "flat"):

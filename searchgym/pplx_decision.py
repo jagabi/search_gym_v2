@@ -1,92 +1,47 @@
-"""Perplexity transport for the same raw search decisions and source states."""
+"""Self-hosted pplx decider: same decision API as local d3, different identity check.
+
+The decider server answers the systemone decision API (state + questions ->
+answers[key].noul) but exposes no model list, ignores the request's `model`
+field and returns no identifying header. Its identity therefore cannot be
+proven over HTTP. Startup instead rejects a server that reports a d3 model and
+requires one well-formed decision answer before any question runs.
+"""
 import asyncio
-import json
-import os
-import time
-import weakref
-from collections import deque
 from contextlib import asynccontextmanager
 
 from .raw_chunks import SourceChunker
 from .rawtree import LocalDecision
 
-
-class DecisionRateLimit:
-    """Shared per event loop across question clients; pace requests and reserve tokens."""
-    def __init__(self):
-        self.lock = asyncio.Lock()
-        self.slots = asyncio.Semaphore(16)
-        self.next_request = 0.0
-        self.tokens = deque()
-
-    async def acquire(self, tokens):
-        if tokens > 12_000_000:
-            raise ValueError('Decision request exceeds the local minute token budget')
-        while True:
-            async with self.lock:
-                now = time.monotonic()
-                while self.tokens and self.tokens[0][0] <= now - 60:
-                    self.tokens.popleft()
-                delay = max(0, self.next_request - now)
-                if sum(n for _, n in self.tokens) + tokens > 12_000_000:
-                    delay = max(delay, self.tokens[0][0] + 60 - now)
-                if delay <= 0:
-                    self.next_request = now + 1 / 6
-                    self.tokens.append((now, tokens))
-                    return
-            await asyncio.sleep(min(delay, 1.0))
+PROBE_STATE = {'page_title': 'Decision probe', 'page_text': 'The treaty was signed in 1842.'}
+PROBE_QUESTION = {'probe': {'type': 'noul', 'instructions': 'Does the text state when the treaty was signed?'}}
 
 
-_LIMITERS = weakref.WeakKeyDictionary()
-
-
-class PerplexityDecision(LocalDecision):
-    def __init__(self, config):
-        key = os.environ.get('PERPLEXITY_API_KEY')
-        if not key:
-            raise RuntimeError('PERPLEXITY_API_KEY is required for decision-provider=pplx')
-        super().__init__(config)
-        self.endpoint = 'https://api.perplexity.ai/v1/decisions'
-        self.http.headers['Authorization'] = f'Bearer {key}'
-        loop = asyncio.get_running_loop()
-        if loop not in _LIMITERS:
-            _LIMITERS[loop] = DecisionRateLimit()
-        self.limiter = _LIMITERS[loop]
-        self.slots = self.limiter.slots
-
+class DeciderDecision(LocalDecision):
     async def prepare(self):
         async with self.prepare_lock:
-            if self.chunker is None:
-                # Preserve the source units used by local d3; no local HTTP probe.
-                self.chunker = await asyncio.to_thread(SourceChunker, self.cfg.jev_model,
-                                                       self.cfg.jev_chunk_tokens)
-
-    def _request_body(self, state, questions, request_id):
-        # Decisions rejects unknown top-level fields, including request_id.
-        return {'model': 'pplx-decider-v1.2', 'state': state, 'questions': questions}
-
-    @staticmethod
-    def _packet_timeout(question_count):
-        return 30.0
-
-    async def _admit_request(self, state, questions):
-        # UTF-8 bytes conservatively reserve text tokens despite different tokenizers.
-        # Includes question text, output tokens and generous protocol overhead.
-        reservation = len(json.dumps({'state': state, 'questions': questions},
-                                    ensure_ascii=False).encode('utf-8')) + 4096
-        await self.limiter.acquire(reservation)
-
-    def _observe_response(self, response):
-        if response.status_code == 429:
+            if self.chunker is not None:
+                return
+            base = self.endpoint.removesuffix('/v1/systemone')
             try:
-                delay = max(1.0, float(response.headers.get('retry-after', '1')))
-            except ValueError:
-                delay = 1.0
-            self.limiter.next_request = max(self.limiter.next_request, time.monotonic() + delay)
+                listed = await self.http.get(base + '/v1/models')
+            except Exception:
+                listed = None
+            if listed is not None and listed.status_code == 200:
+                names = {r.get('id') for r in listed.json().get('data', [])}
+                if any(str(n).startswith('vllm-sr/d3') for n in names):
+                    raise RuntimeError(f'--decision pplx but the decision server reports d3 models: {sorted(names)}')
+            probe = await self.http.post(self.endpoint, json=self._request_body(PROBE_STATE, PROBE_QUESTION, 'probe'),
+                                         timeout=30.0)
+            probe.raise_for_status()
+            score = probe.json()['answers']['probe']['noul']
+            if not 0 <= float(score) <= 1:
+                raise RuntimeError(f'Decision server returned an invalid probe probability: {score}')
+            self.chunker = await asyncio.to_thread(SourceChunker, self.cfg.jev_tokenizer, self.cfg.jev_chunk_tokens)
 
     @asynccontextmanager
     async def _question_slots(self, count):
-        # Rolling admission: release each completed request without a wave barrier.
+        # Rolling admission: each request releases its slot on completion,
+        # without waiting for the rest of a wave (decider batches per request).
         self.batch_id += 1
         batch_id = self.batch_id
         self.inflight_questions += count
@@ -94,3 +49,18 @@ class PerplexityDecision(LocalDecision):
             yield batch_id
         finally:
             self.inflight_questions -= count
+
+
+def decision_client(config):
+    """The decision client for --decision: pplx uses the decider check, d3 the model list."""
+    from . import rawtree  # looked up at call time so tests can substitute the d3 client
+    return DeciderDecision(config) if config.decision_provider == 'pplx' else rawtree.LocalDecision(config)
+
+
+async def verify_decision_server(config):
+    """Fail before any question runs if the server is not serving the requested model."""
+    client = decision_client(config)
+    try:
+        await client.prepare()
+    finally:
+        await client.aclose()

@@ -34,16 +34,18 @@ agent:
   jev_direct_reads: 1
   jev_query_reads: 1
   jev_floor: 0.0                # no score floor: the top n bundles are returned
-  jev_top_n: 3                  # bundles returned per search; 3 x 4096 fits the 14336-token body
+  jev_top_n: 4                  # bundles returned per search; 4 x 2048 fills the 8192-token body
   jev_page_tokens: 4096
   jev_chunk_tokens: 512         # internal Docling pieces only
-  jev_bundle_tokens: 4096       # scoring and return unit, counted by the d3 tokenizer
-  jev_overlap_chunks: 2
-  jev_output_tokens: 16384      # main-model tokens: 14336 source excerpts + 2048 notice
-  jev_notice_tokens: 2048
+  jev_bundle_tokens: 2048       # scoring and return unit, counted by the d3 tokenizer
+  jev_overlap_chunks: 1         # one 512-token chunk: the same 25% overlap as 4096 bundles
+  jev_output_tokens: 8192       # main-model tokens of source excerpts per search
+  jev_notice_tokens: 0          # flat reading follows no links, so there is no navigation notice
   jev_search_results: true      # all result titles/snippets/status, on top of jev_output_tokens
   jev_document_tree: false      # every bundle of every page is scored
   jev_search_followup: false    # no "Next action" notice after a search, as in Search-o1
+  jev_answer_only_finalize: false  # after the last search the model keeps its conversation and answers, as in Search-o1
+  jev_tool_note: false          # the system prompt alone describes what a search returns
 
 explorer:
   # Legacy schema fields only; the raw strategy never calls the reader model.

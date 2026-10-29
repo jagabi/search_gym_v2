@@ -117,5 +117,30 @@ class RawSearchViewTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('Next action:', view)                          # no follow-up notice
 
 
+class DecisionEndingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_exhausted_search_keeps_conversation_like_the_baselines(self):
+        from test_rawtree_navigation import Decision
+
+        class Tools(FakeTools):
+            async def fetch(self, url, engine=None):
+                return await super().fetch(url)
+
+        cfg = load_test(method='search-o1-decision')
+        cfg.agent.max_searches = 1
+        llm, trace = FakeLLM([call('web_search', {'query': 'treaty'}),
+                              call('web_search', {'query': 'treaty again'}),
+                              Reply(reasoning='KEEP_THIS_THOUGHT', text='Signed in the 1840s.')]), Capture()
+        with patch('searchgym.agent.LLM', return_value=llm),                 patch('searchgym.rawtree.LocalDecision', return_value=Decision()):
+            agent = SearchAgent(profile_for('gpt-oss'), cfg.agent, method='search-o1-decision',
+                                explorer_config=cfg.explorer, explorer_prompt=cfg.explorer_prompt)
+            result = await agent.run('When was the treaty signed?', cfg.system_prompt, Tools(), trace)
+        self.assertEqual((result.answer, result.stop_reason, result.searches), ('Signed in the 1840s.', 'answered', 1))
+        self.assertFalse(any(e['event'] == 'run.finalizing' for e in trace.events))
+        self.assertIn('web_search limit reached', str(llm.requests[2][0]))      # notice, same conversation
+        self.assertEqual(llm.requests[2][0][0]['content'].count('You are a reasoning assistant'), 1)
+        description = llm.requests[0][1][0]['function']['description']
+        self.assertNotIn('links followed', description)                       # no jevtree tool note
+
+
 if __name__ == '__main__':
     unittest.main()

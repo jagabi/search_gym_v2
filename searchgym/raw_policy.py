@@ -7,9 +7,9 @@ def raw_policy(config, method):
     progressive = config.jev_traversal == "progressive"
     return {
         "decision_provider": config.decision_provider,
-        "decision_model": "pplx-decider-v1.2" if config.decision_provider == 'pplx' else config.jev_model,
-        "decision_limits": {"requests_per_second": 6, "reserved_tokens_per_minute": 12000000}
-                           if config.decision_provider == 'pplx' else None,
+        "decision_model": config.jev_model,
+        "decision_server": config.jev_base_url,
+        "chunk_tokenizer": config.jev_tokenizer,
         "traversal": config.jev_traversal,
         "expected_traversal": config.jev_expected_traversal or None,
         "tools": ["web_search", "read_source", "continue_search"] if progressive else ["web_search"],
@@ -69,6 +69,8 @@ def raw_policy(config, method):
         "read_dedup": config.jev_read_dedup,
         "navigation_notice_tokens": config.jev_notice_tokens,
         "search_followup_notice": config.jev_search_followup,
+        "search_exhaustion": "answer_only_synthesis" if config.jev_answer_only_finalize else "limit_notice_in_conversation",
+        "web_search_tool_note": config.jev_tool_note,
         "navigation_notice_items": "linked_pages_only" if config.jev_search_results else "search_results_and_linked_pages",
         "search_results_block": {"fields": ["rank", "title", "url", "status", "snippet"],
                                  "position": "before_excerpts",

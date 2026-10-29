@@ -406,11 +406,16 @@ class LocalDecision:
                 return
             base = self.endpoint.removesuffix("/v1/systemone")
             response = await self.http.get(base + "/v1/models")
-            response.raise_for_status()
+            if response.status_code != 200:
+                raise RuntimeError(f"--decision {self.cfg.decision_provider} expects {self.cfg.jev_model}, but "
+                                   f"the decision server has no model list (GET /v1/models -> "
+                                   f"{response.status_code}); a d3 server lists its model, the pplx decider does not")
             names = {r["id"] for r in response.json().get("data", [])}
             if self.cfg.jev_model not in names:
-                raise RuntimeError(f"Local decision model {self.cfg.jev_model} missing; available={names}")
-            self.chunker = await asyncio.to_thread(SourceChunker, self.cfg.jev_model, self.cfg.jev_chunk_tokens)
+                raise RuntimeError(f"--decision {self.cfg.decision_provider} expects {self.cfg.jev_model}, "
+                                   f"but the decision server serves {sorted(names)}")
+            # Source units use one fixed tokenizer so every decision model scores the same bundles.
+            self.chunker = await asyncio.to_thread(SourceChunker, self.cfg.jev_tokenizer, self.cfg.jev_chunk_tokens)
 
     async def noul_with_results(self, state, questions, trace, *, usage, context, on_result, stop=None):
         return await self.noul(state, questions, trace, usage=usage, context=context,

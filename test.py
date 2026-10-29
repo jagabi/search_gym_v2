@@ -50,8 +50,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--conf", default="conf.yaml")
     parser.add_argument("--method", default=None, help="ragent | search-o1 | depthsearch | jevtree | search-o1-decision")
     parser.add_argument("--model", default=None, help="qwen | gpt-oss | gemma")
-    parser.add_argument('--decision-provider', choices=('d3', 'pplx'),
-                        help='Required for jevtree: local d3 or Perplexity Decisions')
+    parser.add_argument('--decision', '--decision-provider', dest='decision_provider',
+                        choices=('pplx', 'd3-mini', 'd3-flash'),
+                        help='RawTree methods: decision model served at agent.jev_base_url; '
+                             'startup stops if the server serves a different model')
     parser.add_argument("--benchmark", default=None, help="데이터셋 이름")
     parser.add_argument("--path", default=None, help="데이터셋 파일을 직접 지정")
     parser.add_argument("--split", default=None, help="validation | test | train")
@@ -116,9 +118,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         decision_provider=args.decision_provider,
     )
     if config.method in RAW_METHODS and args.decision_provider is None:
-        raise SystemExit('jevtree requires --decision-provider d3|pplx')
-    if config.method in RAW_METHODS and config.agent.decision_provider == 'pplx' and not args.dry_run:
-        require_env('PERPLEXITY_API_KEY')
+        raise SystemExit(f'{config.method} requires --decision pplx|d3-mini|d3-flash')
     from searchgym.raw_policy import raw_policy
     policy = raw_policy(config.agent, config.method)
     if policy:
@@ -140,6 +140,15 @@ async def main_async(argv: list[str] | None = None) -> int:
         except RuntimeError as exc:
             print(f"실행 준비 오류: {exc}", file=sys.stderr)
             return 1
+    if config.method in RAW_METHODS and config.agent.jev_strategy == "raw" and not args.dry_run:
+        from searchgym.pplx_decision import verify_decision_server
+        try:
+            await verify_decision_server(config.agent)
+        except Exception as exc:
+            print(f"결정 서버 확인 실패 (--decision {config.agent.decision_provider}, "
+                  f"{config.agent.jev_base_url}): {exc}", file=sys.stderr)
+            return 1
+        print(f"Decision server: {config.agent.jev_model} at {config.agent.jev_base_url}")
 
     profile = profile_for(config.model)
     dataset = config.benchmark.dataset(args.split or "validation")
