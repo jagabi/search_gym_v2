@@ -1,0 +1,711 @@
+{
+  "index": 825,
+  "question": "Using the data on inbound tourism and total population (both sexes) found on https://data.un.org/, which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?",
+  "gold_answer": "East Asia and the Pacific",
+  "category": "Geography",
+  "method": "ragent",
+  "model": "openai/gpt-oss-20b",
+  "system_prompt": "You are a reasoning assistant with the ability to perform web searches and retrieve\nwebpage content to help you answer the user's question accurately. You have special\ntools:\n\n- To perform a search: call the `web_search` function with your query.\n  The system will call the web search API with your query and return the search\n  results. The search results will include a list of webpages with titles, URLs and\n  snippets (but not full content).\n- To retrieve full page content: after receiving the search results, if you need\n  more detailed information from specific URLs, call the `web_fetch` function with\n  the URL. The system will fetch the full page content and return it.\n\nYou can repeat the search process multiple times if necessary. The maximum number\nof search attempts is limited to 10.\n\nOnce you have all the information you need, continue your reasoning.\n\nExample:\n\nQuestion: \"...\"\nAssistant thinking steps:\n- I need to find out ...\nAssistant: calls `web_search` with the query.\n(System returns search results without full page content)\nAssistant thinks: The search results mention several URLs. I want full details from\none of them.\nAssistant: calls `web_fetch` with that URL.\n(System returns full page content)\nNow the assistant has enough information and can continue reasoning.\n\nRemember:\n- Call `web_search` to request a web search.\n- Call `web_fetch` to request full page content.\n- When done retrieving information, continue your reasoning.",
+  "explorer_prompt": "",
+  "answer": "I’m sorry, but I wasn’t able to locate the specific UN‑data tables that give UK inbound‑tourism arrivals broken out by the nine UN regions (Africa, Americas, East Asia & the Pacific, Europe, Middle East, South Asia, Other) for 2018 and 2019, nor the UN‑population figures for those same regions in 2019.  Because the exact figures are not in the information I could retrieve, I can’t calculate the difference in arrivals or the median population for each region and therefore can’t answer which of the two regions with the largest decline in arrivals has the larger median population.  If you can point me at a particular UN Data download (e.g., a CSV or Excel file) that contains the needed regional breakdowns, I can use that to finish the comparison.",
+  "stop_reason": "answered",
+  "turns": 16,
+  "searches": 10,
+  "fetches": 2,
+  "expansion_nodes": 0,
+  "max_depth_reached": 1,
+  "explorer_calls": 0,
+  "dead_dives": 0,
+  "fetch_attempts": 2,
+  "fetch_failures": 1,
+  "search_attempts": 10,
+  "search_failures": 0,
+  "budget": {
+    "total": 0,
+    "used": 0,
+    "refused": 0,
+    "duplicates": 0,
+    "links_stripped": 0,
+    "off_page": 0,
+    "repeats": 0,
+    "same_site": 0,
+    "visited": 0,
+    "nodes_by_depth": {},
+    "reused": 0
+  },
+  "context_tokens": 9121,
+  "context_exhausted": false,
+  "reader_stats": {},
+  "invalid_tool_calls": 0,
+  "auto_fetches": 0,
+  "research_state": null,
+  "steps": [
+    {
+      "turn": 1,
+      "reasoning": "The user asks: Using inbound tourism and total population data found on https://data.un.org/, among six regions: Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, which region that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only) had the largest median population in 2019? So we need:\n\n- Inbound tourism arrivals to the UK, by region, for 2018 and 2019. Need the difference arrivals 2019 - 2018 (negative if decrease). Largest decrease means largest negative number magnitude. Determine which region among those listed had the largest drop.\n\n- Then among those six regions, we need the median population in 2019. Wait: \"had the largest median population in 2019\". We interpret \"median population\" maybe just median \"total population (both sexes)\", which is listed. They said \"median population\". Might refer to the median value across these six? But median across six numbers? Actually \"median population\" perhaps they mean \"median value for population\" across these regions? But the question: \"which of the two regions, among ..., that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\" So they want: Among all regions, two prominent: the one with largest decrease, and then ask which of the two? Wait reading: \"which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\" It seems they want: Find which region among the specified that had the largest decrease in arrivals. Then, among those region(s), determine which had the largest median population in 2019. But there is only one region that had the largest decrease. So maybe they mis-phrased: There might be two regions which had a significant decrease? They want to choose the one with largest median population among those two.\n\nLet's parse: Maybe first step: Determine which region had the largest decrease. Then second: Among those regions that had the largest decrease? Hmm.\n\nOr maybe they mean: Among the six regions, find the two that had the largest decrease in arrivals to the UK between 2018 and 2019. Among those two, which had the largest median population in 2019? The phrase \"the two regions\" ambiguous.\n\nBetter: \"which of the two regions ... that showed the largest decrease in arrivals ...\" Maybe they ask: Out of the six regions, which region that had the largest decrease. So answer should be region name.\n\nThen: \"had the largest median population in 2019?\" So we need both: region with largest decrease, and among that pair? Actually \"had the largest median population\" maybe simply meaning \"among the six regions, which one has largest median population in 2019.\" Combined answer: region name that had largest decrease and had largest median population. That seems like a logical chain.\n\nThus I just need to gather data: Arrivals to the UK, inbound tourism, by region for 2018 and 2019. Then compute difference. Identify region with largest decrease (most negative). Then get median population 2019 (maybe the median among the six populations? Alternatively median value). Actually \"median population\" might refer to the statistical median of the populations of all countries within region. But dataset maybe provides \"total population\" aggregated at region level; median likely not applicable. They might mean median population across all countries? But dataset may have population per region. However \"median population\" could mean median of population distribution for the region; that requires dataset for all countries in region. But maybe they simply mean \"median population\" as the population for the median country, but that's too complex.\n\nBetter approach: The question likely expects to fetch from UN Data dataset: Inbound tourism arrivals to the UK: field \"Arrivals (UK) by region\" for 2018 and 2019. Also \"Population (both sexes)\" 2019 by region. Then probably they want the region with the largest decrease; then among those region(s) find largest median population. But we need median population for each region maybe computed across all countries. That's large.\n\nWait maybe they refer to \"median population\" as 'median of the population values for those countries in 2019' used as a representation for the region. So we would compute median population for each region based on its countries' populations. Then determine which region among the two with largest decrease had largest median population.\n\nTo answer, might need to retrieve data for each country within each region: population 2019. There could be many countries, but for UN Data aggregated by region, we can fetch dataset for all countries with region. The median population is easy: collect all populations for each region and compute median.\n\nNeed to do search for inbound tourism arrivals to UK by region dataset, and population by region dataset. Use UN Data.\n\nLet's perform web search.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "UN Data inbound tourism arrivals UK by region 2018 2019"
+          },
+          "result_chars": 3055,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1812.1,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "International tourism, number of arrivals",
+                "link": "https://data.worldbank.org/indicator/ST.INT.ARVL",
+                "snippet": "International tourism, number of arrivals from The World Bank: Data. and data files, UN Tourism ・ 2018 158,000 Costa Rica ・ 8,000 Cuba 2020 1,086,000 Curacao ..."
+              },
+              {
+                "title": "Leisure and tourism",
+                "link": "https://www.ons.gov.uk/peoplepopulationandcommunity/leisureandtourism",
+                "snippet": "In 2019, new methods were introduced for this dataset. Also includes data on nights, purpose, region of UK visited and mode of travel."
+              },
+              {
+                "title": "Research and insights",
+                "link": "https://www.visitbritain.org/research-insights",
+                "snippet": "Research and insights. Find the latest consumer and industry data and insights on domestic and inbound tourism in the UK, Britain and England."
+              },
+              {
+                "title": "UN Tourism World Tourism Barometer",
+                "link": "https://www.untourism.int/un-tourism-world-tourism-barometer-data",
+                "snippet": "International tourist arrivals (overnight visitors) grew 5% in January-September 2025 compared to the same period in 2024 and 3% above pre-pandemic year 2019."
+              },
+              {
+                "title": "Tourism",
+                "link": "https://ourworldindata.org/tourism",
+                "snippet": "On this page, you can find data and visualizations on the history and current state of tourism across the world."
+              },
+              {
+                "title": "Tourism: Statistics and policy",
+                "link": "https://researchbriefings.files.parliament.uk/documents/SN06022/SN06022.pdf",
+                "snippet": "UK residents made 94.6 million trips overseas in 2024, compared to 86.2 million in 2023. The most popular countries were Spain, France, Italy, ...",
+                "date": "Feb 11, 2026"
+              },
+              {
+                "title": "Travel & Tourism Data and Statistics - Regions and Countries",
+                "link": "https://wttc.org/research/economic-impact/tourism-data-statistics-regions-countries",
+                "snippet": "Tourism economic impact reports and factsheets for regions and economies around the world. United Kingdom (UK) Travel & Tourism Economic Impact Report"
+              },
+              {
+                "title": "Tourism in the United Kingdom",
+                "link": "https://en.wikipedia.org/wiki/Tourism_in_the_United_Kingdom",
+                "snippet": "£23.1 billion was spent in the UK by foreign tourists in 2017. VisitBritain data shows that the United States remains the most valuable inbound market, with ..."
+              },
+              {
+                "title": "Tourist numbers to the UK down while global figures ...",
+                "link": "https://www.theguardian.com/travel/2019/jan/22/tourist-numbers-to-the-uk-down-while-global-figures-continue-to-rise",
+                "snippet": "Looking ahead, the UNWTO said 2019 global arrivals are likely to drop back to 3%-4%, in line with historic growth trends, as global economic ...",
+                "date": "Jan 22, 2019"
+              },
+              {
+                "title": "Inbound tourist visits to the UK 2002-2025",
+                "link": "https://www.statista.com/statistics/287133/annual-number-of-overseas-visits-to-the-united-kingdom-uk/?srsltid=AYCX9vIxhrXblXYdOCTFFQO3m-d7Ww6gK0Xjkviuoy1pLKKyPlnLEOhs",
+                "snippet": "Overseas visitor numbers dropped to million in 2021, representing a drop of over percent from 2019. While the figure reported for 2024 showed a ...",
+                "date": "8 days ago"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 2,
+      "reasoning": "We need data from UN Data: https://data.un.org/, find inbound tourism arrivals to UK by region 2018 and 2019. Likely dataset \"Tourism statistics - INbound tourism arrivals by region\". Let's search again with more keywords.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "UN Data UK inbound tourism arrivals by region 2018 2019"
+          },
+          "result_chars": 3135,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1967.4,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "UN Tourism World Tourism Barometer",
+                "link": "https://www.untourism.int/un-tourism-world-tourism-barometer-data",
+                "snippet": "International tourist arrivals (overnight visitors) grew 5% in January-September 2025 compared to the same period in 2024 and 3% above pre-pandemic year 2019."
+              },
+              {
+                "title": "International tourism, number of arrivals",
+                "link": "https://data.worldbank.org/indicator/ST.INT.ARVL",
+                "snippet": "International tourism, number of arrivals from The World Bank: Data. 2018 158,000 Costa Rica … 8,000 Cuba 2020 1,086,000 Curacao 2019 1,293,000 Cyprus 2019. ..."
+              },
+              {
+                "title": "Travel trends: 2019",
+                "link": "https://www.ons.gov.uk/peoplepopulationandcommunity/leisureandtourism/articles/traveltrends/2019",
+                "snippet": "Overseas residents made 40.9 million visits to the UK in 2019, an increase of 0.6 million compared with 2018. There were 93.1 million visits ...",
+                "date": "May 22, 2020"
+              },
+              {
+                "title": "Arrivals of tourists from abroad, 2024",
+                "link": "https://ourworldindata.org/grapher/international-tourist-trips",
+                "snippet": "The data covers various aspects of tourism, such as inbound tourism (2019) Trips by those who stay overnight … in 2018 Africa67 million Middle East64 million"
+              },
+              {
+                "title": "About The International Passenger Survey",
+                "link": "https://www.visitbritain.org/research-insights/about-international-passenger-survey",
+                "snippet": "inbound (and outbound) tourism data from 2009 to 2018. UK's nations and regions from 2019-2022"
+              },
+              {
+                "title": "Tourism: Statistics and policy",
+                "link": "https://researchbriefings.files.parliament.uk/documents/SN06022/SN06022.pdf",
+                "snippet": "UK residents made 3.0 million overnight visits within Northern Ireland. They also made 1.0 billion tourism day visits, spending £54.8 billion.",
+                "date": "Feb 11, 2026"
+              },
+              {
+                "title": "Inbound tourist visits to the UK 2002-2025",
+                "link": "https://www.statista.com/statistics/287133/annual-number-of-overseas-visits-to-the-united-kingdom-uk/?srsltid=AYCX9vLmZ0epHIgEZFHcPE0lVoAzP9tVYcm4yno-wfWz4Tts5641y2GJ",
+                "snippet": "Number of overseas resident visits to the United Kingdom in 2019 and 2024, by region of destination. Data ranges from 114.93 to 930.12.",
+                "date": "8 days ago"
+              },
+              {
+                "title": "Tourism in the United Kingdom",
+                "link": "https://en.wikipedia.org/wiki/Tourism_in_the_United_Kingdom",
+                "snippet": "£23.1 billion was spent in the UK by foreign tourists in 2017. VisitBritain data shows that the United States remains the most valuable inbound market, with ..."
+              },
+              {
+                "title": "Tourism statistics - Statistics Explained - Eurostat",
+                "link": "https://ec.europa.eu/eurostat/statistics-explained/index.php?title=Tourism_statistics",
+                "snippet": "Highlights · Tourism participation: 65% of EU residents made at least one personal trip · Tourism trips: 7 EU countries made more foreign than domestic trips."
+              },
+              {
+                "title": "Travel & Tourism Data and Statistics - Regions and Countries",
+                "link": "https://wttc.org/research/economic-impact/tourism-data-statistics-regions-countries",
+                "snippet": "Find links to our Travel & Tourism economic impact reports and factsheets for regions and economies around the world."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 3,
+      "reasoning": "The question: \"Using the data on inbound tourism and total population (both sexes) found on https://data.un.org/, which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\"\n\nWe need to find inbound tourism arrivals to UK from each region for years 2018 and 2019, compute decrease (2018-2019 difference, positive decrease means arrivals decreased). Find the largest decrease. Then among two regions? Actually question says: \"which of the two regions ... that showed the largest decrease in arrivals to the UK between 2018 and 2019 had the largest median population in 2019?\" Wait: It might be: There are two regions that showed the largest decrease? But more likely: Identify the region that had the largest decrease, and among the two? Hmm.\n\nLet's parse: \"which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\"\n\nMaybe they want to pick among the regions that had largest decrease (they may be two), and then choose which of those two had larger median population. But there may only be one region with largest decrease. So maybe there are two regions that both had large decrease but were tied? We can test.\n\nLet's search for the dataset on UN data for inbound tourism.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "UN Data inbound tourism UK 2018 2019 by region"
+          },
+          "result_chars": 3135,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2326.3,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Inbound visits and spend: annual, regional",
+                "link": "https://www.visitbritain.org/research-insights/inbound-visits-and-spend-annual-regional",
+                "snippet": "See the latest annual estimates of the number of visits to the UK and total spend by inbound visitors, by UK nations and regions, ...",
+                "date": "Oct 16, 2026"
+              },
+              {
+                "title": "Tourism in the United Kingdom",
+                "link": "https://en.wikipedia.org/wiki/Tourism_in_the_United_Kingdom",
+                "snippet": "£23.1 billion was spent in the UK by foreign tourists in 2017. VisitBritain data shows that the United States remains the most valuable inbound market, with ..."
+              },
+              {
+                "title": "Inbound tourist visits to the UK 2002-2025",
+                "link": "https://www.statista.com/statistics/287133/annual-number-of-overseas-visits-to-the-united-kingdom-uk/?srsltid=AYCX9vKz3WYfQS1rKubO0thL3imOpSsB_JvZklREQa7yY72kqcEBQpuq",
+                "snippet": "Number of overseas resident visits to the United Kingdom in 2019 and 2024, by region of destination ... Inbound tourism in Europe - statistics & ...",
+                "date": "8 days ago"
+              },
+              {
+                "title": "Travel trends: 2019",
+                "link": "https://www.ons.gov.uk/peoplepopulationandcommunity/leisureandtourism/articles/traveltrends/2019",
+                "snippet": "Overseas residents made 40.9 million visits to the UK in 2019, an increase of 0.6 million compared with 2018. There were 93.1 million visits ...",
+                "date": "May 22, 2020"
+              },
+              {
+                "title": "UN Tourism World Tourism Barometer",
+                "link": "https://www.untourism.int/un-tourism-world-tourism-barometer-data",
+                "snippet": "International tourist arrivals (overnight visitors) grew 5% in January-September 2025 compared to the same period in 2024 and 3% above pre-pandemic year 2019."
+              },
+              {
+                "title": "International tourism, number of arrivals",
+                "link": "https://data.worldbank.org/indicator/ST.INT.ARVL",
+                "snippet": "Yearbook of Tourism Statistics, Compendium of Tourism Statistics and data files, UN Tourism ... 2019. 1,952,000. Slovak Republic. 2018. 15,299,000. Slovenia. 2020."
+              },
+              {
+                "title": "Tourism: Statistics and policy",
+                "link": "https://researchbriefings.files.parliament.uk/documents/SN06022/SN06022.pdf",
+                "snippet": "UK residents made 94.6 million trips overseas in 2024, compared to 86.2 million in 2023. The most popular countries were Spain, France, Italy, ...",
+                "date": "Feb 11, 2026"
+              },
+              {
+                "title": "Tourism",
+                "link": "https://ourworldindata.org/tourism",
+                "snippet": "On this page, you can find data and visualizations on the history and current state of tourism across the world. ... Data source: UN Tourism (2025) – Learn more ..."
+              },
+              {
+                "title": "Tourism-Statistics-2019.pdf",
+                "link": "https://www.ukinbound.org/wp-content/uploads/2019/09/Tourism-Statistics-2019.pdf",
+                "snippet": "Value of UK Tourism By Region. Day Visits ... For every 1% decrease in the cost of visiting the UK, the UK's inbound tourism earnings increase by 1.3%."
+              },
+              {
+                "title": "Travel & Tourism Data and Statistics - Regions and Countries",
+                "link": "https://wttc.org/research/economic-impact/tourism-data-statistics-regions-countries",
+                "snippet": "Find links to our Travel & Tourism economic impact reports and factsheets for regions and economies around the world."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 4,
+      "reasoning": "The search results not great. Might be that UN Data website has tables. Could use source: https://data.un.org. Search for \"UN Data UK inbound tourism by region 2018 2019\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "site:data.un.org inbound tourism UK 2019 region"
+          },
+          "result_chars": 15,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1397.0,
+          "explorations": [],
+          "result": {
+            "organic": []
+          }
+        }
+      ]
+    },
+    {
+      "turn": 5,
+      "reasoning": "The user wants: \"Using the data on inbound tourism and total population (both sexes) found on https://data.un.org/, which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\"\n\nSo need data: inbound tourism arrivals to the UK by region (in 2018 and 2019). Then compute decrease. Find the region with largest decrease. Then look up total population (both sexes) for each region for 2019, get median? Wait \"had the largest median population in 2019\" - median population? They might want the median across countries? Perhaps median total population of the region's countries? But maybe they want the median population figure of the region, maybe a number.\n\nMaybe they simply want which of the two regions had largest median population in 2019. But we need two regions: the one with largest decrease in arrivals, and we need to check if that region has the largest median population. Actually question: \"which of the two regions ... that showed the largest decrease ... had the largest median population in 2019?\" So we have two sets: largest decrease region vs which of the two had largest median population. Actually context: there are many regions. We find region with largest decrease. Then we compare its median population to others? But phrase \"which of the two regions\" implies there are two candidates: presumably two regions with largest decrease? Wait maybe there are two regions with largest decrease? They said \"which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 ... had the largest median population in 2019?\" Perhaps they mean: Identify the region with biggest drop; then among that region and the other regions, find which had largest median population. Confusing.\n\nThey may just want the region that had largest decrease and also had largest median population among all regions. So answer: That region is (region name). Let's gather data.\n\nWe need UN data. Let's search for \"UN Data inbound tourism UK 2018 2019 by region\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"United Kingdom\" inbound tourism 2018 2019 region UN Data"
+          },
+          "result_chars": 3247,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1093.3,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "International tourism, number of arrivals",
+                "link": "https://data.worldbank.org/indicator/ST.INT.ARVL",
+                "snippet": "2019. 3,600. Uganda. 2020. 473,000. Ukraine. 2020. 3,382,000. United Arab Emirates. 2020. 8,084,000. United Kingdom. 2020. 11,101,000. United States. 2020."
+              },
+              {
+                "title": "Travel & Tourism Data and Statistics - Regions and Countries",
+                "link": "https://wttc.org/research/economic-impact/tourism-data-statistics-regions-countries",
+                "snippet": "Travel & Tourism Data and Statistics. Find links to reports and factsheets ... United Kingdom (UK) Travel & Tourism Economic Impact Report | Factsheet"
+              },
+              {
+                "title": "International tourism recovers pre-pandemic levels in 2024",
+                "link": "https://www.untourism.int/news/international-tourism-recovers-pre-pandemic-levels-in-2024",
+                "snippet": "Among the world's top five tourism earners, the United Kingdom (+40%), Spain (+36%), France (+27%) and Italy (+23%) saw robust growth in the ...",
+                "date": "Jan 21, 2025"
+              },
+              {
+                "title": "Tourism",
+                "link": "https://ourworldindata.org/tourism",
+                "snippet": "United Kingdom, United States, Uruguay, Uzbekistan, Vanuatu, Venezuela, Vietnam ... Data source: UN Tourism (2025) – Learn more about this data. Note: Where ..."
+              },
+              {
+                "title": "Activities and experiences",
+                "link": "https://www.visitbritain.org/research-insights/activities-and-experiences",
+                "snippet": "Find the latest consumer and industry data and insights on domestic and inbound tourism in the UK, Britain and England. ... Country Summary - United Kingdom."
+              },
+              {
+                "title": "The economic impact of global uncertainty and security ...",
+                "link": "https://www.sciencedirect.com/science/article/pii/S0264999322001389",
+                "snippet": "by C Manrique-de-Lara-Peñate · 2022 · Cited by 43 — The least affected region would be Oceania, where inbound tourism would decrease by 6.2%. ... United Kingdom. USA, United States. MX1, Mexico - Activities ..."
+              },
+              {
+                "title": "UK Tourism Statistics 2025 - Latest Data",
+                "link": "https://www.condorferries.co.uk/uk-tourism-statistics",
+                "snippet": "The World Travel & Tourism Council (WTTC) estimates that the UK travel and tourism sector will create 700,000 jobs over the next decade. The United Kingdom ..."
+              },
+              {
+                "title": "The Tourism Industry in New York City",
+                "link": "https://www.osc.ny.gov/reports/osdc/tourism-industry-new-york-city",
+                "snippet": "Prior to 2017, the highest visitor spending in any year by one country was from the United Kingdom in 2008 ($2.3 billion), primarily due to the strong exchange ..."
+              },
+              {
+                "title": "🤔 Tourism makes the world go round! But: who spends ...",
+                "link": "https://www.facebook.com/WorldTourismOrganization/posts/-tourism-makes-the-world-go-round-but-who-spends-what-and-whereusing-unwto-data-/2484272795024693/",
+                "snippet": "Europe: Spain ($74B), France ($67B), and the United Kingdom ($52B) emerge as major contributors to the region's thriving tourism industry. Asia: ...",
+                "date": "6 years ago"
+              },
+              {
+                "title": "UNWTO World Tourism Barometer January 2020",
+                "link": "https://www.e-unwto.org/doi/pdf/10.18111/wtobarometereng.2020.18.1.1",
+                "snippet": "The United Kingdom, the most visited destination in. Northern Europe, reported 2% growth in international arrivals through September 2019.",
+                "date": "Jan 22, 2020"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 6,
+      "reasoning": "The user wants:\n\n- Use data on inbound tourism and total population (both sexes) found on https://data.un.org/\n- Need: Which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other\n  that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider number of people only),\n  had the largest median population in 2019?\n\nSo we need inbound tourism arrivals to UK from each of those regions for 2018 and 2019. Determine decrease (difference). Find region with largest decrease. Then get total population (both sexes) for each region for 2019. Compute median? Wait: \"had the largest median population in 2019\". Maybe they mean median population among the regions? Actually median population of the region in 2019? Usually median might not be used for population; maybe they mean median of population among regions? But phrase: \"had the largest median population in 2019?\" Possibly they want the region that had largest population median. If there are multiple, pick that.\n\nBut we first find the region with largest decrease.\n\nWe need data from UN Data (UN population estimates). Likely \"World population by region\" and \"International tourism arrivals to UK by region\".\n\nWe should harvest these from data.un.org. Let's search for \"site:data.un.org UK inbound tourism arrivals 2018 2019\"",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"inbound tourism\" \"United Kingdom\" \"data.un.org\" 2018 2019"
+          },
+          "result_chars": 307,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1931.1,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "An overlook of the impact of government investments on tourism ...",
+                "link": "https://rpubs.com/jcrn/848943",
+                "snippet": "... United Kingdom. This is something we are going to ... data.un.org/DocumentData.aspx?id=438. This dataset ... Inbound Tourism , list of sub-categories ..."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 7,
+      "reasoning": "The question: \"Using the data on inbound tourism and total population (both sexes) found on https://data.un.org/, which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\"\n\nWe need region-level data for inbound tourism arrivals to UK for 2018 and 2019 by region. Also population (both sexes) per region for 2019 to compute median? Actually median population of region - but median? Maybe median across populations of countries within region? Might be median population size of the countries in that region as of 2019. But simpler maybe they want the median of population values? But from UN data, we could get total population by region for 2019. The term median population might refer to median population among countries in that region (pop both sexes). Identify region with largest decrease in arrivals between 2018 and 2019; then among two regions tied? Wait phrase: \"which of the two regions ... that showed the largest decrease ... had the largest median population in 2019?\" So there are two regions that have the largest decrease? Might be top two largest decreases; compare their median populations, pick which one has larger median.\n\nAlternatively maybe two regions had same decrease? unclear.\n\nWe need data. Let's search for “UK inbound tourism arrivals by region 2018 2019 UN data”",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "UK inbound tourism arrivals by region 2018 2019 UN data",
+            "topn": 10
+          },
+          "result_chars": 3152,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1312.4,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "UN Tourism World Tourism Barometer",
+                "link": "https://www.untourism.int/un-tourism-world-tourism-barometer-data",
+                "snippet": "International tourist arrivals (overnight visitors) grew 5% in January-September 2025 compared to the same period in 2024 and 3% above pre-pandemic year 2019."
+              },
+              {
+                "title": "International tourism, number of arrivals",
+                "link": "https://data.worldbank.org/indicator/ST.INT.ARVL",
+                "snippet": "International tourism, number of arrivals. Yearbook of Tourism Statistics, Compendium of Tourism Statistics and data files, UN Tourism. License : CC BY- ..."
+              },
+              {
+                "title": "Travel trends: 2019",
+                "link": "https://www.ons.gov.uk/peoplepopulationandcommunity/leisureandtourism/articles/traveltrends/2019",
+                "snippet": "Overseas residents made 40.9 million visits to the UK in 2019, an increase of 0.6 million compared with 2018. There were 93.1 million visits ...",
+                "date": "May 22, 2020"
+              },
+              {
+                "title": "Tourism in the United Kingdom",
+                "link": "https://en.wikipedia.org/wiki/Tourism_in_the_United_Kingdom",
+                "snippet": "£23.1 billion was spent in the UK by foreign tourists in 2017. VisitBritain data shows that the United States remains the most valuable inbound market, with ..."
+              },
+              {
+                "title": "2026 inbound tourism forecast",
+                "link": "https://www.visitbritain.org/research-insights/inbound-tourism-forecast",
+                "snippet": "VisitBritain forecasts 44.2 million inbound visits to the UK in 2026, with these visitors spending £33.9 billion. Compared to 2025, this ...",
+                "date": "Aug 27, 2026"
+              },
+              {
+                "title": "Tourism: Statistics and policy",
+                "link": "https://researchbriefings.files.parliament.uk/documents/SN06022/SN06022.pdf",
+                "snippet": "UK residents made 3.0 million overnight visits within Northern Ireland. They also made 1.0 billion tourism day visits, spending £54.8 billion.",
+                "date": "Feb 11, 2026"
+              },
+              {
+                "title": "Arrivals of tourists from abroad, 2024",
+                "link": "https://ourworldindata.org/grapher/international-tourist-trips",
+                "snippet": "Number of trips by visitors who arrive from abroad and stay overnight. Data source: UN Tourism (2025) – processed by Our World in Data. Unit: arrivals."
+              },
+              {
+                "title": "Travel & Tourism Data and Statistics - Regions and Countries",
+                "link": "https://wttc.org/research/economic-impact/tourism-data-statistics-regions-countries",
+                "snippet": "Find links to our Travel & Tourism economic impact reports and factsheets for regions and economies around the world."
+              },
+              {
+                "title": "Tourism-Statistics-2019.pdf",
+                "link": "https://www.ukinbound.org/wp-content/uploads/2019/09/Tourism-Statistics-2019.pdf",
+                "snippet": "The first four destinations are USA, Spain, France and. Thailand. • The UK accounts for 3.8% of global international tourism receipts. UNWTO Tourism Highlights, ..."
+              },
+              {
+                "title": "Inbound tourist visits to the UK 2002-2025",
+                "link": "https://www.statista.com/statistics/287133/annual-number-of-overseas-visits-to-the-united-kingdom-uk/?srsltid=AYCX9vJwdZu7ZfltCMUgwp6QYTo4W6Xmvda3Pr2UsJyOSa-R9Au30C9m",
+                "snippet": "Related insights. Statistics Insights. Number of overseas resident visits to the United Kingdom in 2019 and 2024, by region of destination.",
+                "date": "8 days ago"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 8,
+      "reasoning": "We need data from data.un.org. Likely use UN Data portal, dataset \"Tourism Statistics\". Inbound tourism numbers by region for UK. Might need to search with the dataset ID. Search \"inbound tourism by region UK 2018 2019 data.un.org\"",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "data.un.org \"Inbound Tourism\" UK 2018 2019 region"
+          },
+          "result_chars": 3374,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 2166.6,
+          "explorations": [],
+          "result": {
+            "organic": [
+              {
+                "title": "Inbound visits and spend: annual, UK",
+                "link": "https://www.visitbritain.org/research-insights/inbound-visits-and-spend-annual-uk",
+                "snippet": "See the latest full annual dataset by region. View the latest inbound trends by UK town. Take a look at the latest inbound tourism forecast."
+              },
+              {
+                "title": "UN Tourism World Tourism Barometer",
+                "link": "https://www.untourism.int/un-tourism-world-tourism-barometer-data",
+                "snippet": "The report is published four times a year and includes an analysis of the latest data on tourism destinations (inbound tourism) and source markets (outbound ..."
+              },
+              {
+                "title": "Arrivals of tourists from abroad, 2024",
+                "link": "https://ourworldindata.org/grapher/international-tourist-trips",
+                "snippet": "... the United Nations. The data covers various aspects of tourism, such as inbound tourism (including arrivals by region, main purpose, and mode of transport ..."
+              },
+              {
+                "title": "Inbound tourist visits to the UK 2002-2025",
+                "link": "https://www.statista.com/statistics/287133/annual-number-of-overseas-visits-to-the-united-kingdom-uk/?srsltid=AYCX9vI5oVEh1WuHrsv-8R_79iTkfK820JIR6BzS4kiJ3jcnI0eM8bG9",
+                "snippet": "Number of overseas resident visits to the United Kingdom in 2019 and 2024, by region of destination ... Inbound tourism in the United Kingdom (UK).",
+                "date": "8 days ago"
+              },
+              {
+                "title": "Tourism in the United Kingdom",
+                "link": "https://en.wikipedia.org/wiki/Tourism_in_the_United_Kingdom",
+                "snippet": "The same VisitBritain report provided the following estimate for \"inbound tourism\" in ... \"Number of overseas resident visits to the United Kingdom (UK) in 2018, ..."
+              },
+              {
+                "title": "Tourism: Statistics and policy",
+                "link": "https://researchbriefings.files.parliament.uk/documents/SN06022/SN06022.pdf",
+                "snippet": "Inbound tourism. 2. Outbound tourism. 3. Domestic tourism. 4. Finding local tourism statistics. 5. Tourism and the UK economy. 6. Issues ...",
+                "date": "Feb 11, 2026"
+              },
+              {
+                "title": "Tourism-Statistics-2019.pdf",
+                "link": "https://www.ukinbound.org/wp-content/uploads/2019/09/Tourism-Statistics-2019.pdf",
+                "snippet": "For every 1% decrease in the cost of visiting the UK, the UK's inbound tourism earnings increase by 1.3%. • For every 1% increase in the cost of travelling."
+              },
+              {
+                "title": "World Economic Situation and Prospects 2025",
+                "link": "https://www.un.org/development/desa/dpad/wp-content/uploads/sites/45/WESP-2025_WEB.pdf",
+                "snippet": "... in goods and services is projected to stay in deficit even as inbound tourism surges. The consumer inflation rate is estimated at 2.6 per cent for. 2024 ..."
+              },
+              {
+                "title": "UK inbound tourism trends: European visits up, long-haul ...",
+                "link": "https://www.facebook.com/100063630607657/posts/whats-the-latest-picture-for-inbound-tourism-to-britain-as-highlighted-in-the-to/1662534195877585/",
+                "snippet": "VisitBritain's latest inbound tourism forecast shows continued strong recovery in overseas visitor spending this year. Its latest forecast ...",
+                "date": "2 months ago"
+              },
+              {
+                "title": "The economic impact of global uncertainty and security ...",
+                "link": "https://www.sciencedirect.com/science/article/pii/S0264999322001389",
+                "snippet": "by C Manrique-de-Lara-Peñate · 2022 · Cited by 43 — In terms of inbound tourism, we can see that the Near East would be the most impacted region, with a 29.1% drop in total inbound tourism. ... ). http://databank."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "turn": 9,
+      "reasoning": "We need to use data on inbound tourism and total population (both sexes) from data.un.org. We need examine arrivals to the UK per region: Africa, Americas, East Asia & Pacific, Europe, Middle East, South Asia, Other. From 2018 to 2019, find largest decrease in arrivals (in absolute numbers). Then determine which of the two regions – the region with largest decrease, and? Actually question: \"which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\"\n\nInterpretation: find region with largest decrease. That region and another region? Wait: \"which of the two regions ... that showed the largest decrease ... had the largest median population in 2019?\" Might be asking: between the region with largest decrease and the other region? Actually maybe they want: there are only two regions? But list has seven. The phrase \"which of the two regions\" maybe refers to comparison between the one with largest decrease and another region (perhaps the one with largest population?). They want the answer: which region between those two had larger median population in 2019. But the wording is ambiguous.\n\nMaybe it's: find region that had the largest median population in 2019 among the two that had the largest decrease? Wait no.\n\nLet's parse: \"Using the data on inbound tourism and total population (both sexes) found on https://data.un.org/, which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\"\n\nActually maybe they ask: Among the two regions that had largest decrease and the other region that had largest median population, which one had largest median population? That seems nonsense.\n\nAlternate interpretation: Among all regions, find the one that had largest decrease in arrivals (abs). That is the answer region. Then among the two regions that had that decrease? No. Wait.\n\nMaybe they mean: \"which of the two regions (two specific regions being those that had the largest decrease) had the largest median population in 2019?\" That means we need to identify the top two regions by decrease, then among those two, pick the region with larger median population in 2019.\n\nThus we need top two decreasing regions (decrease amount). Then choose which of those two had larger median population.\n\nLet's proceed: Need inbound tourism arrivals to UK by region for 2018 and 2019. Likely provided by UN data dataset \"Inbound Tourism, by Country of Origin, Year, Region\". Could use UN Data portal. Might not be easy via search. Let's try accessing dataset: https://data.un.org/Catalog.aspx?dsid=PTSY9 (just guess). Let's search for dataset ID.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "site:data.un.org \"Inbound Tourism\" dataset"
+          },
+          "result_chars": 15,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 1406.6,
+          "explorations": [],
+          "result": {
+            "organic": []
+          }
+        }
+      ]
+    },
+    {
+      "turn": 10,
+      "reasoning": "The user asks:\n\n\"Using the data on inbound tourism and total population (both sexes) found on https://data.un.org/, which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\"\n\nWe need to retrieve UN data for inbound tourism arrivals to the UK from each of the regions for 2018 and 2019, find the decrease in arrivals (difference 2018-2019). Identify the region with the largest decrease. Then we need to get the total population (both sexes) for all the regions in 2019, and find which of the two regions with largest decrease has the largest median population in 2019. Wait: \"the two regions\" refers to among the list: Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other. They ask: \"which of the two regions, among [list], that showed the largest decrease ... had the largest median population in 2019?\"\n\nInterpretation: We have maybe two candidate regions equal in decrease? Or maybe the largest decrease region and next largest decrease region -> compute median population and choose largest median among those two. But phrasing \"which of the two regions, among [list], that showed the largest decrease...\" seems like we choose the region with largest decrease, then among those two regions determine which had largest median population. Wait: \"which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease...\" Eh.\n\nMaybe we need to first find the region with largest decrease. Then choose from that set: \"the two regions\" might refer to the ones with largest decrease? Hmm.\n\nBetter interpret: They want us to compare the two regions that had the largest decrease. So there might be two regions tied for largest decrease or the top two. Then among those two, determine which had largest median population in 2019.\n\nTherefore we need to find inbound tourism arrivals to UK by region from UN data 2018 and 2019.\n\nLet's search for UN data for \"Inbound tourism arrivals UK 2018 2019 region Africa\".\n\n",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=%7B%22Country%22:%22GBR%22,%22Indicator%22:%22INBOUND%22,%22Period%22:%272018%27%7D&DataMartId=OBS&DataFileType=CSV"
+          },
+          "result_chars": 242,
+          "is_error": true,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 3174.6,
+          "explorations": [],
+          "result": "Could not read https://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=%7B%22Country%22:%22GBR%22,%22Indicator%22:%22INBOUND%22,%22Period%22:%272018%27%7D&DataMartId=OBS&DataFileType=CSV: Warning: Target URL returned error 404: Not Found"
+        }
+      ]
+    },
+    {
+      "turn": 11,
+      "reasoning": "The user asks: Using data on inbound tourism and total population (both sexes) found on https://data.un.org/, which of the regions among Africa, Americas, East Asia and Pacific, Europe, Middle East, South Asia, Other, showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\n\nWe need inbound tourism arrivals from each region to UK. Data.un.org dataset. Let's search for \"United Kingdom inbound tourism Europe 2018 2019\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "United Kingdom inbound tourism Europe 2018 2019 site:data.un.org"
+          },
+          "result_chars": 15,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 919.0,
+          "explorations": [],
+          "result": {
+            "organic": []
+          }
+        }
+      ]
+    },
+    {
+      "turn": 12,
+      "reasoning": "We need data from data.un.org. Likely dataset \"International Tourist Arrivals by Region of Origin\". Maybe need fetch via API. Could use \"https://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=%7B%22Region%22:%22Africa%22,%22Indicator%22:%22INTAR%22,%22Period%22:%272018%27%7D&DataMartId=OBS&DataFileType=CSV\" uncertain.\n\nSearch for \"UN Data Inbound Tourism\" maybe dataset code. Search \"UN Data inbound tourism UK 2019 region\".",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "INBOUND tourism dataset UN Data UK 2019 region inbound tourism arrivals"
+          },
+          "result_chars": 0,
+          "is_error": false,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "web_search limit reached — you have used all 10 of your 10 searches and no further search will run. Answer the question now from what you have gathered."
+        }
+      ]
+    },
+    {
+      "turn": 13,
+      "reasoning": "We exhausted searches, no clear data. We need inbound tourism arrivals by region for UK 2018 vs 2019. We can approximate with UK stats report. Maybe VisitBritain 2019 tourism statistics PDF contains data per region of origin by 2018 & 2019 figures. Let's search that PDF.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "\"Tourism Statistics 2019\" UK inbound arrivals by region 2018 2019"
+          },
+          "result_chars": 0,
+          "is_error": false,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "web_search limit reached — you have used all 10 of your 10 searches and no further search will run. Answer the question now from what you have gathered."
+        }
+      ]
+    },
+    {
+      "turn": 14,
+      "reasoning": "We struggled to get the data from data.un.org. Maybe the dataset is not accessible via search. We might approximate with other sources.\n\nWe need: inbound tourism arrivals to the UK between 2018 and 2019 by region (Africa, Americas, East Asia & Pacific, Europe, Middle East, South Asia, Other). Need which region showed the largest decrease in arrivals (numerical). Then among those regions with that largest decrease, which had the largest median population in 2019.\n\nWe may need population data by region from data.un.org maybe. Let's search for population by region UN data 2019.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_search",
+          "arguments": {
+            "query": "UN Data population by region 2019 Africa Americas East Asia Pacific Europe Middle East South Asia Other"
+          },
+          "result_chars": 0,
+          "is_error": false,
+          "refused": true,
+          "leaked": 0,
+          "duration_ms": 0.0,
+          "explorations": [],
+          "result": "web_search limit reached — you have used all 10 of your 10 searches and no further search will run. Answer the question now from what you have gathered."
+        }
+      ]
+    },
+    {
+      "turn": 15,
+      "reasoning": "We ran many searches and got no good raw data. But likely the answer involves known fact: \"Asia Pacific\" had largest drop? Might need to recall UK inbound tourism by region 2018-2019 from UK VisitBritain. Let's approximate: UK inbound visits by region (International Passenger Survey): In 2018, arrivals from each region: Africa, Americas, East Asia & Pacific, Europe, Middle East, South Asia, Other. Numbers: Let's quickly approximate from https://www.visitbritain.org? There's maybe dataset. Must use web_fetch on that page.",
+      "text": "",
+      "tool_calls": [
+        {
+          "name": "web_fetch",
+          "arguments": {
+            "url": "https://www.visitbritain.org/research-insights/inbound-visits-and-spend-annual-uk"
+          },
+          "result_chars": 8000,
+          "is_error": false,
+          "refused": false,
+          "leaked": 0,
+          "duration_ms": 10693.7,
+          "explorations": [],
+          "result": "Title: Inbound visits and spend: annual, UK\n\nURL Source: https://www.visitbritain.org/research-insights/inbound-visits-and-spend-annual-uk\n\nMarkdown Content:\n# Inbound visits and spend: annual, UK | VisitBritain.org\n[Skip to main content]\n\n[Information for...]\n* [Help centre]\n* [Subscribe to news]\n\n[![Image 1: Visit VisitBritain Homepage]]\n\n* [Discover Britain]Inspirational and practical information on visiting and exploring Britain, including resources for the travel trade and business events planners. [Travelling to Britain] [Visa and immigration] [Travelling around Britain] [Accommodation options] [Destinations] [Things to do] [Resources for the travel trade] [Bring your event to Britain]  \n* [Business & Destination support]Explore our England Business Advice Hub, resources for destination partners and business events stakeholders and ways to work with us. [England Business Advice Hub] [Accessible and inclusive tourism] [Regenerative tourism] [Quality schemes and accolades] [VisitEngland Awards for Excellence] [Local Visitor Economy Partnership (LVEP) Programme] [Resources for destination partners] [Resources for business events partners] [Working with us]  \n* [Research & Insights]Find the latest consumer and industry data and insights on domestic and inbound tourism in the UK, Britain and England. [Latest releases] [Explore our research and insights] [Data visualisations] [Upcoming releases] [Useful contacts] [FAQs] [State of the Nation] [Economic Value of Tourism] [Inbound Tourism latest results] [Inbound markets] [Domestic Tourism latest results] [Domestic Sentiment Tracker]  \n* [Training & Events]\n* [News & media]\n\nOur media centre offers the latest press releases, story inspiration and royalty-free images for journalists writing about tourism in Britain. [Industry news and press releases] [Destination news and inspiration] [Accommodation and Taste updates] [England destination news] [Asset library and media resources] [Contact us]   \n\n## Other languages\n\n  * [Neues aus Großbritannien für Medien German]\n  * [Noticias y comunicados Spanish]\n  * [Actualités et médias French]\n  * [Notizie e media Italian]\n  * [Nieuws en media Dutch]\n  * [Novidades e anúncios Portuguese]\n\n* [About us]Find out more about our role and purpose, career opportunities and annual performance – and how to contact us. [Who we are] [What we do] [Our annual performance and reporting] [Our history] [Our careers] [Contact us] [Transparency and governance] [Introduction to tourism in Britain]  \n\nOpen menu Close menu\n\nOpen search\n\n* [Discover Britain]\n  * Inspirational and practical information on visiting and exploring Britain, including resources for the travel trade and business events planners. [Travelling to Britain] [Visa and immigration] [Travelling around Britain] [Accommodation options] [Destinations] [Things to do] [Resources for the travel trade] [Bring your event to Britain]   \n\n* [Business & Destination support]\n  * Explore our England Business Advice Hub, resources for destination partners and business events stakeholders and ways to work with us. [England Business Advice Hub] [Accessible and inclusive tourism] [Regenerative tourism] [Quality schemes and accolades] [VisitEngland Awards for Excellence] [Local Visitor Economy Partnership (LVEP) Programme] [Resources for destination partners] [Resources for business events partners] [Working with us]   \n\n* [Research & Insights]\n  * Find the latest consumer and industry data and insights on domestic and inbound tourism in the UK, Britain and England. [Latest releases] [Explore our research and insights] [Data visualisations] [Upcoming releases] [Useful contacts] [FAQs] [State of the Nation] [Economic Value of Tourism] [Inbound Tourism latest results] [Inbound markets] [Domestic Tourism latest results] [Domestic Sentiment Tracker]   \n\n* [Training & Events]\n* [News & media]\n  * \nOur media centre offers the latest press releases, story inspiration and royalty-free images for journalists writing about tourism in Britain. [Industry news and press releases] [Destination news and inspiration] [Accommodation and Taste updates] [England destination news] [Asset library and media resources] [Contact us]   \n\n## Other languages\n\n  * [Neues aus Großbritannien für Medien German]\n  * [Noticias y comunicados Spanish]\n  * [Actualités et médias French]\n  * [Notizie e media Italian]\n  * [Nieuws en media Dutch]\n  * [Novidades e anúncios Portuguese]\n\n* [About us]\n  * Find out more about our role and purpose, career opportunities and annual performance – and how to contact us. [Who we are] [What we do] [Our annual performance and reporting] [Our history] [Our careers] [Contact us] [Transparency and governance] [Introduction to tourism in Britain]   \n\n* [Information for...]\n\n* [Help centre]\n* [Subscribe to news]\n\n## What are you looking for?\n\nEnter a search query \n\n Search \n\n1. [Home]/\n2. [Research and insights]/\n3. Inbound visits and spend: annual, UK\n\n![Image 2: VisitBritain]\n\n# Inbound visits and spend: annual, UK\n\nSee the latest annual UK level estimates of the number of visits to the UK, spend by inbound visitors and nights spent in the UK, based on the International Passenger Survey (IPS) released by the Office of National Statistics.\n\n### Released on:\n\n16 October 2026\n\n### Next release:\n\nto be confirmed\n\nFor further information, please [get in touch].\n\n## 2025: report highlights\n\n**VisitBritain’s modelled estimates suggest that inbound visits to the UK in 2025 were slightly above pre-COVID (2019) levels and 2024 levels. Visitor spending was slightly up compared to 2024, and was up vs 2019 in nominal terms but not when adjusted for inflation.**\n\nUK:\n\n* IPS estimates for 2025 from the **ONS**indicate that there were 40.8m inbound visits to the UK in 2025 with those visitors spending a total of £29.8bn and staying for a total of 278.2m nights in the UK. We caution that these are statistics in development.\n* **VisitBritain modelled estimates**(see slide 9 for more information, and the modelling document in the reports section below) suggest that **visits** were 3% above pre-COVID levels and were up 2% vs 2024. Inbound visitor **spending**was up 19% vs 2019 and up 2% vs 2024. European visits and spend were estimated to have grown 4% and 6% in 2025 vs a decline of 1% for visits and spend for non-Europe.\n\nGB:\n\n* In 2025, IPS estimates show there were 15.1m **holiday**visits with visitors spending £14.5bn across the year. There were 12.9m visitors **visiting friends and relatives**in 2025, spending £6.7bn. **Business** visits totalled at 6.7m with spending at £5.6bn.\n* **European**visits totalled 23.7m with visitors spending £12.7bn. Across the pond, there were 6.4m visits and £8.5bn spend from those visiting from **North America**. Markets from the **Rest of World**saw 5.8m visits and £7.8bn spending in the UK.\n* In 2025, **top markets**for visits were the USA, France, Irish Republic and Germany, and for spend; USA, GCC*, Germany and France. Based on the second half of 2025 vs the second half of 2024, visits growth was led from the GCC markets, North East Asia, parts of Western Europe and long haul markets Australia and Canada, with USA visits on par with the previous year. For spend, GCC markets also led growth along with American markets (Canada, Brazil), parts of Western Europe and North East Asia, with spend from the USA also seeing a slight increase.\n\nPlease note, 2025 data is badged as ‘_official statistics in development’_ and estimates are subject to future change as further improvements to the methods are introduced. See the ‘About the survey’ section at the bottom of this page for more detail on caveats to the data.\n\nSee the annual results for 2025 by[nations and regions].\n\n## View the latest report\n\nPDF\n\n### 2025 IPS UK Total Inbound Update (Published 16 October 2026)\n\nAccess the estimates for 2025 in our summary report which covers the headlines from the ONS and VB modelled estimates. Please note 2025 data are official statisti"
+        }
+      ]
+    },
+    {
+      "turn": 16,
+      "reasoning": "The browsing attempts didn't yield direct UN data breakdown. Likely the needed data is in UN Data spreadsheet with regions. We need inbound tourism arrivals to UK by region 2018 and 2019. And population data (total population 2019) by region. Then find region with largest decrease in arrivals (most negative difference), then among that region's population median? Wait question: \"which of the two regions, among Africa, Americas, East Asia and the Pacific, Europe, Middle East, South Asia, and Other, that showed the largest decrease in arrivals to the UK between 2018 and 2019 (consider the number of people only), had the largest median population in 2019?\"\n\nWe need to compare two regions: the one with largest decrease in arrivals and the other? Actually \"which of the two regions ... that showed the largest decrease ... had the largest median population in 2019?\" Might be ambiguous. Probably means: there are two regions that had largest decrease? Actually likely there may be a tie or maybe top two. We need determine between them which has larger median population.\n\nBut we probably cannot compute due to lack of data. Might provide explanation that cannot answer.",
+      "text": "I’m sorry, but I wasn’t able to locate the specific UN‑data tables that give UK inbound‑tourism arrivals broken out by the nine UN regions (Africa, Americas, East Asia & the Pacific, Europe, Middle East, South Asia, Other) for 2018 and 2019, nor the UN‑population figures for those same regions in 2019.  Because the exact figures are not in the information I could retrieve, I can’t calculate the difference in arrivals or the median population for each region and therefore can’t answer which of the two regions with the largest decline in arrivals has the larger median population.  If you can point me at a particular UN Data download (e.g., a CSV or Excel file) that contains the needed regional breakdowns, I can use that to finish the comparison.",
+      "tool_calls": []
+    }
+  ],
+  "usage": {
+    "input_tokens": 80213,
+    "output_tokens": 5391,
+    "reasoning_tokens": 7098,
+    "calls": 16
+  },
+  "latency_ms": 63966.8,
+  "error": null
+}
