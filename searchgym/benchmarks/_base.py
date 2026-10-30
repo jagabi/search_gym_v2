@@ -10,6 +10,7 @@
       "answer_type":  "single"|"set",  # 정답이 하나인가, 목록인가
       "category":     "Sports",        # 없으면 ""
       "answer_parts": ["...", ...]     # set일 때 결정적으로 쪼갠 파트. 모르면 null
+      "answer_aliases": ["...", ...]   # 선택. 같은 정답의 다른 표기 (MuSiQue 등)
     }
 
 `answer_type`이 판정 방식을 정한다.
@@ -39,6 +40,7 @@ class Item:
     answer_type: str = "single"
     category: str = ""
     answer_parts: list[str] | None = None
+    answer_aliases: list[str] | None = None
 
     @classmethod
     def from_record(cls, record: dict[str, Any]) -> Item:
@@ -49,6 +51,7 @@ class Item:
             answer_type=str(record.get("answer_type") or "single"),
             category=str(record.get("category") or ""),
             answer_parts=record.get("answer_parts") or None,
+            answer_aliases=record.get("answer_aliases") or None,
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -59,6 +62,7 @@ class Item:
             "answer_type": self.answer_type,
             "category": self.category,
             "answer_parts": self.answer_parts,
+            **({"answer_aliases": self.answer_aliases} if self.answer_aliases else {}),
         }
 
 
