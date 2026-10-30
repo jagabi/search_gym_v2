@@ -61,6 +61,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ids", default=None,
                         help="이 문항 번호(index)만 실행. 쉼표 구분, 예: 8,26,74 (--limit 무시)")
     parser.add_argument("--tag", default=None, help="실행 디렉터리 이름에 붙일 꼬리표")
+    parser.add_argument("--workers", type=int, default=None,
+                        help="동시에 푸는 문항 수. 기본: ragent·search-o1 4, search-o1-decision pplx 2 / d3 4, 그 외 conf.yaml")
     parser.add_argument("--prompt", default=None, help="메인 시스템 프롬프트를 파일에서 읽는다")
     parser.add_argument("--explorer-prompt", default=None, help="explorer 프롬프트 파일")
     parser.add_argument("--no-cache", action="store_true")
@@ -116,6 +118,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         raw_top_n=args.top_n,
         expected_raw_traversal=args.expect_raw_traversal,
         decision_provider=args.decision_provider,
+        workers=args.workers,
     )
     if config.method in RAW_METHODS and args.decision_provider is None:
         raise SystemExit(f'{config.method} requires --decision pplx|d3-mini|d3-flash')

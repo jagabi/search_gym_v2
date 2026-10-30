@@ -1,4 +1,5 @@
 """--decision pplx | d3-mini | d3-flash: self-hosted servers and the startup identity check."""
+import json
 import unittest
 from unittest.mock import patch
 
@@ -62,6 +63,55 @@ class IdentityCheckTests(unittest.IsolatedAsyncioTestCase):
             await self.check('pplx', server(['vllm-sr/d3-mini']))
         with self.assertRaisesRegex(RuntimeError, 'invalid probe probability'):
             await self.check('pplx', server(models_status=500, probe=3.0))
+
+
+class ParallelQuestionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_two_questions_share_one_agent_without_mixing(self):
+        import asyncio
+        from searchgym.agent import SearchAgent
+        from searchgym.llm import Reply
+        from searchgym.serving import profile_for
+        from offline import FakeTools
+        from test_depthsearch_core import call
+        from test_rawtree import Capture
+        from test_rawtree_navigation import Decision
+
+        class LLM:
+            profile = profile_for('gpt-oss')
+            model_name = 'offline'
+
+            async def chat(self, messages, *, max_tokens, tools=None, usage=None, tool_choice=None):
+                question = next(m['content'] for m in messages if m['role'] == 'user')
+                await asyncio.sleep(0.01)                    # interleave the two questions
+                if not any(m['role'] == 'tool' for m in messages):
+                    return call('web_search', {'query': question[:20]})
+                return Reply(text='answer to ' + question)
+
+            async def count_tokens(self, text):
+                return len(text) // 3
+
+            async def cap(self, text, limit):
+                return text, False
+
+        class Tools(FakeTools):
+            async def fetch(self, url, engine=None):
+                return await super().fetch(url)
+
+        cfg = load_test(method='search-o1-decision', decision_provider='pplx')
+        self.assertEqual(cfg.run.workers, 2)
+        with patch('searchgym.agent.LLM', return_value=LLM()), \
+                patch('searchgym.pplx_decision.DeciderDecision', return_value=Decision()):
+            agent = SearchAgent(profile_for('gpt-oss'), cfg.agent, method='search-o1-decision',
+                                explorer_config=cfg.explorer, explorer_prompt=cfg.explorer_prompt)
+        tools, traces = Tools(), [Capture(), Capture()]
+        results = await asyncio.gather(*(agent.run(q, cfg.system_prompt, tools, t)
+                                         for q, t in zip(('Question one?', 'Question two?'), traces)))
+        self.assertEqual([r.answer for r in results], ['answer to Question one?', 'answer to Question two?'])
+        self.assertEqual([r.searches for r in results], [1, 1])
+        for trace, query in zip(traces, ('Question one?', 'Question two?')):
+            returns = [e for e in trace.events if e['event'] == 'rawtree.return']
+            self.assertEqual(len(returns), 1)                # each trace holds only its own search
+            self.assertIn(query[:12], json.dumps([e for e in trace.events if e['event'] == 'tool.call']))
 
 
 if __name__ == '__main__':

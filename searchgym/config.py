@@ -228,6 +228,17 @@ class TrainConfig:
 # --- 로더 -------------------------------------------------------------------
 
 
+
+def default_workers(method: str, decision_provider: str, fallback: int) -> int:
+    """Questions run in parallel per method. The baselines only call the main LLM;
+    search-o1-decision also loads the decision server, and the pplx decider (not
+    vLLM) has less memory headroom than d3."""
+    if method in ("ragent", "search-o1"):
+        return 4
+    if method == "search-o1-decision":
+        return 2 if decision_provider == "pplx" else 4
+    return fallback
+
 def load_test(
     conf_path: str | Path = "conf.yaml",
     *,
@@ -243,6 +254,7 @@ def load_test(
     raw_top_n: int | None = None,
     expected_raw_traversal: str | None = None,
     decision_provider: str | None = None,
+    workers: int | None = None,
 ) -> TestConfig:
     raw = _read(conf_path)
     outer = _build(_Outer, raw, "conf")
@@ -309,8 +321,13 @@ def load_test(
         config.agent.decision_provider = decision_provider
         config.agent.jev_model = DECISION_MODELS[decision_provider]
         if decision_provider == 'pplx':
-            config.agent.jev_concurrency = 16
-            config.agent.jev_inflight_questions = 1024
+            # Shared by all parallel questions: at most 32 decider requests in flight.
+            config.agent.jev_concurrency = 32
+            config.agent.jev_inflight_questions = 2048  # 32 requests x up to 64 keys
+    config.run.workers = workers if workers is not None else default_workers(
+        config.method, config.agent.decision_provider, config.run.workers)
+    if config.run.workers < 1:
+        raise ValueError('workers must be at least 1')
     _validate(config)
     expected = config.agent.jev_expected_traversal
     if expected and (

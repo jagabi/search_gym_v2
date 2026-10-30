@@ -375,18 +375,19 @@ class Runner:
         elif force:
             (qdir / "explorer.json").unlink(missing_ok=True)
 
-        # 탐색 궤적 그림. 세 방법 모두 그린다 — ragent/search-o1 이 평면이라는 것을
-        # 눈으로 확인할 수 있어야 depthsearch 의 트리가 의미를 갖는다.
-        write_svg(
-            qdir / "tree.svg",
-            result,
-            question=item.question,
-            subtitle=(
-                f"{self.method} · searches {result.searches} · fetches {result.fetches}"
-                f" · expansion {result.expansion_nodes} · depth {result.max_depth_reached}"
-                f" · {result.stop_reason}"
-            ),
-        )
+        # 탐색 궤적 그림은 링크 트리를 따라가는 jevtree 만 그린다. 평면 방법들은
+        # 그릴 트리가 없고, 파일 수만 늘린다.
+        if self.method == "jevtree":
+            write_svg(
+                qdir / "tree.svg",
+                result,
+                question=item.question,
+                subtitle=(
+                    f"{self.method} · searches {result.searches} · fetches {result.fetches}"
+                    f" · expansion {result.expansion_nodes} · depth {result.max_depth_reached}"
+                    f" · {result.stop_reason}"
+                ),
+            )
 
         relative = str(qdir.relative_to(self.run_dir))
         # 실패한 실행과 빈 응답은 캐시하지 않는다.

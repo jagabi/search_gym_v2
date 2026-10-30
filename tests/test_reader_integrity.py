@@ -540,7 +540,8 @@ class RunnerIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 record = await runner.run_one(benchmark, item, config.system_prompt, FakeTools())
                 self.assertTrue(record.result.answer)
                 self.assertIsNone(record.result.error)
-                self.assertTrue((out / record.dir / "tree.svg").exists())
+                # Only jevtree draws its link tree; the other methods write no SVG.
+                self.assertFalse((out / record.dir / "tree.svg").exists())
                 if method == "depthsearch":
                     self.assertGreater(record.result.expansion_nodes, 0)
                     self.assertIn("Page note", record.result.tool_calls[-1].result)
