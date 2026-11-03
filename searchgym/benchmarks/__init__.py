@@ -26,6 +26,8 @@ _REGISTRY: dict[str, type[Benchmark]] = {
     "evobrowsecomp": _single("evobrowsecomp"),
     "browsecomp": _single("browsecomp"),
     "kbrowsecomp": _single("kbrowsecomp"),
+    "musique": _single("musique"),
+    "bamboogle": _single("bamboogle"),
 }
 
 BENCHMARKS = tuple(_REGISTRY)

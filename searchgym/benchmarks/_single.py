@@ -1,4 +1,4 @@
-"""정답이 하나인 벤치마크 — EvoBrowseComp / BrowseComp / K-BrowseComp.
+"""정답이 하나인 벤치마크 — EvoBrowseComp / BrowseComp / K-BrowseComp / MuSiQue / Bamboogle.
 
 셋 다 짧은 단일 정답이라 판정 로직이 같다. 이름과 데이터만 다르므로 클래스 하나를
 공유한다. 판정 모델에게는 boolean 하나만 받는다.
@@ -24,9 +24,13 @@ class SingleAnswerBenchmark(Benchmark):
     name = "single_answer"
 
     def judge_prompt(self, item: Item, response: str) -> str:
+        answer = item.answer.strip()
+        if item.answer_aliases:
+            # Other accepted forms of the same answer; absent for the other benchmarks.
+            answer += "\nAlso accepted as the same answer: " + "; ".join(a.strip() for a in item.answer_aliases)
         return _GRADER.format(
             question=item.question.strip(),
-            answer=item.answer.strip(),
+            answer=answer,
             response=response.strip(),
         )
 
