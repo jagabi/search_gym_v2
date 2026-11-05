@@ -68,6 +68,14 @@ class FlatReadingTests(unittest.IsolatedAsyncioTestCase):
                 '![Image 2: cover](https://img.example/b.png) Bare https://example.org/cite stays.')
         self.assertEqual(strip_links(page), 'See Ten Words and  photo.  Bare https://example.org/cite stays.')
 
+    async def test_control_characters_do_not_fail_the_question(self):
+        # A PDF with a broken font map: text full of \x01, which JSON escapes 6x.
+        garbled = ' '.join('1:\x016G:\x01HJ7?:8I\x01ID' for _ in range(200))
+        bodies = {'a': garbled, 'b': 'BEST fact.'}
+        decision, trace, _, text, _ = await self.run_search(bodies, jev_entries=2, jev_fetch_budget=2)
+        self.assertIn('BEST fact', text)
+        self.assertTrue(all('\x01' not in s['page_text'] for s, _, _ in decision.calls))
+
     async def test_top_zero_keeps_every_bundle_within_budget(self):
         bodies = {'a': 'GOOD one.', 'b': 'BEST two.', 'c': 'GOOD three.'}
         _, _, _, _, stats = await self.run_search(bodies, jev_top_n=0, jev_entries=3, jev_fetch_budget=3)

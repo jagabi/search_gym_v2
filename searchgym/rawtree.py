@@ -27,7 +27,9 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import marker_context, partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/39"
+VERSION = "raw-browser-d3-navigation-docling/40"
+CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+CONNECT_ATTEMPTS = 3
 # Maximum number of decision keys accepted by /v1/systemone.
 D3_MAX_QUESTIONS = 64
 
@@ -535,8 +537,17 @@ class LocalDecision:
                 # Start the overall deadline after admission, not while queued.
                 # HTTPX read timeouts alone reset on every received data chunk.
                 async with asyncio.timeout(timeout_s):
-                    response = await self.http.post(self.endpoint, json=body,
-                        timeout=httpx.Timeout(timeout_s, connect=5.0, pool=5.0))
+                    for connect_try in range(CONNECT_ATTEMPTS):
+                        try:
+                            response = await self.http.post(self.endpoint, json=body,
+                                timeout=httpx.Timeout(timeout_s, connect=5.0, pool=5.0))
+                            break
+                        except httpx.ConnectTimeout:
+                            # Nothing reached the server yet, so resending is safe.
+                            # Observed: a busy decider occasionally takes >5s to accept.
+                            if connect_try + 1 == CONNECT_ATTEMPTS:
+                                raise
+                            trace.event("jev.connect_retry", request_id=request_id, attempt=connect_try+1)
                 self._observe_response(response)
                 trace.event("jev.response", request_id=request_id, attempt=0,
                             duration_ms=1000*(time.perf_counter()-started),
@@ -1521,18 +1532,30 @@ class RawTree:
             chunk_started = time.perf_counter()
             # Flat reading follows no links, so their destinations are only noise.
             body = strip_links(doc.content) if flat else doc.content
+            # Control characters (e.g. a PDF with a broken font map) carry no
+            # text, and each becomes a 6-character \uXXXX escape in the request.
+            body = CONTROL_CHARS.sub(' ', body)
             chunks, bundles, cache_hit = await self._chunks(body)
             if visited is not None or flat:
                 state_of = ((lambda text: self._joint_input(n, text, question, query, visited)[0])
                             if visited is not None else (lambda text: self._flat_state(n, text)))
                 limit = cfg.jev_bundle_tokens
                 while bundles:
-                    overflow = max(chunker.count(json.dumps(state_of(b['text']), ensure_ascii=False))
-                                   - cfg.jev_bundle_tokens for b in bundles)
-                    if overflow <= 0:
+                    worst = max(chunker.count(json.dumps(state_of(b['text']), ensure_ascii=False))
+                                for b in bundles)
+                    if worst <= cfg.jev_bundle_tokens:
                         break
-                    limit -= overflow+8
-                    bundles = chunker.bundles(chunks, limit, cfg.jev_overlap_chunks)
+                    # Request overhead (title, JSON escapes) scales with the text,
+                    # so shrink in proportion rather than by the raw overflow.
+                    limit = int(limit * cfg.jev_bundle_tokens / worst) - 8
+                    try:
+                        bundles = chunker.bundles(chunks, limit, cfg.jev_overlap_chunks)
+                    except ValueError:
+                        # One chunk alone cannot fit a request: this page is
+                        # unreadable for the decider, not a failed question.
+                        trace.event("rawtree.page_unbundlable", search_id=search_id, node_id=n.node_id,
+                                    url=n.url, bundle_tokens=limit)
+                        bundles = []
             stats["chunk_cache_hits"] = stats.get("chunk_cache_hits", 0) + int(cache_hit)
             chunk_ms = round(1000*(time.perf_counter()-chunk_started))
             stats["chunking_ms"] += chunk_ms

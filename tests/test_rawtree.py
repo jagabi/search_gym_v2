@@ -120,6 +120,25 @@ class AsyncTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await client.aclose()
 
+    async def test_connect_timeout_is_resent(self):
+        client = LocalDecision(AgentConfig(jev_model='vllm-sr/d3-mini'))
+        await client.http.aclose()
+        sent = []
+
+        def respond(request):
+            sent.append(request)
+            if len(sent) < 3:
+                raise httpx.ConnectTimeout('busy')
+            return httpx.Response(200, json={'answers': {'x': {'noul': 0.7}}})
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(respond))
+        try:
+            scores = await client.noul('source', {'x': decision_question('target', query=True)},
+                                       NullTrace(), usage=JevUsage(), context={})
+            self.assertEqual(len(sent), 3)
+            self.assertAlmostEqual(next(iter(scores.values())) if isinstance(scores, dict) else scores, 0.7)
+        finally:
+            await client.aclose()
+
     async def test_reader_failure_logs_pdf_and_origin_status_without_retry(self):
         from searchgym.tools import WebTools
         seen = []
