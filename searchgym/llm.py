@@ -28,6 +28,8 @@ from .serving import ServeProfile
 # 서버측 5xx 재시도. harmony 파서가 한 샘플에서 죽는 일이 있어 다시 뽑으면 지나간다.
 _MAX_SERVER_RETRIES = 2
 _RETRY_BACKOFF_S = 1.0
+# /tokenize 재시도. 실측: 실행 첫 문항에서 한 번 실패했고 같은 요청을 다시 보내면 통과.
+_TOKENIZE_ATTEMPTS = 4
 
 __all__ = ["LLM", "Reply", "Usage"]
 
@@ -269,25 +271,33 @@ class LLM:
     # --- 토큰 ---------------------------------------------------------------
 
     async def count_tokens(self, text: str, *, strict: bool = False) -> int:
-        """**돌리는 모델의 토크나이저로** 센다. 실패하면 근사치로 물러선다."""
-        try:
-            import httpx
+        """**돌리는 모델의 토크나이저로** 센다. 실패하면 근사치로 물러선다.
 
-            if self._http is None:
-                headers = {}
-                if self.api_key and self.api_key != "EMPTY":
-                    headers["Authorization"] = f"Bearer {self.api_key}"
-                self._http = httpx.AsyncClient(timeout=30.0, headers=headers or None)
-            root = self.base_url.rstrip("/").removesuffix("/v1")
-            response = await self._http.post(
-                f"{root}/tokenize", json={"model": self.model_name, "prompt": text}
-            )
-            response.raise_for_status()
-            return int(response.json()["count"])
-        except Exception as exc:
-            if strict:
-                raise RuntimeError('Main-model output tokenizer unavailable') from exc
-            return estimate_tokens(text)
+        strict 는 근사치를 허용하지 않으므로, 일시적인 연결 실패 한 번에 문항이
+        통째로 실패하지 않도록 몇 번 다시 묻는다.
+        """
+        import httpx
+
+        if self._http is None:
+            headers = {}
+            if self.api_key and self.api_key != "EMPTY":
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            self._http = httpx.AsyncClient(timeout=30.0, headers=headers or None)
+        root = self.base_url.rstrip("/").removesuffix("/v1")
+        attempts = _TOKENIZE_ATTEMPTS if strict else 1
+        for attempt in range(attempts):
+            try:
+                response = await self._http.post(
+                    f"{root}/tokenize", json={"model": self.model_name, "prompt": text}
+                )
+                response.raise_for_status()
+                return int(response.json()["count"])
+            except Exception as exc:
+                if not strict:
+                    return estimate_tokens(text)
+                if attempt + 1 == attempts:
+                    raise RuntimeError(f'Main-model output tokenizer unavailable: {exc!r}') from exc
+                await asyncio.sleep(_RETRY_BACKOFF_S * (attempt + 1))
 
     async def count_output_tokens(self, text: str) -> int:
         return await self.count_tokens(text, strict=True)
