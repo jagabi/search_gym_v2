@@ -14,9 +14,18 @@ from .rawtree import LocalDecision
 
 PROBE_STATE = {'page_title': 'Decision probe', 'page_text': 'The treaty was signed in 1842.'}
 PROBE_QUESTION = {'probe': {'type': 'noul', 'instructions': 'Does the text state when the treaty was signed?'}}
+# The first answer after the server starts includes its warm-up (measured >30s).
+PROBE_TIMEOUT_S = 600.0
+# The decider replica serves a few requests at once and queues the rest behind
+# them, so a request's deadline covers that queue as well as its own inference.
+REQUEST_TIMEOUT_S = 120.0
 
 
 class DeciderDecision(LocalDecision):
+    @staticmethod
+    def _packet_timeout(question_count):
+        return REQUEST_TIMEOUT_S
+
     async def prepare(self):
         async with self.prepare_lock:
             if self.chunker is not None:
@@ -31,7 +40,7 @@ class DeciderDecision(LocalDecision):
                 if any(str(n).startswith('vllm-sr/d3') for n in names):
                     raise RuntimeError(f'--decision pplx but the decision server reports d3 models: {sorted(names)}')
             probe = await self.http.post(self.endpoint, json=self._request_body(PROBE_STATE, PROBE_QUESTION, 'probe'),
-                                         timeout=30.0)
+                                         timeout=PROBE_TIMEOUT_S)
             probe.raise_for_status()
             score = probe.json()['answers']['probe']['noul']
             if not 0 <= float(score) <= 1:
