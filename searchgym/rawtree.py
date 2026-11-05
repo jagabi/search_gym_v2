@@ -27,7 +27,9 @@ from .raw_chunks import SourceChunker
 from .raw_navigation import marker_context, partitions, region_preview
 from .urls import normalize_fetch_url
 
-VERSION = "raw-browser-d3-navigation-docling/40"
+# Kept at /39: the control-character and bundle-fit fixes only change cases that
+# used to fail the whole question, so cached answers from /39 stay valid for --resume.
+VERSION = "raw-browser-d3-navigation-docling/39"
 CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 CONNECT_ATTEMPTS = 3
 # Maximum number of decision keys accepted by /v1/systemone.

@@ -45,8 +45,7 @@ class RetryPlan:
     targets: dict  # index -> agent or judge
 
 
-def plan_retry(out, items, config, profile):
-    """Read-only validation. Cached successes are not required."""
+def _check_same_setup(out, config, profile):
     saved = _read(out / "config.json")
     current = {"method": config.method, "model": profile.repo,
                "agent": asdict(config.agent),
@@ -65,6 +64,41 @@ def plan_retry(out, items, config, profile):
             continue
         if (out / filename).read_text(encoding="utf-8").strip() != prompt.strip():
             raise ValueError(f"기존 실행과 {filename}이 다릅니다.")
+
+
+def _saved_records(out, rows, items):
+    records = {}
+    for i, row in rows.items():
+        response = _read(out / f"q{i:05d}" / "response.json")
+        if response["question"] != items[i].question or response["gold_answer"] != items[i].answer:
+            raise ValueError(f"q{i:05d}의 질문 또는 정답이 기존 실행과 다릅니다.")
+        records[i] = Record(i, row["category"], row["score"], _SavedJudgement(row), _result_from(response),
+                            cached=row.get("cached", False), dir=row["dir"])
+    return records
+
+
+def load_progress(out, items, config, profile):
+    """Questions already in records.jsonl, for --resume. Works without the answer cache.
+
+    Returns (rows, records) for the recorded subset of `items`; the caller runs the rest.
+    Failed rows are kept as they are — `--retry-errors` replaces them once the run is complete.
+    """
+    _check_same_setup(out, config, profile)
+    path = out / "records.jsonl"
+    rows = {}
+    for line in (path.read_text(encoding="utf-8").splitlines() if path.exists() else []):
+        if line.strip():
+            row = json.loads(line)
+            rows[row["index"]] = row  # an earlier resume may have appended twice: keep the last
+    items = {item.index: item for item in items}
+    if set(rows) - set(items):
+        raise ValueError("records.jsonl에 실행 대상이 아닌 문항이 있습니다. 기존 --limit/--split/데이터셋을 맞추세요.")
+    return rows, _saved_records(out, rows, items)
+
+
+def plan_retry(out, items, config, profile):
+    """Read-only validation. Cached successes are not required."""
+    _check_same_setup(out, config, profile)
     rows = {}
     for line in (out / "records.jsonl").read_text(encoding="utf-8").splitlines():
         row = json.loads(line)
@@ -73,17 +107,12 @@ def plan_retry(out, items, config, profile):
         rows[row["index"]] = row
     items = {item.index: item for item in items}
     if set(rows) != set(items):
-        raise ValueError("저장된 문항과 실행 대상이 다릅니다. 기존 --limit/--split/데이터셋을 맞추세요. "
-                         "미완료 실행은 일반 --resume을 사용하세요.")
-    records, targets = {}, {}
+        missing = len(set(items) - set(rows))
+        raise ValueError(f"아직 {missing}문항이 끝나지 않았습니다. 먼저 --resume(--retry-errors 없이)으로 "
+                         "나머지를 끝낸 뒤 재시도하세요. --limit/--split/데이터셋도 기존 실행과 같아야 합니다.")
+    records, targets = _saved_records(out, rows, items), {}
     for i, row in rows.items():
-        qdir = out / f"q{i:05d}"
-        response = _read(qdir / "response.json")
-        if response["question"] != items[i].question or response["gold_answer"] != items[i].answer:
-            raise ValueError(f"q{i:05d}의 질문 또는 정답이 기존 실행과 다릅니다.")
-        result = _result_from(response)
-        records[i] = Record(i, row["category"], row["score"], _SavedJudgement(row), result,
-                            cached=row.get("cached", False), dir=row["dir"])
+        result = records[i].result
         if not result.answer.strip() or result.error or row.get("error"):
             targets[i] = "agent"
         elif row.get("judge_error"):

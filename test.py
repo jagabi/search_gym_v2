@@ -185,6 +185,17 @@ async def main_async(argv: list[str] | None = None) -> int:
         if args.dry_run or not retry_plan.targets:
             return 0
 
+    # --resume keeps every question already in records.jsonl (with or without the
+    # answer cache) and runs only the rest. Read it before config.json is rewritten.
+    kept_rows, kept = {}, {}
+    if args.resume is not None and retry_plan is None:
+        from searchgym.retry import load_progress
+        try:
+            kept_rows, kept = load_progress(out, items, config, profile)
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"이어 돌리기 준비 오류: {exc}", file=sys.stderr)
+            return 1
+
     table(
         "설정",
         {
@@ -218,11 +229,17 @@ async def main_async(argv: list[str] | None = None) -> int:
     if retry_plan is not None:
         print("  실패 기록을 retry_history에 백업하고, 완료되는 문항부터 전체 결과를 갱신합니다.")
     elif args.resume is not None:
-        todo = runner.pending(benchmark, items, config.system_prompt)
-        print(f"\n전체 {len(items)}문항 · 완료 {len(items) - len(todo)} · 남은 {len(todo)}")
-        if not todo:
+        remaining = [item for item in items if item.index not in kept]
+        cached = len(remaining) - len(runner.pending(benchmark, remaining, config.system_prompt))
+        print(f"\n전체 {len(items)}문항 · 기록 유지 {len(kept)} · 남은 {len(remaining)}"
+              + (f" (그중 캐시 {cached})" if cached else ""))
+        if not remaining:
             print("  남은 문항이 없습니다. 집계만 다시 씁니다.")
-        (out / "records.jsonl").unlink(missing_ok=True)
+        # Rewrite without duplicates; new results are appended after these rows.
+        (out / "records.jsonl").write_text(
+            "".join(json.dumps(row, ensure_ascii=False) + "\n" for _, row in sorted(kept_rows.items())),
+            encoding="utf-8")
+        items = remaining
     else:
         print(f"\n{len(items)}문항 실행 중...")
 
@@ -254,6 +271,7 @@ async def main_async(argv: list[str] | None = None) -> int:
             records = await runner.run_all(
                 benchmark, items, config.system_prompt, score_field="f1", on_record=progress
             )
+            records = sorted([*kept.values(), *records], key=lambda r: r.index)
     finally:
         bar.close()
         await runner.aclose()

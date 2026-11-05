@@ -148,6 +148,60 @@ class RetryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(records), 5)
         self.assertFalse((self.out / "retry_history").exists())
 
+    def test_unfinished_run_points_to_plain_resume(self):
+        (self.out / "records.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in self.rows[:3]), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "2문항이 끝나지 않았습니다"):
+            self.plan()
+
+    async def test_resume_keeps_recorded_questions_without_cache(self):
+        # A run started with --no-cache: nothing cached, 3 of 5 recorded (one row appended twice).
+        (self.out / "records.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in [*self.rows[:3], self.rows[0]]), encoding="utf-8")
+        ran = []
+
+        class FakeRunner:
+            def __init__(inner, *args, **kwargs):
+                inner._records_path = self.out / "records.jsonl"
+
+            def pending(inner, benchmark, items, prompt):
+                return list(items)
+
+            async def run_all(inner, benchmark, items, prompt, **kwargs):
+                ran.extend(item.index for item in items)
+                records = [self.records[item.index - 1] for item in items]
+                with inner._records_path.open("a", encoding="utf-8") as handle:
+                    for record in records:
+                        handle.write(json.dumps(record.as_dict()) + "\n")
+                return records
+
+            async def aclose(inner):
+                pass
+
+            def cache_stats(inner):
+                return {}
+
+        with patch.object(cli, "_resolve_dir", return_value=self.out), \
+             patch.object(cli, "load_benchmark", return_value=SimpleNamespace(load=lambda **kw: self.items)), \
+             patch.object(cli, "Judge", return_value=SimpleNamespace()), \
+             patch.object(cli, "Runner", FakeRunner):
+            self.assertEqual(await cli.main_async(["--method", "depthsearch", "--resume"]), 0)
+        self.assertEqual(ran, [4, 5])
+        rows = [json.loads(s) for s in (self.out / "records.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([r["index"] for r in rows], [1, 2, 3, 4, 5])
+        self.assertEqual(rows[:3], self.rows[:3])
+        self.assertEqual(json.loads((self.out / "summary.json").read_text())["n"], 5)
+
+    async def test_resume_refuses_changed_settings_before_touching_records(self):
+        before = (self.out / "records.jsonl").read_bytes()
+        self.config.agent.max_searches += 1
+        with patch.object(cli, "_resolve_dir", return_value=self.out), \
+             patch.object(cli, "load_benchmark", return_value=SimpleNamespace(load=lambda **kw: self.items)), \
+             patch.object(cli, "load_test", return_value=self.config), \
+             patch.object(cli, "Runner", side_effect=AssertionError("Must not run")):
+            self.assertEqual(await cli.main_async(["--method", "depthsearch", "--resume"]), 1)
+        self.assertEqual((self.out / "records.jsonl").read_bytes(), before)
+
     async def test_cli_dry_run_does_not_construct_judge_or_runner(self):
         with patch.object(cli, "_resolve_dir", return_value=self.out), \
              patch.object(cli, "load_benchmark", return_value=SimpleNamespace(load=lambda **kw: self.items)), \
