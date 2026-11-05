@@ -107,7 +107,11 @@ class SourceChunker:
                     doc.add_text(label=DocItemLabel.TEXT, text=gap)
             block = "".join(lines[start:end]).strip()
             if block:
-                if token.type == "heading_open":
+                # HybridChunker silently drops headings that do not fit beside a
+                # chunk, losing their text. A heading that long is content, not
+                # structure (e.g. a whole social post rendered as "# ..."), so it
+                # stays body text.
+                if token.type == "heading_open" and self.count(block) <= self.tokenizer.limit // 4:
                     doc.add_heading(text=block, level=int(token.tag[1:]))
                 else:
                     doc.add_text(label=DocItemLabel.TEXT, text=block)

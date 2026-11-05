@@ -54,6 +54,15 @@ class ChunkTests(unittest.TestCase):
         for value in ['Ada', '2021', 'https://example.org/record']:
             self.assertIn(value, joined)
 
+    def test_overlong_heading_text_is_kept_as_body(self):
+        # A whole post rendered as one "# ..." heading: Docling would drop it.
+        c = chunker(32)
+        text = '# Ranking ' + ' '.join(f'country{i}' for i in range(60)) + '\n\nLog In\n'
+        joined = '\n'.join(x.text for x in c.chunks(text))
+        for i in range(60):
+            self.assertIn(f'country{i}', joined)
+        self.assertIn('Log In', joined)
+
     def test_headings_without_body_survive(self):
         c = chunker(128)
         text = ('# Awards\n\nIntroductory context.\n\n'
