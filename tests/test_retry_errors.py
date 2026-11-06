@@ -148,6 +148,14 @@ class RetryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(records), 5)
         self.assertFalse((self.out / "retry_history").exists())
 
+    def test_failed_searches_regenerate_the_answer_not_just_the_grade(self):
+        # Network outage: every search failed, the model answered anyway, grading failed too.
+        self.rows[0].update(search_attempts=4, search_failures=4, judge_error="getaddrinfo failed")
+        self.rows[4].update(search_attempts=10, search_failures=1)  # one blip: keep
+        (self.out / "records.jsonl").write_text(
+            "".join(json.dumps(row) + "\n" for row in self.rows), encoding="utf-8")
+        self.assertEqual(self.plan().targets, {1: "agent", 2: "agent", 3: "judge", 4: "agent"})
+
     def test_unfinished_run_points_to_plain_resume(self):
         (self.out / "records.jsonl").write_text(
             "".join(json.dumps(row) + "\n" for row in self.rows[:3]), encoding="utf-8")

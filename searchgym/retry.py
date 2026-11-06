@@ -113,7 +113,10 @@ def plan_retry(out, items, config, profile):
     records, targets = _saved_records(out, rows, items), {}
     for i, row in rows.items():
         result = records[i].result
-        if not result.answer.strip() or result.error or row.get("error"):
+        # A network outage leaves no run error: searches fail, the model answers
+        # from memory, and only grading reports it. That answer must be regenerated.
+        searches_lost = row.get("search_attempts", 0) and 2 * row.get("search_failures", 0) >= row["search_attempts"]
+        if not result.answer.strip() or result.error or row.get("error") or searches_lost:
             targets[i] = "agent"
         elif row.get("judge_error"):
             targets[i] = "judge"
@@ -136,7 +139,8 @@ async def retry_failed(runner, plan, benchmark, system_prompt, on_record=None):
         shutil.copytree(out / f"q{i:05d}", snapshot / f"q{i:05d}")
     manifest = {"targets": plan.targets, "completed": [],
                 "agent_config": asdict(runner.agent.config),
-                "selection": "empty answer / run error: regenerate; judge error only: regrade"}
+                "selection": "empty answer / run error / half or more searches failed: regenerate; "
+                             "judge error only: regrade"}
     manifest["agent_config"].pop("api_key", None)
     metadata = _read(out / "summary.json") if (out / "summary.json").exists() else {}
 
