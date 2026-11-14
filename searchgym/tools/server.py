@@ -44,7 +44,7 @@ except ImportError:  # pragma: no cover
             from fastmcp import FastMCP
 
 from ..paths import load_env, require_env
-from ..local_reader import local_reader_url, probe_local_reader
+from ..local_reader import local_reader_url, probe_local_reader, reader_uses_post
 
 load_env()
 
@@ -318,9 +318,13 @@ def fetch(url: str) -> str:
     # 그것을 열어야 할 주소로 읽고 다시 요청한다. 그러면 r.jina.ai/r.jina.ai/... 가
     # 되고 또 실패하며 오염이 커진다(실측: 한 판에서 프로토콜이 두 번 겹친 주소까지
     # 나왔다). 모델에게는 **자기가 요청한 주소**만 보여 준다.
+    path, body = f"{endpoint.path.rstrip('/')}/{url}", None
+    if reader_uses_post(JINA_BASE_URL):
+        path, body = f"{endpoint.path.rstrip('/')}/", json.dumps({"url": url})
+        headers["Content-Type"] = "application/json"
     try:
         text = _request(
-            endpoint.netloc, "GET", f"{endpoint.path.rstrip('/')}/{url}", headers,
+            endpoint.netloc, "POST" if body else "GET", path, headers, body,
             pacer=_jina_pacer(), retries=JINA_RETRIES,
             scheme=endpoint.scheme, timeout_s=float(os.getenv("JINA_TIMEOUT_S", "60")),
             slots=_jina_slots,

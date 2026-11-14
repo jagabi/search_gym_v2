@@ -26,6 +26,32 @@ class ReaderProbeTests(unittest.TestCase):
                     "http://192.168.0.3:8081", "http://[::1]:3001"):
             self.assertEqual(local_reader_url(url + "/"), url)
 
+    def test_runpod_proxy_is_allowed_only_as_https_pod_address(self):
+        pod = "https://aoj0o49uwd2v1g-8081.proxy.runpod.net"
+        self.assertEqual(local_reader_url(pod + "/"), pod)
+        for url in ("http://aoj0o49uwd2v1g-8081.proxy.runpod.net", "https://proxy.runpod.net",
+                    "https://.proxy.runpod.net", "https://x.proxy.runpod.net.evil.com",
+                    "https://x.proxy.runpod.net:8443", "https://u:p@x.proxy.runpod.net"):
+            with self.subTest(url=url), self.assertRaises(RuntimeError):
+                local_reader_url(url)
+
+    def test_fetch_sends_runpod_target_in_body_and_keeps_local_get(self):
+        from searchgym.tools import server
+        target = "https://en.wikipedia.org/w/index.php?title=X&action=history"
+        with patch.object(server, "JINA_BASE_URL", "https://pod-8081.proxy.runpod.net"), \
+                patch.object(server, "_request", return_value="Title: X") as request:
+            server.fetch(target)
+        host, method, path, headers, body = request.call_args.args
+        self.assertEqual((host, method, path), ("pod-8081.proxy.runpod.net", "POST", "/"))
+        self.assertEqual(json.loads(body), {"url": target})
+        self.assertEqual(headers["Content-Type"], "application/json")
+        with patch.object(server, "JINA_BASE_URL", LOCAL), \
+                patch.object(server, "_request", return_value="Title: X") as request:
+            server.fetch(target)
+        host, method, path, headers, body = request.call_args.args
+        self.assertEqual((host, method, path, body), ("100.111.87.95:3001", "GET", "/" + target, None))
+        self.assertNotIn("Content-Type", headers)
+
     def test_disconnected_reader_aborts_and_closes_connection(self):
         conn = Mock()
         conn.request.side_effect = ConnectionRefusedError("reader stopped")
@@ -90,6 +116,32 @@ class ClientGuardTests(unittest.IsolatedAsyncioTestCase):
             await tools._check_local_reader()
         self.assertEqual(tools.reader_status, READY)
         tools.call.assert_awaited_once_with("local_reader_status", {})
+
+    async def test_engine_fetch_posts_to_runpod_and_gets_from_local(self):
+        url = "https://en.wikipedia.org/wiki/X"
+        payload = {"code": 200, "data": {"title": "X", "content": "body", "url": url}}
+        for base, verb in (("https://pod-8081.proxy.runpod.net", "post"), (LOCAL, "get")):
+            tools = WebTools()
+            tools.reader_status = {**READY, "jina_base_url": base}
+            response = Mock(status_code=200, headers={"content-type": "application/json"},
+                            json=Mock(return_value=payload), text=json.dumps(payload),
+                            content=json.dumps(payload).encode())
+            tools._reader_http = SimpleNamespace(get=AsyncMock(return_value=response),
+                                                 post=AsyncMock(return_value=response))
+            with self.subTest(base=base):
+                try:
+                    await tools._fetch_engine(url, "curl")
+                except Exception:
+                    pass  # Only the transport form is under test here.
+                called = getattr(tools._reader_http, verb)
+                other = tools._reader_http.get if verb == "post" else tools._reader_http.post
+                called.assert_awaited_once()
+                other.assert_not_awaited()
+                if verb == "post":
+                    self.assertEqual(called.await_args.args, (base + "/",))
+                    self.assertEqual(called.await_args.kwargs["json"], {"url": url})
+                else:
+                    self.assertEqual(called.await_args.args, (f"{base}/{url}",))
 
     async def session(self, names, reply):
         tools = WebTools(url="http://mcp.test/mcp")

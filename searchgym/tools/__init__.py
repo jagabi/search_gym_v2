@@ -39,7 +39,7 @@ except ImportError:  # pragma: no cover - 구버전 SDK
 from ..explorer import Document
 from ..paths import PROJECT_ROOT, load_env
 from ..urls import normalize_fetch_url, reader_failure
-from ..local_reader import local_reader_url
+from ..local_reader import local_reader_url, reader_uses_post
 
 __all__ = ["ToolResult", "ToolSpec", "WebTools"]
 
@@ -318,7 +318,10 @@ class WebTools:
             async with self._fetch_slots:
                 metadata["queue_ms"] = round(1000*(time.perf_counter()-started), 1)
                 http_started = time.perf_counter()
-                response = await self._reader_http.get(f"{base}/{url}", headers=headers)
+                if reader_uses_post(base):
+                    response = await self._reader_http.post(f"{base}/", json={"url": url}, headers=headers)
+                else:
+                    response = await self._reader_http.get(f"{base}/{url}", headers=headers)
                 metadata["http_ms"] = round(1000*(time.perf_counter()-http_started), 1)
             payload = _reader_diagnostics(response, metadata)
             stage = "reader_http"

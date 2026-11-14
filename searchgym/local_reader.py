@@ -10,16 +10,31 @@ _LOCAL_NETS = tuple(ipaddress.ip_network(n) for n in (
     "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
     "100.64.0.0/10", "::1/128", "fc00::/7",
 ))
+# A self-hosted Reader on a RunPod pod, reached through RunPod's HTTPS proxy
+# (https://<pod-id>-<port>.proxy.runpod.net). Still our own Reader, not hosted Jina.
+RUNPOD_PROXY_SUFFIX = ".proxy.runpod.net"
+
+
+def _is_runpod_proxy(parsed) -> bool:
+    host = parsed.hostname or ""
+    return (parsed.scheme == "https" and host.endswith(RUNPOD_PROXY_SUFFIX)
+            and len(host) > len(RUNPOD_PROXY_SUFFIX) and parsed.port in (None, 443))
+
+
+def reader_uses_post(base_url: str) -> bool:
+    """RunPod's proxy turns '/https://x' into '/https:/x' with a 307 redirect, so the
+    target URL goes in a JSON body there. Local Readers keep the original GET form."""
+    return _is_runpod_proxy(urlsplit(base_url))
 
 
 def local_reader_url(value: str) -> str:
-    """Require an explicit loopback/LAN/Tailscale address; never default to hosted."""
+    """Require an explicit loopback/LAN/Tailscale address or our RunPod pod; never hosted."""
     value = (value or "").strip().rstrip("/")
     try:
         parsed = urlsplit(value)
         host = parsed.hostname
         parsed.port  # Reject malformed ports before starting a run.
-        local = host == "localhost"
+        local = host == "localhost" or _is_runpod_proxy(parsed)
         if not local and host:
             address = ipaddress.ip_address(host)
             local = any(address in net for net in _LOCAL_NETS)
@@ -30,7 +45,8 @@ def local_reader_url(value: str) -> str:
     except ValueError:
         raise RuntimeError(
             "Local Jina is required. Set JINA_BASE_URL to the Reader's explicit "
-            "localhost, LAN or Tailscale IP URL. Missing/public addresses are blocked."
+            "localhost, LAN or Tailscale IP URL, or https://<pod-id>-<port>.proxy.runpod.net. "
+            "Missing/public addresses are blocked."
         ) from None
     return value
 
