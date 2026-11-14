@@ -74,6 +74,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="RawTree 링크 확장 최소 점수 (예: 0 또는 0.01)")
     parser.add_argument("--top-n", type=int, default=None,
                         help="search-o1-decision: 검색당 메인에 넘길 상위 묶음 수 (0 = 본문 예산까지 전부)")
+    parser.add_argument("--bundle-tokens", type=int, default=None,
+                        help="search-o1-decision: 점수·반환 단위 묶음 크기(d3 토큰). 청크 크기와 검색당 본문 상한은 그대로")
     parser.add_argument("--raw-query-pages", type=int, default=None,
                         help="RawTree 쿼리용 청킹 페이지 수; 원질문 몫과 합산해 총 읽기 예산 갱신")
     parser.add_argument("--retry-errors", action="store_true",
@@ -116,6 +118,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         raw_link_floor=args.raw_link_floor,
         raw_query_pages=args.raw_query_pages,
         raw_top_n=args.top_n,
+        raw_bundle_tokens=args.bundle_tokens,
         expected_raw_traversal=args.expect_raw_traversal,
         decision_provider=args.decision_provider,
         workers=args.workers,

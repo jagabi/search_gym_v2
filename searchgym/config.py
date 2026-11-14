@@ -252,6 +252,7 @@ def load_test(
     raw_link_floor: float | None = None,
     raw_query_pages: int | None = None,
     raw_top_n: int | None = None,
+    raw_bundle_tokens: int | None = None,
     expected_raw_traversal: str | None = None,
     decision_provider: str | None = None,
     workers: int | None = None,
@@ -296,7 +297,7 @@ def load_test(
         config.agent.model_name = outer.served_model_name
     if tag:
         config.run.tag = tag
-    if any(v is not None for v in (raw_traversal, raw_link_floor, raw_query_pages, raw_top_n)):
+    if any(v is not None for v in (raw_traversal, raw_link_floor, raw_query_pages, raw_top_n, raw_bundle_tokens)):
         if config.method not in RAW_METHODS or config.agent.jev_strategy != "raw":
             raise ValueError("--raw-* overrides require jevtree with jev_strategy=raw")
         if raw_traversal is not None:
@@ -305,6 +306,13 @@ def load_test(
             config.agent.jev_link_floor = raw_link_floor
         if raw_top_n is not None:
             config.agent.jev_top_n = raw_top_n
+        if raw_bundle_tokens is not None:
+            # Scoring/return unit only. Chunking (jev_chunk_tokens) and the per-search
+            # body cap (jev_output_tokens) stay as configured; the cap must hold top_n bundles.
+            config.agent.jev_bundle_tokens = raw_bundle_tokens
+            if config.agent.jev_top_n and raw_bundle_tokens * config.agent.jev_top_n > config.agent.jev_output_tokens:
+                raise ValueError(f"--bundle-tokens {raw_bundle_tokens} x top_n {config.agent.jev_top_n} exceeds "
+                                 f"jev_output_tokens {config.agent.jev_output_tokens}; the cap would cut bundles")
         if raw_query_pages is not None:
             if config.agent.jev_direct_reads is None:
                 raise ValueError("RawTree requires an explicit direct page quota")

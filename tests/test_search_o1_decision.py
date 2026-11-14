@@ -96,6 +96,17 @@ class FlatConfigTests(unittest.TestCase):
         self.assertFalse(a.jev_search_followup)
         self.assertFalse(policy['search_followup_notice'])
 
+    def test_bundle_grid_overrides_only_the_bundle_unit(self):
+        base = load_test(method='search-o1-decision').agent
+        for bundle, top in ((512, 1), (1024, 3), (2048, 4)):
+            a = load_test(method='search-o1-decision', raw_bundle_tokens=bundle, raw_top_n=top).agent
+            self.assertEqual((a.jev_bundle_tokens, a.jev_top_n), (bundle, top))
+            self.assertEqual((a.jev_chunk_tokens, a.jev_output_tokens), (base.jev_chunk_tokens, base.jev_output_tokens))
+        with self.assertRaisesRegex(ValueError, 'exceeds jev_output_tokens'):
+            load_test(method='search-o1-decision', raw_bundle_tokens=4096, raw_top_n=3)
+        with self.assertRaisesRegex(ValueError, 'chunk'):
+            load_test(method='search-o1-decision', raw_bundle_tokens=256, raw_top_n=1)
+
     def test_flat_belongs_only_to_search_o1_decision(self):
         with self.assertRaises(ValueError):
             load_test(method='jevtree', raw_traversal='flat')
