@@ -22,7 +22,7 @@ import httpx
 from .explorer import _norm
 from .jevtree import MAX_LINKS, JevUsage, TreeNode, candidate_links
 from .jevtree_input import complete_prefix, numbered_page, strip_links
-from .local_reader import local_reader_url
+from .local_reader import decision_server_url
 from .raw_chunks import SourceChunker
 from .raw_navigation import marker_context, partitions, region_preview
 from .urls import normalize_fetch_url
@@ -210,7 +210,7 @@ class LocalDecision:
                 or config.jev_inflight_questions < config.jev_packet_questions):
             raise ValueError("Invalid decision packet size or in-flight question budget")
         self.cfg = config
-        self.endpoint = local_reader_url(config.jev_base_url) + "/v1/systemone"
+        self.endpoint = decision_server_url(config.jev_base_url) + "/v1/systemone"
         self.http = httpx.AsyncClient(timeout=10, trust_env=False)
         self.slots = asyncio.Semaphore(config.jev_concurrency)
         self.question_condition = asyncio.Condition()
