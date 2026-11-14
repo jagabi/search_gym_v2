@@ -60,7 +60,13 @@ def decision_server_url(value: str) -> str:
     from .paths import load_env
     load_env()
     if os.getenv("DECISION_ALLOW_PUBLIC_IP", "").strip() != "1":
-        return local_reader_url(value)
+        try:
+            return local_reader_url(value)
+        except RuntimeError:
+            raise RuntimeError(
+                f"jev_base_url {value!r} is not local/LAN/Tailscale or a RunPod HTTPS proxy. "
+                "For a RunPod TCP port (http://<public-ip>:<port>) set DECISION_ALLOW_PUBLIC_IP=1 in .env."
+            ) from None
     try:
         return local_reader_url(value)
     except RuntimeError:
