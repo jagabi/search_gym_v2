@@ -463,8 +463,8 @@ def _validate(config: TestConfig) -> None:
             if a.jev_model != DECISION_MODELS[a.decision_provider]:
                 raise ValueError(f'decision_provider {a.decision_provider} requires jev_model '
                                  f'{DECISION_MODELS[a.decision_provider]}, got {a.jev_model}')
-            from .local_reader import local_reader_url
-            local_reader_url(a.jev_base_url)
+            from .local_reader import decision_server_url
+            decision_server_url(a.jev_base_url)
             if a.jev_traversal not in ("beam", "best_first", "progressive", "flat"):
                 raise ValueError("RawTree jev_traversal must be beam, best_first, progressive, or flat")
             if (a.jev_traversal == "flat") != (config.method == "search-o1-decision"):

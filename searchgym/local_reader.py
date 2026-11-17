@@ -4,6 +4,7 @@ from __future__ import annotations
 import http.client
 import ipaddress
 import json
+import os
 from urllib.parse import urlsplit
 
 _LOCAL_NETS = tuple(ipaddress.ip_network(n) for n in (
@@ -48,6 +49,38 @@ def local_reader_url(value: str) -> str:
             "localhost, LAN or Tailscale IP URL, or https://<pod-id>-<port>.proxy.runpod.net. "
             "Missing/public addresses are blocked."
         ) from None
+    return value
+
+
+def decision_server_url(value: str) -> str:
+    """Our self-hosted decision server: a local URL as above. With
+    DECISION_ALLOW_PUBLIC_IP=1 in .env, also a RunPod TCP port (http://<public-ip>:<port>).
+    Off by default so machines that must stay local keep failing closed."""
+    value = (value or "").strip().rstrip("/")
+    from .paths import load_env
+    load_env()
+    if os.getenv("DECISION_ALLOW_PUBLIC_IP", "").strip() != "1":
+        try:
+            return local_reader_url(value)
+        except RuntimeError:
+            raise RuntimeError(
+                f"jev_base_url {value!r} is not local/LAN/Tailscale or a RunPod HTTPS proxy. "
+                "For a RunPod TCP port (http://<public-ip>:<port>) set DECISION_ALLOW_PUBLIC_IP=1 in .env."
+            ) from None
+    try:
+        return local_reader_url(value)
+    except RuntimeError:
+        pass
+    try:
+        parsed = urlsplit(value)
+        ipaddress.ip_address(parsed.hostname or "")
+        if (parsed.scheme not in ("http", "https") or parsed.port is None or
+                parsed.username is not None or parsed.password is not None or
+                parsed.query or parsed.fragment or parsed.path):
+            raise ValueError
+    except ValueError:
+        raise RuntimeError("jev_base_url must be http://<ip>:<port> (local, LAN, Tailscale or a RunPod TCP port) "
+                           "or https://<pod-id>-<port>.proxy.runpod.net") from None
     return value
 
 
