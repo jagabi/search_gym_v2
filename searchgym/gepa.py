@@ -24,6 +24,7 @@ side_info (RawTree 방법)
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import json
 import sys
 import threading
@@ -56,7 +57,22 @@ class _Loop:
         threading.Thread(target=self.loop.run_forever, daemon=True).start()
 
     def run(self, coro: Any) -> Any:
-        return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
+        # 시간 제한 없이 .result() 로 막혀 있으면 Windows 에서 Ctrl+C 가 전달되지 않는다.
+        # 짧게 끊어 기다리고, 끊기면 돌던 rollout 을 취소한 뒤 KeyboardInterrupt 를 올린다.
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        try:
+            while True:
+                try:
+                    return future.result(timeout=0.5)
+                except concurrent.futures.TimeoutError:
+                    continue
+        except KeyboardInterrupt:
+            future.cancel()
+            try:
+                future.result(timeout=10)
+            except BaseException:
+                pass
+            raise
 
 
 class SearchAdapter:
