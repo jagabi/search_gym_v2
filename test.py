@@ -65,6 +65,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="동시에 푸는 문항 수. 기본: ragent·search-o1 4, search-o1-decision pplx 2 / d3 4, 그 외 conf.yaml")
     parser.add_argument("--prompt", default=None, help="메인 시스템 프롬프트를 파일에서 읽는다")
     parser.add_argument("--explorer-prompt", default=None, help="explorer 프롬프트 파일")
+    parser.add_argument("--decision-prompt", default=None,
+                        help="decision 모델 evidence 지시문 파일 (GEPA decision_prompt.txt)")
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--raw-traversal", choices=("beam", "best_first", "progressive", "flat"), default=None,
                         help="RawTree 탐색 정책 비교 (browser 수집·원문 청크 전달은 동일)")
@@ -133,6 +135,12 @@ async def main_async(argv: list[str] | None = None) -> int:
         config.system_prompt = resolve(args.prompt).read_text(encoding="utf-8").strip()
     if args.explorer_prompt:
         config.explorer_prompt = resolve(args.explorer_prompt).read_text(encoding="utf-8").strip()
+    if args.decision_prompt:
+        if config.method not in RAW_METHODS:
+            raise SystemExit("--decision-prompt requires a decision method (search-o1-decision, jevtree)")
+        from searchgym.runner import decision_override
+        config.agent.jev_evidence_instructions = decision_override(
+            resolve(args.decision_prompt).read_text(encoding="utf-8"))
     if args.no_cache:
         config.run.cache = False
 
@@ -325,6 +333,10 @@ def _write_run_config(out, config, profile, dataset, items):
         },
     )
     (out / "prompt.txt").write_text(config.system_prompt, encoding="utf-8")
+    if config.method in RAW_METHODS:
+        from searchgym.rawtree import EVIDENCE_INSTRUCTIONS
+        (out / "decision_prompt.txt").write_text(
+            config.agent.jev_evidence_instructions or EVIDENCE_INSTRUCTIONS, encoding="utf-8")
     if config.uses_explorer:
         (out / "explorer_prompt.txt").write_text(config.explorer_prompt, encoding="utf-8")
     if config.method == "depthsearch" and config.agent.depthsearch_control:

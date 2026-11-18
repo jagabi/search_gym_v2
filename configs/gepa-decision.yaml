@@ -1,0 +1,98 @@
+# GEPA for search-o1-decision: the main LLM's system prompt + the decision model's instruction.
+#
+#   python train.py --gepa configs/gepa-decision.yaml --method search-o1-decision --model gpt-oss \
+#       --decision d3-mini --bundle-tokens 1024 --top-n 1 --tag gepa_b1024_t1
+#
+# Components (round-robin, so each gets about half of the iterations):
+#   agent      system prompt of the main LLM.   Seed = configs/search-o1-decision.yaml system_prompt
+#              (the prompt of the main and grid runs).
+#   decision   fixed criterion of the decision model's evidence_value question.
+#              Seed = rawtree.EVIDENCE_INSTRUCTIONS (the main and grid runs).
+#              "Original question: ..." / "Search query: ..." are always appended after it.
+#
+# side_info is built from each rollout's trace (searchgym/gepa.py), not from a template:
+#   agent      question, expected answer, final answer + grade, and per search the query and
+#              the excerpt passed on, verbatim.
+#   decision   question, expected answer, grade, and per search the top-5 scored excerpts with
+#              their scores, verbatim.
+# Every teacher call (prompt with side_info, response, usage) is saved under <run>/teacher/.
+#
+# Evaluate the result on grid100 with the same bundle/top-n; the grid's 1024 x 1 run is the
+# seed baseline:
+#   python test.py --method search-o1-decision --model gpt-oss --decision d3-mini \
+#       --benchmark deepsearchqa --path data/deepsearchqa/grid100.json --bundle-tokens 1024 --top-n 1 \
+#       --prompt <run>/prompt.txt --decision-prompt <run>/decision_prompt.txt --tag gepa_b1024_t1
+
+data:
+  benchmark: deepsearchqa
+  # 30 / 30 from test.json minus grid100, keeping the main run's F1 mix (0 / partial / 1)
+  # (scripts/build_gepa_splits.py). No overlap with grid100.
+  trainset: data/deepsearchqa/gepa_train.json
+  valset: data/deepsearchqa/gepa_val.json
+
+teacher:
+  model: claude-opus-5-5
+  max_tokens: 32768
+  effort: medium
+
+components:
+
+  agent:
+    reflection_prompt: |
+      I use the system prompt below for the main model of a web-search question-answering pipeline:
+      ```
+      <curr_param>
+      ```
+
+      How the pipeline works:
+      - The main model answers a research question by calling a `web_search` tool, at most 10 times.
+      - For each search, the system opens the top 10 result pages and cuts them into excerpts of about 1,000 tokens.
+      - A decision model — a small fine-tuned classifier, not a chat model — scores every excerpt for how useful it is to the original question given the search query.
+      - The main model receives the result list (titles, URLs, snippets) and only the single top-scored excerpt, verbatim. Everything else is discarded.
+      - So the query decides which pages are opened and what the decision model judges against. A vague or overloaded query returns an excerpt that serves none of its needs.
+
+      The main model knows none of this unless its system prompt says so. It sees only its system prompt, the question and the tool results.
+
+      Below are questions it answered. For each: the expected answer, its final answer and grade, and every search it made with the excerpt it got back.
+
+      <side_info>
+
+      Read the searches in order: how each query was formed, what came back, and how the next query used it. Find the failure in query choice or revision that cost the most, and write a new system prompt that fixes it. Replace or compress existing text where you can; avoid making the prompt much longer. Do not copy any fact, name, site or topic from these examples: the model will face unrelated questions. Keep the description of the `web_search` tool and the 10-search limit accurate.
+
+      Provide the new system prompt within ``` blocks.
+
+  decision:
+    reflection_prompt: |
+      I use the instruction below for a decision model inside a web-search question-answering pipeline:
+      ```
+      <curr_param>
+      ```
+
+      What the decision model is: a small fine-tuned classifier, not a chat model. It reads an instruction phrased as a yes/no criterion together with one text excerpt, and outputs only the probability that the answer is yes. It follows short, concrete criteria. It cannot follow procedures, examples or output formats.
+
+      How it is used: a main model answers a research question with up to 10 web searches. For each search, the top 10 result pages are cut into excerpts of about 1,000 tokens. Every excerpt is scored with this instruction, followed by two lines the system appends:
+        Original question: <the research question>
+        Search query: <the query just issued>
+      Only the top-scored excerpt is passed to the main model; the rest are discarded.
+
+      The decision model knows none of this. It sees only the instruction, the two appended lines and one excerpt, so the instruction must make sense on its own.
+
+      Below are questions the pipeline answered. For each: the expected answer, the grade, and for every search the five top-scored excerpts with their scores.
+
+      <side_info>
+
+      For each search, read the top excerpt and the ones ranked below it, and judge whether the order is right for answering the question. An excerpt holding the answer, or a fact that leads to it, should outrank one that only repeats the query's words or covers the topic without a checkable fact. If none of the excerpts holds anything useful, that is the search's fault, not this instruction's. Find the ranking error that cost the most and write a new instruction that fixes it. Replace or compress existing text where you can; avoid making it much longer. Do not write the "Original question" or "Search query" lines; they are appended for you. Do not copy any fact, name, site or topic from these examples.
+
+      Provide the new instruction within ``` blocks.
+
+feedback:
+  score: f1
+
+gepa:
+  # init val 30 + per iteration 2 x minibatch (10) + 30 when accepted.
+  # 10 (all accepted) to 42 (none accepted) iterations, one teacher call each.
+  max_metric_calls: 450
+  reflection_minibatch_size: 5
+  candidate_selection_strategy: pareto
+  module_selector: round_robin
+  merge: false

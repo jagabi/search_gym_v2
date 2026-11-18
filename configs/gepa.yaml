@@ -19,17 +19,13 @@ data:
   valset: data/deepsearchqa/validation.json
 
 # ---------------------------------------------------------------------------
-# 교사: reflection LM. dspy.LM(litellm) 로 넘어가므로 "<provider>/<model>" 형식.
+# 교사: reflection 모델. Anthropic API 를 직접 부른다(searchgym/gepa.py Teacher).
 # ---------------------------------------------------------------------------
 teacher:
-  model: anthropic/claude-opus-5
+  model: claude-opus-5-5
   # 추론 토큰까지 포함한 출력 상한. 모자라면 제안이 코드펜스를 못 닫고 잘려 버려진다.
   max_tokens: 32768
-  extra:
-    reasoning_effort: high
-  # 학생 프롬프트의 토큰 상한(tiktoken o200k_base). reflection_prompt 의 <budget>이
-  # "현재 N토큰 / 상한 M토큰"으로 치환된다.
-  prompt_token_budget: 1024
+  effort: medium
 
 # ---------------------------------------------------------------------------
 # 컴포넌트별 메타 프롬프트. <curr_param> 현재 프롬프트 · <side_info> 피드백 (둘 다 필수)
@@ -85,7 +81,6 @@ components:
         topic from the examples.
       - The judge reads for meaning, so spend nothing on output formatting, and never
         write a rule that makes the agent hedge, refuse, or drop a candidate.
-      - <budget>
 
       Write it as light markdown -- short "##" headings, bullets, bold where earned -- so
       a later round can sharpen one rule without disturbing the others. Provide the
@@ -145,7 +140,6 @@ components:
         examples.
       - Keep the output format section intact -- the system parses "**Final Information**"
         and "**Status:**" out of what it writes.
-      - <budget>
 
       Write it as light markdown. Provide the complete new system prompt inside a fenced
       code block.
@@ -230,17 +224,10 @@ feedback:
 # GEPA 예산
 # ---------------------------------------------------------------------------
 gepa:
-  # auto(light|medium|heavy) 대신 직접 건다. rollout 하나가 논문 설정보다 훨씬
-  # 비싸기 때문이다. track_stats 가 남기는 val_scores 곡선을 보고 다음 값을 정한다.
-  auto: null
-  extra:
-    max_metric_calls: 800
+  # rollout 하나가 논문 설정보다 훨씬 비싸서 예산을 직접 건다.
+  max_metric_calls: 800
   # 미니배치 점수 합이 부모보다 커야 후보가 통과한다(동점은 기각).
   reflection_minibatch_size: 7
-  # metric 하나가 에이전트 하나를 돌린다. run.workers 와 함께 1이어야 진짜 시리얼.
-  num_threads: 1
-  track_stats: true
-  failure_score: 0.0
   # crossover. 논문 Table 1 에서 Qwen3-8B 는 merge 로 오히려 떨어졌다
   # (IFBench 38.61 -> 28.23). 오픈 소형 모델에는 쓰지 않는다.
   merge: false

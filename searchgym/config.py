@@ -85,12 +85,16 @@ class RunConfig:
 
 @dataclass(slots=True)
 class TeacherConfig:
-    """GEPA reflection LM. dspy.LM(litellm) 로 넘어가므로 "<provider>/<model>" 형식."""
+    """GEPA reflection 모델. Anthropic API 를 직접 부른다(gepa.Teacher)."""
 
-    model: str = "anthropic/claude-opus-5"
+    model: str = "claude-opus-5-5"
     max_tokens: int = 32768
-    extra: dict[str, Any] = field(default_factory=dict)
-    prompt_token_budget: int = 1024
+    # output_config.effort. 사고는 adaptive(끌 수 없음)이고 깊이는 이것으로만 정한다.
+    effort: str = "medium"
+
+    def __post_init__(self) -> None:
+        if self.effort not in ("low", "medium", "high", "xhigh", "max"):
+            raise ValueError("teacher.effort 는 low | medium | high | xhigh | max 중 하나여야 합니다.")
 
 
 @dataclass(slots=True)
@@ -127,11 +131,12 @@ class FeedbackConfig:
 
 @dataclass(slots=True)
 class GepaConfig:
-    auto: str | None = None
-    reflection_minibatch_size: int = 7
-    num_threads: int = 1
-    track_stats: bool = True
-    failure_score: float = 0.0
+    """gepa.optimize() 인자. extra 는 그대로 넘긴다."""
+
+    max_metric_calls: int = 450
+    reflection_minibatch_size: int = 5
+    candidate_selection_strategy: str = "pareto"
+    module_selector: str = "round_robin"
     merge: bool = False
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -222,6 +227,9 @@ class TrainConfig:
         names = ["agent"]
         if self.base.uses_explorer and self.base.explorer.recursive:
             names.append("explorer")
+        # decision 모델의 evidence 지시문. 그 지시문을 실제로 쓰는 RawTree 방법에서만.
+        if self.base.method in RAW_METHODS and self.base.agent.jev_strategy == "raw":
+            names.append("decision")
         return [n for n in names if n in self.components]
 
 
@@ -361,7 +369,7 @@ def load_train(
         name: _build(ComponentConfig, entry or {}, f"gepa.components.{name}")
         for name, entry in components_raw.items()
     }
-    if unknown := sorted(set(components) - {"agent", "explorer"}):
+    if unknown := sorted(set(components) - {"agent", "explorer", "decision"}):
         raise ValueError(f"gepa.components 에 알 수 없는 컴포넌트가 있습니다: {unknown}")
 
     shell = _build(_GepaShell, raw, "gepa")
@@ -375,7 +383,8 @@ def load_train(
     )
     base.sources.append(str(resolve(gepa_path)))
 
-    if not config.feedback.template.strip():
+    # RawTree 방법은 trace 에서 side_info 를 직접 만든다. 그 밖에는 템플릿이 필요하다.
+    if base.method not in RAW_METHODS and not config.feedback.template.strip():
         raise ValueError("gepa.feedback.template 이 비어 있습니다.")
     if "explorer" in config.component_names and not config.feedback.explorer_template.strip():
         raise ValueError(

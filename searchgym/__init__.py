@@ -7,10 +7,10 @@
       serving.py    모델별 vllm serve 프로파일
       judge.py      Gemini structured-output 판정
       runner.py     실행 + 채점 + 캐시 + 기록
-      gepa.py       dspy 메트릭과 instruction proposer
+      gepa.py       gepa adapter (실행 · side_info · 교사 호출)
       config.py     YAML -> 데이터클래스
 
-**import는 지연시킨다.** `test.py` 만 돌릴 때는 dspy·litellm 이 필요 없고,
+**import는 지연시킨다.** `test.py` 만 돌릴 때는 gepa·anthropic 이 필요 없고,
 `scripts/build_splits.py` 는 openai·google-genai 없이도 돌아야 한다. 여기서 전부 미리
 import 하면 그런 경로가 무거운 의존성 때문에 죽는다. 실제로 쓰는 것만 그때 불러온다.
 """

@@ -239,6 +239,9 @@ class AgentConfig:
     jev_notice_tokens: int = 0       # URL-specific navigation/access state, never evidence
     jev_search_results: bool = False # every result's title/snippet/status, outside jev_output_tokens
     jev_top_n: int = 0               # flat traversal: bundles returned per search (0 = budget only)
+    # Fixed part of the decision model's evidence_value instruction (rawtree.EVIDENCE_INSTRUCTIONS
+    # when empty). GEPA's "decision" component; the question/query lines are always appended.
+    jev_evidence_instructions: str = ""
     jev_search_followup: bool = True # append the SEARCH_FOLLOWUP "Next action" notice after each search
     # Once searches are exhausted RawTree normally rebuilds an answer-only context from the
     # question and tool results. False keeps the baselines' ending instead: the model keeps

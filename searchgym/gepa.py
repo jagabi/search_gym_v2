@@ -1,74 +1,66 @@
-"""GEPA 연결부 — dspy 메트릭과 instruction proposer.
+"""GEPA 연결부 — gepa.optimize() 에 넣는 adapter.
 
-최적화 대상이 둘이다.
+최적화 대상은 방법에 따라 이 중 일부다.
 
     agent      메인 추론 모델의 시스템 프롬프트  (검색 정책)
     explorer   explorer 의 시스템 프롬프트       (추출 + 확장 정책)
+    decision   decision 모델의 evidence 지시문   (어느 원문 bundle 을 넘길지)
 
-GEPA 는 모듈을 라운드로빈으로 고르고(논문 Alg.1 line 8), 어느 모듈을 고쳤는지
-`pred_name` 으로 알려 준다. 그래서 **피드백도 컴포넌트별로 다르게** 준다 — 최종
-f1 만 주면 explorer 프롬프트는 신호가 너무 멀어 거의 랜덤워크가 된다.
+dspy 를 거치지 않는다. dspy 는 reflective dataset 을 predictor 호출 trace 로 만드는데,
+여기서는 실행이 dspy 밖(Runner)에서 일어나 그 trace 가 비고, side_info 도 정할 수 없다.
+그래서 adapter 가 세 가지를 직접 한다.
 
-**proposer** 는 GEPA 기본 메타 프롬프트를 갈아끼운다. 기본값에는 이런 문장이 있다 —
-"Identify all niche and domain specific factual information about the task and include
-it in the instruction." 수학처럼 사실이 전이되는 과제를 겨냥한 설계라, 사실을
-찾아오는 것이 일인 검색 에이전트에서는 교사가 학습 문항의 **정답을 프롬프트에
-그대로 써 넣는다**(미니배치만 1.0 이 되고 valset 은 떨어진다).
+    evaluate                 후보 프롬프트로 문항을 실행하고 점수를 낸다.
+    make_reflective_dataset  컴포넌트별로 교사에게 보여 줄 문항별 기록을 만든다.
+    propose_new_texts        컴포넌트별 reflection_prompt 의 <curr_param> / <side_info> 를
+                             채워 교사(Anthropic API)에게 새 텍스트를 받는다.
+
+side_info (RawTree 방법)
+    agent     문항 · 기대 답 · 최종 답과 점수, 검색마다 쿼리와 넘겨받은 발췌 원문.
+    decision  문항 · 기대 답 · 점수, 검색마다 점수 상위 5개 발췌 원문과 점수.
+그 밖의 방법·컴포넌트는 feedback.template 을 채운 텍스트를 쓴다.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import threading
+from pathlib import Path
 from typing import Any
 
-import dspy
-
 from .benchmarks import Benchmark, Item
-from .config import FeedbackConfig
+from .config import FeedbackConfig, TeacherConfig
 from .runner import Record, Runner
 from .scoring import Judgement
 
-__all__ = ["BUDGET", "PolicyProposer", "SearchMetric", "SearchProgram"]
+__all__ = ["SearchAdapter", "Teacher", "rollout_searches"]
 
-BUDGET = "<budget>"
 _NONE = "(none)"
+DECISION_TOP_K = 5
 
 
-class SearchProgram(dspy.Module):
-    """최적화 단위를 담는 그릇.
+# --- 실행 ---------------------------------------------------------------------
 
-    dspy 는 `predictor.signature.instructions` 를 최적화 대상으로 본다. 실제 실행은
-    metric 이 담당하므로 이 모듈은 프롬프트 두 개를 들고 있기만 한다. 속성 이름이
-    곧 컴포넌트 이름이다("agent", "explorer").
+
+class _Loop:
+    """비동기 Runner 를 동기 adapter 에서 부르기 위한 상주 이벤트 루프.
+
+    LLM · decision 클라이언트는 처음 쓴 루프에 묶인다. 호출마다 asyncio.run 으로 새 루프를
+    만들면 두 번째 평가부터 닫힌 루프를 쓰게 되므로, 루프 하나를 스레드에 띄워 둔다.
     """
 
-    def __init__(self, agent_prompt: str, explorer_prompt: str = "") -> None:
-        super().__init__()
-        self.agent = dspy.Predict(
-            dspy.Signature("question -> answer").with_instructions(agent_prompt)
-        )
-        if explorer_prompt:
-            self.explorer = dspy.Predict(
-                dspy.Signature("documents -> information").with_instructions(explorer_prompt)
-            )
+    def __init__(self) -> None:
+        self.loop = asyncio.new_event_loop()
+        threading.Thread(target=self.loop.run_forever, daemon=True).start()
 
-    @property
-    def agent_prompt(self) -> str:
-        return self.agent.signature.instructions
-
-    @property
-    def explorer_prompt(self) -> str:
-        predictor = getattr(self, "explorer", None)
-        return predictor.signature.instructions if predictor is not None else ""
-
-    def forward(self, question: str, **_: Any) -> dspy.Prediction:  # pragma: no cover
-        return dspy.Prediction(answer="")
+    def run(self, coro: Any) -> Any:
+        return asyncio.run_coroutine_threadsafe(coro, self.loop).result()
 
 
-class SearchMetric:
-    """dspy 메트릭. 문항 하나를 실제로 실행하고 점수 + 피드백을 돌려준다."""
+class SearchAdapter:
+    """gepa.GEPAAdapter. DataInst = Item, Trajectory = Record."""
 
     def __init__(
         self,
@@ -76,61 +68,88 @@ class SearchMetric:
         benchmark: Benchmark,
         items: dict[int, Item],
         feedback: FeedbackConfig,
-        seed_prompts: dict[str, str],
+        templates: dict[str, str],
+        teacher: "Teacher",
+        native_side_info: bool,
     ) -> None:
         self.runner = runner
         self.benchmark = benchmark
         self.items = items
         self.feedback = feedback
-        self.seed_prompts = seed_prompts
+        self.templates = templates
+        self.teacher = teacher
+        # RawTree 방법이면 trace 에서 검색별 발췌를 읽어 side_info 를 만든다.
+        self.native = native_side_info
         self.records: list[Record] = []
+        self.stage = "optimize"
+        self._loop = _Loop()
         self._lock = threading.Lock()
-        self._stage = "eval"
-        self.__name__ = "search_metric"  # 일부 도구가 metric을 함수로 보고 읽는다
 
-    def stage(self, name: str) -> None:
-        self._stage = name
+    # gepa 규약 ------------------------------------------------------------------
 
-    def __call__(
-        self,
-        example: dspy.Example,
-        prediction: Any = None,
-        trace: Any = None,
-        pred_name: Any = None,
-        pred_trace: Any = None,
-    ) -> dspy.Prediction:
-        item = self.items[example.index]
-        prompts = _prompts(prediction, self.seed_prompts)
+    def evaluate(self, batch: list[Item], candidate: dict[str, str], capture_traces: bool = False):
+        from gepa import EvaluationBatch
 
-        record = _run_sync(
+        records = self._loop.run(
             self.runner.run_all(
                 self.benchmark,
-                [item],
-                prompts["agent"],
-                explorer_prompt=prompts.get("explorer") or None,
+                batch,
+                candidate["agent"],
+                explorer_prompt=candidate.get("explorer") or None,
                 score_field=self.feedback.score,
-                stage=self._stage,
+                stage=self.stage,
+                decision_prompt=candidate.get("decision") or None,
             )
-        )[0]
+        )
         with self._lock:
-            self.records.append(record)
-
-        return dspy.Prediction(
-            score=record.score,
-            feedback=self._render(item, record, str(pred_name or "agent")),
+            self.records.extend(records)
+        return EvaluationBatch(
+            outputs=[r.result.answer for r in records],
+            scores=[r.score for r in records],
+            trajectories=records if capture_traces else None,
         )
 
-    def _render(self, item: Item, record: Record, component: str) -> str:
-        """컴포넌트별 피드백. 교사는 여기 적힌 텍스트만 보고 프롬프트를 고친다."""
+    def make_reflective_dataset(self, candidate, eval_batch, components_to_update):
+        records: list[Record] = list(eval_batch.trajectories or [])
+        searches = [rollout_searches(r, self.runner.run_dir) if self.native else None for r in records]
+        out: dict[str, list[dict[str, str]]] = {}
+        for name in components_to_update:
+            rows = []
+            for n, record in enumerate(records, 1):
+                item = self.items[record.index]
+                if self.native and name == "agent":
+                    text = render_agent_example(n, item, record, searches[n - 1])
+                elif self.native and name == "decision":
+                    text = render_decision_example(n, item, record, searches[n - 1])
+                else:
+                    text = f"# Example {n}\n" + self._render_template(item, record, name)
+                rows.append({"text": text})
+            out[name] = rows
+        return out
+
+    def propose_new_texts(self, candidate, reflective_dataset, components_to_update):
+        out: dict[str, str] = {}
+        for name in components_to_update:
+            current = candidate[name]
+            template = self.templates.get(name, "")
+            if not template.strip():
+                out[name] = current  # 메타 프롬프트가 없으면 손대지 않는다
+                continue
+            side_info = "\n\n".join(r["text"] for r in reflective_dataset.get(name, []))
+            prompt = template.replace("<curr_param>", current).replace("<side_info>", side_info)
+            proposed = self.teacher.propose(name, prompt)
+            out[name] = proposed if proposed else current
+        return out
+
+    # 내부 ------------------------------------------------------------------------
+
+    def _render_template(self, item: Item, record: Record, component: str) -> str:
+        """RawTree 가 아닌 방법의 피드백. feedback.template(explorer 는 explorer_template)."""
         result, judgement = record.result, record.judgement
         metrics = judgement.metrics()
         missed = [text for text, ok in judgement.parts if not ok]
-
-        template = (
-            self.feedback.explorer_template
-            if component == "explorer" and self.feedback.explorer_template.strip()
-            else self.feedback.template
-        )
+        own = self.feedback.explorer_template if component == "explorer" else ""
+        template = own if own.strip() else self.feedback.template
         return template.format(
             question=item.question.strip(),
             gold_answer=item.answer.strip(),
@@ -162,115 +181,187 @@ class SearchMetric:
         )
 
 
-class PolicyProposer:
-    """컴포넌트별 메타 프롬프트로 새 시스템 프롬프트를 제안한다.
+# --- 교사 ---------------------------------------------------------------------
 
-    dspy 의 ProposalFn 규약: (candidate, reflective_dataset, components_to_update)를
-    받아 {컴포넌트 이름: 새 텍스트}를 돌려준다. 호출 시점에 dspy 컨텍스트의 LM이
-    교사로 설정되어 있다.
+
+class Teacher:
+    """reflection 모델. Anthropic API 를 직접 부르고, 호출마다 프롬프트와 응답을 남긴다."""
+
+    def __init__(self, config: TeacherConfig, log_dir: Path) -> None:
+        import anthropic
+
+        self.config = config
+        self.model = config.model.removeprefix("anthropic/")
+        self.client = anthropic.Anthropic(max_retries=5)
+        self.log_dir = log_dir
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.calls = 0
+
+    def propose(self, component: str, prompt: str) -> str | None:
+        """새 텍스트. 잘렸거나 거절됐거나 코드펜스가 없으면 None(= 현재 텍스트 유지)."""
+        self.calls += 1
+        with self.client.messages.stream(
+            model=self.model,
+            max_tokens=self.config.max_tokens,
+            output_config={"effort": self.config.effort},
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            message = stream.get_final_message()
+        text = "".join(b.text for b in message.content if b.type == "text")
+        proposed = _fenced(text)
+
+        problem = None
+        if message.stop_reason == "refusal":
+            problem = "refused"
+        elif message.stop_reason == "max_tokens":
+            problem = "truncated (teacher.max_tokens)"
+        elif proposed is None:
+            problem = "no fenced block"
+
+        stem = self.log_dir / f"{self.calls:03d}_{component}"
+        stem.with_suffix(".prompt.md").write_text(prompt, encoding="utf-8")
+        stem.with_suffix(".response.md").write_text(text, encoding="utf-8")
+        stem.with_suffix(".json").write_text(json.dumps({
+            "component": component, "model": message.model, "stop_reason": message.stop_reason,
+            "usage": message.usage.model_dump(), "problem": problem,
+        }, ensure_ascii=False, indent=1), encoding="utf-8")
+
+        if problem:
+            print(f"[warn] teacher {component}: {problem}. 이번 제안은 버립니다.", file=sys.stderr)
+            return None
+        return proposed
+
+
+def _fenced(text: str) -> str | None:
+    """첫 ``` 와 마지막 ``` 사이. 여는 줄의 언어 표기는 뗀다(gepa 기본 추출과 같은 규칙)."""
+    start, end = text.find("```"), text.rfind("```")
+    if start < 0 or end <= start:
+        return None
+    body = text[start + 3:end]
+    first, _, rest = body.partition("\n")
+    if first.strip() and " " not in first.strip() and rest:
+        body = rest  # ```markdown 같은 언어 표기
+    body = body.strip()
+    return body or None
+
+
+# --- trace -> 검색별 발췌 -------------------------------------------------------
+
+
+def rollout_searches(record: Record, runner_dir: Path | None = None) -> list[dict[str, Any]] | None:
+    """이 rollout 의 검색마다 쿼리와, 점수가 매겨진 발췌 전부(점수 내림차순).
+
+    [{"query": str, "excerpts": [{"score", "title", "text", "passed"}...]}...]
+    trace 를 찾을 수 없으면 None.
     """
+    path = Path(record.trace_path) if record.trace_path else (
+        runner_dir / record.dir / "trace.jsonl" if runner_dir and record.dir else None)
+    if path is None or not path.exists():
+        return None
 
-    def __init__(self, templates: dict[str, str], token_budget: int = 0) -> None:
-        self.templates = templates
-        self.token_budget = token_budget
-        self._truncated = False
-
-    def __call__(
-        self,
-        candidate: dict[str, str],
-        reflective_dataset: dict[str, list[dict[str, Any]]],
-        components_to_update: list[str],
-    ) -> dict[str, str]:
-        from gepa.strategies.instruction_proposal import InstructionProposalSignature
-
-        out: dict[str, str] = {}
-        for name in components_to_update:
-            current = candidate[name]
-            template = self.templates.get(name, "")
-            if not template.strip():
-                out[name] = current  # 메타 프롬프트가 없으면 손대지 않는다
+    order: list[str] = []
+    queries: dict[str, str] = {}
+    scores: dict[str, dict[tuple[str, int], float]] = {}
+    texts: dict[tuple[str, str, int], tuple[str, str]] = {}
+    passed: dict[str, dict[tuple[str, int], str]] = {}
+    run_id = record.trace_id
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if run_id and run_id not in line:
                 continue
+            try:
+                e = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if run_id and e.get("run_id") != run_id:
+                continue
+            kind, sid = e.get("event"), e.get("search_id", "")
+            if kind == "rawtree.start":
+                order.append(sid)
+                queries[sid] = e.get("query", "")
+            elif kind == "rawtree.bundles":
+                rows = scores.setdefault(sid, {})
+                for b in e.get("bundles") or []:
+                    if isinstance(b.get("evidence_value"), (int, float)):
+                        rows[(e.get("node_id", ""), b.get("id"))] = float(b["evidence_value"])
+            elif kind == "jev.request":
+                ctx = e.get("context") or {}
+                state = (e.get("body") or {}).get("state") or {}
+                if ctx.get("phase") == "bundle" and state:
+                    texts[(ctx.get("search_id", ""), ctx.get("node_id", ""), ctx.get("bundle_id"))] = (
+                        state.get("page_title", ""), state.get("page_text", ""))
+            elif kind == "rawtree.return":
+                out = passed.setdefault(sid, {})
+                for s in e.get("selected") or []:
+                    node, _, bundle = str(s.get("id", "")).partition(":bundle:")
+                    out[(node, int(bundle) if bundle.isdigit() else -1)] = s.get("text", "")
 
-            self._truncated = False
-            raw = InstructionProposalSignature.run(
-                lm=self._call,
-                input_dict={
-                    "current_instruction_doc": current,
-                    "dataset_with_feedback": reflective_dataset[name],
-                    "prompt_template": self._render(template, current),
-                },
-            )
-            # 출력이 잘렸으면 반쪽짜리 프롬프트가 후보로 들어간다. 그건 개선이
-            # 아니라 손상이므로 현재 프롬프트를 그대로 둔다(= 이번엔 제안 없음).
-            if self._truncated:
-                print(
-                    f"[warn] 교사 출력이 잘렸습니다({name}, teacher.max_tokens). "
-                    "이번 제안은 버립니다.",
-                    file=sys.stderr,
-                )
-                out[name] = current
-            else:
-                out[name] = raw["new_instruction"]
-        return out
-
-    def _render(self, template: str, current: str) -> str:
-        """<budget> 자리를 현재 토큰 수와 상한으로 바꾼다.
-
-        "같은 길이로 유지하라"는 정성적 지시는 잘 무시된다. 지금 몇 토큰인지와
-        상한을 숫자로 알려줘야 규칙을 덧붙이는 대신 갈아 끼운다.
-        """
-        if BUDGET not in template:
-            return template
-        if self.token_budget <= 0:
-            return template.replace(BUDGET, "")
-
-        now = _count_tokens(current)
-        budget = self.token_budget
-        if now > budget:
-            line = (
-                f"**The current prompt is {now:,} tokens, over the {budget:,} token limit — "
-                f"past the length where the model starts following rules less reliably.** "
-                f"Append nothing. Merge overlapping rules, cut the ones the feedback does "
-                f"not support, and compress until it fits in {budget:,} tokens."
-            )
-        else:
-            line = (
-                f"**The current prompt is {now:,} tokens; the new one must stay within "
-                f"{budget:,}.** That is a ceiling after many rounds, not a target to fill "
-                f"now — shorter still wins. Make room by merging and compressing rather "
-                f"than appending. Emit a complete prompt, never one cut off mid-sentence."
-            )
-        return template.replace(BUDGET, line)
-
-    def _call(self, prompt: str | list[dict[str, Any]]) -> str:
-        lm = dspy.settings.lm
-        if lm is None:
-            raise RuntimeError("reflection LM이 설정되지 않았습니다.")
-        outputs = lm(prompt) if isinstance(prompt, str) else lm(messages=prompt)
-        first = outputs[0]
-        if isinstance(first, dict):
-            first = first.get("text", "")
-        text = str(first)
-        # 코드 펜스가 열리기만 하고 닫히지 않았으면 중간에서 끊긴 것이다.
-        self._truncated = text.count("```") < 2
-        return text
+    searches = []
+    for sid in order:
+        chosen = passed.get(sid, {})
+        excerpts = []
+        for (node, bundle), score in scores.get(sid, {}).items():
+            title, text = texts.get((sid, node, bundle), ("", ""))
+            excerpts.append({"score": score, "title": title, "text": text or chosen.get((node, bundle), ""),
+                             "passed": (node, bundle) in chosen})
+        excerpts.sort(key=lambda x: -x["score"])
+        searches.append({"query": queries[sid], "excerpts": excerpts})
+    return searches
 
 
-# --- 렌더 도우미 -------------------------------------------------------------
+# --- side_info ----------------------------------------------------------------
 
 
-def _prompts(prediction: Any, fallback: dict[str, str]) -> dict[str, str]:
-    """GEPA 가 넘긴 후보 프로그램에서 컴포넌트별 프롬프트를 꺼낸다."""
-    out = dict(fallback)
-    for holder in (prediction, getattr(prediction, "program", None)):
-        if holder is None:
+def _excerpt(title: str, text: str) -> str:
+    title = " ".join((title or "untitled").split()).replace('"', "'")
+    return f'<excerpt title="{title}">\n{text.strip()}\n</excerpt>'
+
+
+def _head(n: int, item: Item) -> list[str]:
+    return [f"# Example {n}", "## Question", item.question.strip(), "", "## Expected answer",
+            item.answer.strip(), ""]
+
+
+def render_agent_example(n: int, item: Item, record: Record, searches: list | None) -> str:
+    result = record.result
+    lines = _head(n, item)
+    lines += [f"## Final answer — grade {record.score:.2f}", result.answer.strip() or "(no answer)"]
+    ended = f"({result.searches} searches; ended: {result.stop_reason}"
+    lines += [ended + (f"; error: {result.error}" if result.error else "") + ")", ""]
+    if searches is None:
+        lines.append("(search log unavailable for this run)")
+        return "\n".join(lines)
+    for k, s in enumerate(searches, 1):
+        lines += [f"## Search {k}", f'query: "{s["query"]}"']
+        given = [x for x in s["excerpts"] if x["passed"]]
+        if not given:
+            lines.append("(no page could be read; nothing was passed on)")
+        lines += [_excerpt(x["title"], x["text"]) for x in given]
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+def render_decision_example(n: int, item: Item, record: Record, searches: list | None) -> str:
+    lines = _head(n, item)
+    lines += [f"## Grade {record.score:.2f}", ""]
+    if searches is None:
+        lines.append("(search log unavailable for this run)")
+        return "\n".join(lines)
+    for k, s in enumerate(searches, 1):
+        lines.append(f'## Search {k} — query: "{s["query"]}"')
+        rows = s["excerpts"]
+        if not rows:
+            lines += ["(no page could be scored)", ""]
             continue
-        for name in ("agent", "explorer"):
-            predictor = getattr(holder, name, None)
-            signature = getattr(predictor, "signature", None)
-            if signature is not None and getattr(signature, "instructions", None):
-                out[name] = str(signature.instructions)
-    return out
+        for rank, x in enumerate(rows[:DECISION_TOP_K], 1):
+            mark = " (passed on)" if x["passed"] else ""
+            lines += [f"### Rank {rank} of {len(rows)} — {x['score']:.2f}{mark}",
+                      _excerpt(x["title"], x["text"])]
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+# --- 템플릿 피드백 도우미 (RawTree 가 아닌 방법) ---------------------------------
 
 
 def _verdict(judgement: Judgement) -> str:
@@ -288,16 +379,10 @@ def _verdict(judgement: Judgement) -> str:
 
 
 def _failure_mode(judgement: Judgement, answer: str) -> str:
-    """실패의 '종류'를 한 줄로 못박는다.
-
-    못 찾은 것(recall)과 엉뚱하게 덧붙인 것(precision)은 프롬프트에서 정반대
-    처방을 요구하므로, 둘 중 무엇이 깎였는지는 우리가 계산해서 알려 준다.
-    """
     if judgement.error:
         return f"NOT GRADED - {judgement.error} (this is a harness failure, not agent behaviour)"
     if not answer.strip():
         return "NO ANSWER - the agent finished without producing an answer"
-
     tp, fn, fp = judgement.tp, judgement.fn, judgement.fp
     total = tp + fn
     if fn and not tp:
@@ -326,30 +411,3 @@ def _clip(text: str, limit: int) -> str:
     if limit <= 0 or len(text) <= limit:
         return text
     return text[:limit] + f"\n... (truncated, {len(text):,} chars total)"
-
-
-def _count_tokens(text: str) -> int:
-    try:
-        import tiktoken
-
-        return len(tiktoken.get_encoding("o200k_base").encode(text))
-    except Exception:
-        return max(1, len(text) // 4)  # tiktoken이 없으면 대략치
-
-
-def _run_sync(coro: Any) -> Any:
-    """dspy는 메트릭을 동기 함수로 부른다. 스레드마다 루프를 따로 쓴다."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    # 이미 루프 안이면(드물다) 별도 스레드에서 돌린다.
-    box: dict[str, Any] = {}
-
-    def work() -> None:
-        box["value"] = asyncio.run(coro)
-
-    thread = threading.Thread(target=work)
-    thread.start()
-    thread.join()
-    return box["value"]

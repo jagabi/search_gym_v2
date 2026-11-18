@@ -97,11 +97,17 @@ async def _gather_owned(*coroutines, stop=None):
             await asyncio.gather(waiter, return_exceptions=True)
 
 
-def evidence_question(question: str, query: str) -> dict:
+EVIDENCE_INSTRUCTIONS = (
+    'Does this excerpt provide evidence useful for answering the original question, '
+    'considering the search query? Partial facts, candidate identities, and connecting '
+    'relations count. Judge source facts only; the query is not evidence.')
+
+
+def evidence_question(question: str, query: str, instructions: str = '') -> dict:
+    """`instructions` replaces the fixed criterion (GEPA's decision component); the
+    question and query lines are always appended in the same format."""
     return {'type': 'noul', 'instructions': (
-        'Does this excerpt provide evidence useful for answering the original question, '
-        'considering the search query? Partial facts, candidate identities, and connecting '
-        'relations count. Judge source facts only; the query is not evidence.\n'
+        f'{(instructions or "").strip() or EVIDENCE_INSTRUCTIONS}\n'
         f'Original question: {question}\nSearch query: {query}')}
 
 
@@ -1191,7 +1197,7 @@ class RawTree:
                  if node.depth < self.cfg.jev_depth and len(visited) < self.cfg.jev_fetch_budget else [])
         state = {'page_title': self.jev.chunker.prefix(self._inspection_title(node), 120),
                  'page_text': numbered_page(text, links)}
-        questions = {'evidence_value': evidence_question(question, query)}
+        questions = {'evidence_value': evidence_question(question, query, self.cfg.jev_evidence_instructions)}
         for i, (url, _) in enumerate(links):
             key = f'link_{i}'
             questions[key] = {'type': 'noul', 'instructions': (
@@ -1405,7 +1411,7 @@ class RawTree:
 
         async def judge_leaf(start):
             if start not in leaf_scores:
-                questions = {'evidence_value': evidence_question(question, query)} if joint_score is not None else {
+                questions = {'evidence_value': evidence_question(question, query, self.cfg.jev_evidence_instructions)} if joint_score is not None else {
                     'direct_answer': decision_question(question, query=False),
                     'query_answer': decision_question(query, query=True, original_question=question)}
                 sc = (await joint_score(bundles[start]) if joint_score is not None else
@@ -1633,7 +1639,7 @@ class RawTree:
                     return bundle if all(k in bundle for k in objectives) else None
                 sc = (await joint_score(bundle) if visited is not None else
                       await evaluate(self._noul(self._flat_state(n, bundle['text']),
-                                     {'evidence_value': evidence_question(question, query)}, trace, usage=meter,
+                                     {'evidence_value': evidence_question(question, query, self.cfg.jev_evidence_instructions)}, trace, usage=meter,
                                      context={'search_id': search_id, 'phase': 'bundle', 'node_id': n.node_id,
                                               'bundle_id': bundle['id']}),
                                      'bundle', n, bundle_id=bundle['id']) if flat else

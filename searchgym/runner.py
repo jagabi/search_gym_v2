@@ -17,7 +17,8 @@ import asyncio
 import hashlib
 import json
 import threading
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
+from uuid import uuid4
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -56,6 +57,11 @@ class Record:
     result: RunResult
     cached: bool = False
     dir: str = ""
+    # run_id of this rollout's events in <dir>/trace.jsonl. GEPA writes several rollouts
+    # of one question into the same file, so its feedback filters by this id.
+    trace_id: str = ""
+    # Absolute path of that trace.jsonl. A cache hit may come from another run directory.
+    trace_path: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         metrics = self.judgement.metrics()
@@ -201,6 +207,7 @@ class Runner:
         score_field: str = "f1",
         stage: str = "",
         on_record: Any = None,
+        decision_prompt: str | None = None,
     ) -> list[Record]:
         """문항들을 동시에 실행한다. 순서는 입력 순서대로 돌려준다."""
         from .tools import WebTools
@@ -217,6 +224,7 @@ class Runner:
                         benchmark, item, system_prompt, tools,
                         explorer_prompt=explorer_prompt,
                         score_field=score_field, stage=stage,
+                        decision_prompt=decision_prompt,
                     )
                     if on_record is not None:
                         on_record(record, len(collected))
@@ -234,16 +242,18 @@ class Runner:
         score_field: str = "f1",
         stage: str = "",
         force: bool = False,
+        decision_prompt: str | None = None,
     ) -> Record:
         explorer_prompt = (
             self.explorer_prompt if explorer_prompt is None else explorer_prompt
         )
-        key = self.cache_key(benchmark, item, system_prompt, explorer_prompt)
+        key = self.cache_key(benchmark, item, system_prompt, explorer_prompt, decision_prompt)
         # 같은 키가 이미 돌고 있으면 끝날 때까지 기다렸다가 캐시에서 집는다.
         lock = self._locks.setdefault(key, asyncio.Lock())
         async with lock:
-            result, cached, qdir = await self._execute(
-                benchmark, item, system_prompt, explorer_prompt, tools, key, stage, force=force
+            result, cached, qdir, trace_id, trace_path = await self._execute(
+                benchmark, item, system_prompt, explorer_prompt, tools, key, stage, force=force,
+                decision_prompt=decision_prompt,
             )
 
         judgement = self._grade(benchmark, item, result.answer)
@@ -257,9 +267,22 @@ class Runner:
             result=result,
             cached=cached,
             dir=qdir,
+            trace_id=trace_id,
+            trace_path=trace_path,
         )
         self._append(record)
         return record
+
+    def agent_config(self, decision_prompt: str | None = None) -> AgentConfig:
+        """The agent config a rollout runs with: the decision instruction swapped in when
+        GEPA proposes one (None keeps the configured instruction)."""
+        config = self.agent.config
+        if decision_prompt is None:
+            return config
+        override = decision_override(decision_prompt)
+        if override == decision_override(config.jev_evidence_instructions):
+            return config
+        return replace(config, jev_evidence_instructions=override)
 
     def cache_key(
         self,
@@ -267,6 +290,7 @@ class Runner:
         item: Item,
         system_prompt: str,
         explorer_prompt: str | None = None,
+        decision_prompt: str | None = None,
     ) -> str:
         """캐시 키. **실행 디렉터리와 무관하다** — 그래서 이어 돌리기가 성립한다.
 
@@ -279,7 +303,7 @@ class Runner:
                 self.method, CACHE_VERSION),
             self.method,
             self.profile.repo,
-            _agent_fingerprint(self.agent.config),
+            _agent_fingerprint(self.agent_config(decision_prompt)),
             _explorer_fingerprint(self.explorer_config, self.method),
             system_prompt,
             self.explorer_prompt if explorer_prompt is None else explorer_prompt,
@@ -292,13 +316,14 @@ class Runner:
         items: Iterable[Item],
         system_prompt: str,
         explorer_prompt: str | None = None,
+        decision_prompt: str | None = None,
     ) -> list[Item]:
         """아직 캐시에 없는 문항들. 실제로 모델을 태울 것만 남는다."""
         return [
             item
             for item in items
             if not self._agent_cache.has(
-                self.cache_key(benchmark, item, system_prompt, explorer_prompt)
+                self.cache_key(benchmark, item, system_prompt, explorer_prompt, decision_prompt)
             )
         ]
 
@@ -326,10 +351,12 @@ class Runner:
         stage: str,
         *,
         force: bool = False,
-    ) -> tuple[RunResult, bool, str]:
+        decision_prompt: str | None = None,
+    ) -> tuple[RunResult, bool, str, str, str]:
         # 빈 응답은 캐시에서 꺼내 쓰지 않는다. 대개 일시적 실패라 다시 돌리면 살아난다.
         if not force and (payload := self._agent_cache.get(key)) and (payload.get("answer") or "").strip():
-            return _result_from(payload), True, payload.get("dir", "")
+            return (_result_from(payload), True, payload.get("dir", ""), payload.get("trace_id", ""),
+                    payload.get("trace_path", ""))
 
         # 문항 하나 = 디렉터리 하나.
         #   <stage>/q00022/ trace.jsonl · response.json · explorer.json
@@ -337,19 +364,28 @@ class Runner:
         qdir.mkdir(parents=True, exist_ok=True)
         if force:
             (qdir / "trace.jsonl").unlink(missing_ok=True)
-        trace = Trace(qdir / "trace.jsonl", run_id=f"{stage or 'run'}-q{item.index}")
+        # GEPA 는 같은 문항을 프롬프트만 바꿔 같은 파일에 여러 번 남긴다. 실행마다 id 를 달리한다.
+        trace_id = f"{stage or 'run'}-q{item.index}-{uuid4().hex[:8]}"
+        trace = Trace(qdir / "trace.jsonl", run_id=trace_id)
 
         agent = self.agent
-        if explorer_prompt != agent.explorer_prompt:
-            # GEPA 가 explorer 프롬프트를 바꿔 가며 부른다. 클라이언트는 공유한다.
+        config = self.agent_config(decision_prompt)
+        if explorer_prompt != agent.explorer_prompt or config is not agent.config:
+            # GEPA 가 explorer / decision 프롬프트를 바꿔 가며 부른다. 클라이언트는 공유한다.
             agent = SearchAgent(
                 self.profile,
-                self.agent.config,
+                config,
                 method=self.method,
                 explorer_config=self.explorer_config,
                 explorer_prompt=explorer_prompt,
             )
             agent.llm = self.agent.llm
+            if self.agent.jev is not None:
+                # The decision client holds no instruction text (RawTree reads it from config),
+                # so the prepared shared one serves every variant.
+                if agent.jev is not None and hasattr(agent.jev, "aclose"):
+                    await agent.jev.aclose()
+                agent.jev = self.agent.jev
 
         result = await agent.run(
             benchmark.build_prompt(item), system_prompt or None, tools, trace
@@ -366,6 +402,9 @@ class Runner:
                 "model": self.profile.repo,
                 "system_prompt": system_prompt,
                 "explorer_prompt": explorer_prompt,
+                **({"decision_prompt": config.jev_evidence_instructions}
+                   if config.jev_evidence_instructions else {}),
+                "trace_id": trace_id,
                 **result.as_response(),
             },
         )
@@ -397,8 +436,9 @@ class Runner:
                     "empty_output", "reader_error", "invalid_output", "truncated", "context_limit",
                     "navigation_errors",
                 ))):
-            self._agent_cache.put(key, {**result.as_dict(), "dir": relative})
-        return result, False, relative
+            self._agent_cache.put(key, {**result.as_dict(), "dir": relative, "trace_id": trace_id,
+                                        "trace_path": str((qdir / "trace.jsonl").resolve())})
+        return result, False, relative, trace_id, str((qdir / "trace.jsonl").resolve())
 
     def _grade(self, benchmark: Benchmark, item: Item, answer: str) -> Judgement:
         if not answer.strip():
@@ -431,6 +471,13 @@ class Runner:
 _DEPLOYMENT_ONLY = ("api_key", "base_url", "timeout_s")
 
 
+def decision_override(text: str | None) -> str:
+    """The decision instruction as stored in AgentConfig: "" means the built-in default."""
+    from .rawtree import EVIDENCE_INSTRUCTIONS
+    text = (text or "").strip()
+    return "" if text == EVIDENCE_INSTRUCTIONS else text
+
+
 def _agent_fingerprint(config: AgentConfig) -> str:
     """캐시 키에 들어갈 에이전트 설정. 결과에 영향을 주는 값만 넣는다."""
     values = {k: v for k, v in asdict(config).items() if k not in _DEPLOYMENT_ONLY}
@@ -448,6 +495,9 @@ def _agent_fingerprint(config: AgentConfig) -> str:
                                    LINK_CRITERIA, ENTRY_CRITERIA, ENTRY_NOTE]
         values["jev_input_format"] = INPUT_VERSION
         values["jev_search_followup"] = SEARCH_FOLLOWUP
+    if not decision_override(values.get("jev_evidence_instructions", "")):
+        # Default instruction: keep the cache identities of runs before this field existed.
+        values.pop("jev_evidence_instructions", None)
     if not values.get("adaptive_entry"):
         values.pop("adaptive_entry", None)
     if not values.get("dual_route"):
