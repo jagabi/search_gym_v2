@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 from pathlib import Path
 
@@ -55,7 +55,11 @@ def _check_same_setup(out, config, profile):
         a, b = saved.get(key), current[key]
         if key == "agent":
             a = {k: v for k, v in (a or {}).items() if k not in _DEPLOYMENT_ONLY}
-            b = {k: v for k, v in b.items() if k not in _DEPLOYMENT_ONLY}
+            # A field added after the run started is ignored while it keeps its default
+            # (e.g. jev_evidence_instructions: "" means the built-in instruction).
+            defaults = {f.name: f.default for f in fields(type(config.agent))}
+            b = {k: v for k, v in b.items() if k not in _DEPLOYMENT_ONLY
+                 and (k in a or v != defaults.get(k, object()))}
         if a != b:
             raise ValueError(f"기존 실행과 {key} 설정이 다릅니다. 같은 설정으로 재시도하세요.")
     for filename, prompt in (("prompt.txt", config.system_prompt),
