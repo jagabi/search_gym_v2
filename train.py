@@ -176,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         runner, benchmark, {item.index: item for item in trainset + valset}, config.feedback,
         templates, teacher, native_side_info=base.method in RAW_METHODS,
     )
+    if args.resume and (out / "gepa" / "gepa_state.bin").exists():
+        adapter.skip_seed_eval = (dict(seed), len(valset))
 
     # --- 최적화 -------------------------------------------------------------
 

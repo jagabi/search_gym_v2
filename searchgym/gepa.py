@@ -103,8 +103,21 @@ class SearchAdapter:
 
     # gepa 규약 ------------------------------------------------------------------
 
+    # 이어 돌릴 때 건너뛸 시드 valset 평가: (시드 후보, valset 문항 수). train.py 가 채운다.
+    skip_seed_eval: tuple[dict[str, str], int] | None = None
+
     def evaluate(self, batch: list[Item], candidate: dict[str, str], capture_traces: bool = False):
         from gepa import EvaluationBatch
+
+        # gepa 는 이어 돌릴 때도 시드를 valset 전체로 먼저 평가한 뒤, 저장된 상태를 불러오면서
+        # 그 결과를 버린다(engine.run -> initialize_gepa_state). 실행하지 않고 빈 점수를 준다.
+        if self.skip_seed_eval is not None:
+            seed, size = self.skip_seed_eval
+            if candidate == seed and len(batch) == size and not capture_traces:
+                self.skip_seed_eval = None
+                print("[resume] 시드 valset 평가는 저장된 상태로 대체합니다(실행 안 함).")
+                return EvaluationBatch(outputs=[""] * size, scores=[0.0] * size,
+                                       trajectories=None)
 
         records = self._loop.run(
             self.runner.run_all(
