@@ -35,9 +35,9 @@ from dataclasses import asdict
 from searchgym.agent import RAW_METHODS
 from searchgym.benchmarks import load_benchmark
 from searchgym.config import load_train
-from searchgym.gepa import SearchAdapter, Teacher
+from searchgym.gepa import SearchAdapter, Teacher, Utf8Logger
 from searchgym.judge import Judge
-from searchgym.paths import load_env, run_dir
+from searchgym.paths import load_env, resolve, run_dir
 from searchgym.rawtree import EVIDENCE_INSTRUCTIONS
 from searchgym.report import enable_utf8, quiet_libraries, summarize, table, write_json
 from searchgym.runner import Runner
@@ -57,6 +57,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--bundle-tokens", type=int, default=None, help="decision bundle 크기")
     parser.add_argument("--top-n", type=int, default=None, help="검색당 넘기는 bundle 수")
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument("--resume", default=None, metavar="DIR",
+                        help="멈춘 학습 실행 디렉터리. 같은 설정으로 gepa 상태(DIR/gepa)에서 이어 돈다")
     return parser.parse_args(argv)
 
 
@@ -89,10 +91,16 @@ def main(argv: list[str] | None = None) -> int:
     valset = load_benchmark(config.data.benchmark, config.data.valset).load()
     components = config.component_names
 
-    out = run_dir(
-        "train", base.method, profile.repo, config.data.benchmark,
-        base.run.tag, base.run.output_dir,
-    )
+    if args.resume:
+        out = resolve(args.resume)
+        if not (out / "gepa").is_dir():
+            print(f"{out / 'gepa'} 가 없습니다. 이어 돌릴 gepa 상태가 없습니다.", file=sys.stderr)
+            return 1
+    else:
+        out = run_dir(
+            "train", base.method, profile.repo, config.data.benchmark,
+            base.run.tag, base.run.output_dir,
+        )
     table(
         "설정",
         {
@@ -185,6 +193,9 @@ def main(argv: list[str] | None = None) -> int:
             use_merge=config.gepa.merge,
             max_metric_calls=config.gepa.max_metric_calls,
             run_dir=str(out / "gepa"),
+            # gepa 기본 Logger 는 run_log.txt 를 시스템 인코딩(cp949)으로 열어, 교사 제안에
+            # em dash 같은 문자가 있으면 죽는다.
+            logger=Utf8Logger(out / "gepa" / "run_log.txt"),
             seed=base.run.seed,
             display_progress_bar=True,
             **config.gepa.extra,
