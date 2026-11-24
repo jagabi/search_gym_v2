@@ -54,11 +54,14 @@ def _check_same_setup(out, config, profile):
     for key in current:
         a, b = saved.get(key), current[key]
         if key == "agent":
-            a = {k: v for k, v in (a or {}).items() if k not in _DEPLOYMENT_ONLY}
+            # The decision server's address is deployment too: a retry may run on another
+            # machine. Which model it serves is still checked (jev_model, decision_provider).
+            skip = (*_DEPLOYMENT_ONLY, "jev_base_url")
+            a = {k: v for k, v in (a or {}).items() if k not in skip}
             # A field added after the run started is ignored while it keeps its default
             # (e.g. jev_evidence_instructions: "" means the built-in instruction).
             defaults = {f.name: f.default for f in fields(type(config.agent))}
-            b = {k: v for k, v in b.items() if k not in _DEPLOYMENT_ONLY
+            b = {k: v for k, v in b.items() if k not in skip
                  and (k in a or v != defaults.get(k, object()))}
         if a != b:
             raise ValueError(f"기존 실행과 {key} 설정이 다릅니다. 같은 설정으로 재시도하세요.")
