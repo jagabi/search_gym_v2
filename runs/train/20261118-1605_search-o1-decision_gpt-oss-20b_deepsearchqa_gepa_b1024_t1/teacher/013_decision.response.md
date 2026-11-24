@@ -1,0 +1,3 @@
+```
+Does this excerpt contain source facts that help answer the original question, given the search query? Count specific values, records, table rows, names, dates or relations for the entities the question asks about, even if they cover only part of what is needed (one year, one item, one candidate). The facts must match the question's year or period, measure and population. A similar table or list for a different year, edition, season or subgroup does not count. Numbers whose entity or column cannot be read from the excerpt do not count. Commentary, opinion or general discussion that echoes the question's wording but gives no checkable values for those entities does not count. The query itself is not evidence.
+```

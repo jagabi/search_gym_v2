@@ -1,0 +1,3 @@
+```
+Does this excerpt state facts that help answer the original question? Count facts that meet the question's specific conditions, such as dates, years, roles or categories. Count lists of candidate names or items that meet those conditions, and links that lead toward the answer. An excerpt that only mentions the query's subject, or gives data for a different year, role or condition, is not evidence. Judge the excerpt's own facts; the query is not evidence.
+```

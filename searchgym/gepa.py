@@ -103,8 +103,21 @@ class SearchAdapter:
 
     # gepa 규약 ------------------------------------------------------------------
 
+    # 이어 돌릴 때 건너뛸 시드 valset 평가: (시드 후보, valset 문항 수). train.py 가 채운다.
+    skip_seed_eval: tuple[dict[str, str], int] | None = None
+
     def evaluate(self, batch: list[Item], candidate: dict[str, str], capture_traces: bool = False):
         from gepa import EvaluationBatch
+
+        # gepa 는 이어 돌릴 때도 시드를 valset 전체로 먼저 평가한 뒤, 저장된 상태를 불러오면서
+        # 그 결과를 버린다(engine.run -> initialize_gepa_state). 실행하지 않고 빈 점수를 준다.
+        if self.skip_seed_eval is not None:
+            seed, size = self.skip_seed_eval
+            if candidate == seed and len(batch) == size and not capture_traces:
+                self.skip_seed_eval = None
+                print("[resume] 시드 valset 평가는 저장된 상태로 대체합니다(실행 안 함).")
+                return EvaluationBatch(outputs=[""] * size, scores=[0.0] * size,
+                                       trajectories=None)
 
         records = self._loop.run(
             self.runner.run_all(
@@ -197,6 +210,27 @@ class SearchAdapter:
         )
 
 
+class Utf8Logger:
+    """gepa LoggerProtocol. 콘솔에 찍고 run_log.txt 에 UTF-8 로 덧붙인다.
+
+    gepa 기본 Logger 는 파일을 시스템 인코딩으로 열고 sys.stdout 까지 바꿔 끼운다.
+    한국어 Windows(cp949)에서는 교사 제안의 '—' 하나로 최적화 전체가 죽는다.
+    """
+
+    def __init__(self, path: Path) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.handle = path.open("a", encoding="utf-8")
+
+    def log(self, message: str) -> None:
+        try:
+            print(message)
+        except UnicodeEncodeError:
+            enc = sys.stdout.encoding or "utf-8"
+            print(message.encode(enc, "replace").decode(enc))
+        self.handle.write(message + "\n")
+        self.handle.flush()
+
+
 # --- 교사 ---------------------------------------------------------------------
 
 
@@ -211,7 +245,8 @@ class Teacher:
         self.client = anthropic.Anthropic(max_retries=5)
         self.log_dir = log_dir
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.calls = 0
+        # 이어 돌릴 때 이전 호출 기록을 덮어쓰지 않도록 번호를 이어 간다.
+        self.calls = len(list(self.log_dir.glob("*.json")))
 
     def propose(self, component: str, prompt: str) -> str | None:
         """새 텍스트. 잘렸거나 거절됐거나 코드펜스가 없으면 None(= 현재 텍스트 유지)."""
